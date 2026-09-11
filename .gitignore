@@ -1,0 +1,13 @@
+# Local secrets and per-machine config
+app/config/dev.json
+app/config/*.local.json
+.env
+.env.*
+
+# Supabase CLI local state
+supabase/.temp/
+supabase/.branches/
+
+# Tooling
+node_modules/
+.DS_Store

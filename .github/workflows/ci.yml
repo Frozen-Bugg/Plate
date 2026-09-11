@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  app:
+    name: Flutter app
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.9
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Generate Drift code
+        run: dart run build_runner build
+      - name: Check generated code is committed
+        run: git diff --exit-code -- lib
+      - run: flutter analyze
+      - run: flutter test
+
+  database:
+    name: Supabase migrations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      # Starts Postgres and applies every migration in order: a broken or
+      # out-of-order migration fails here instead of in production.
+      - run: supabase db start
+      - run: supabase db lint --level error
