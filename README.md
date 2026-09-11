@@ -20,7 +20,10 @@ many changes are still queued. The Fuel, Progress and Coach tabs name what arriv
 
 ## Setup
 
-You need a [Supabase](https://supabase.com) project (free tier) and a
+New machine? [req.txt](req.txt) lists the whole toolchain with versions, and
+`bash scripts/setup.sh` installs what it can and tells you the rest.
+
+You also need a [Supabase](https://supabase.com) project (free tier) and a
 [PowerSync](https://powersync.com) instance (free tier). Roughly 20 minutes.
 
 **1. Supabase project.** Create one, then from Project Settings → API copy the project URL and the
