@@ -1,93 +1,117 @@
-# Plate
+# Overload
 
+Personal-first gym app: training log, food log, steps and body metrics feeding one loop, with a
+deterministic growth engine and an AI coach. Full spec: [docs/PLAN.md](docs/PLAN.md).
 
-
-## Getting started
-
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
-
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+**Phase 0 (foundations) is built. Phase 1 (training MVP) is next.**
 
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/aakif.education/plate.git
-git branch -M main
-git push -uf origin main
+app/                Flutter app (Riverpod, go_router, PowerSync + Drift, Supabase auth)
+supabase/           Postgres schema + row-level security migrations
+powersync/          Sync Streams config
+docs/PLAN.md        The spec: features, growth engine, AI coach, data model, roadmap
 ```
 
-## Integrate with your tools
+## What works today
 
-* [Set up project integrations](https://gitlab.com/aakif.education/plate/-/settings/integrations)
+Sign in (Apple, Google, or email and password) → start and finish a workout, on or offline → it syncs to
+Postgres when a connection is back. The sync chip in the app bar and Settings show the state and how
+many changes are still queued. The Fuel, Progress and Coach tabs name what arrives in later phases.
 
-## Collaborate with your team
+## Setup
 
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+New machine? [req.txt](req.txt) lists the whole toolchain with versions, and
+`bash scripts/setup.sh` installs what it can and tells you the rest.
 
-## Test and Deploy
+You also need a [Supabase](https://supabase.com) project (free tier) and a
+[PowerSync](https://powersync.com) instance (free tier). Roughly 20 minutes.
 
-Use the built-in continuous integration in GitLab.
+**1. Supabase project.** Create one, then from Project Settings → API copy the project URL and the
+publishable key.
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
+**2. Push the schema.**
 
-***
+```bash
+npx supabase login
+npx supabase link --project-ref YOUR-PROJECT-REF
+npx supabase db push
+```
 
-# Editing this README
+**3. Email sign-in.** In Auth → Providers, enable Email. Then add yourself under
+Authentication → Users → **Add user**, with *Auto Confirm User* ticked — that's a working account
+with no email delivery involved.
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+Supabase only lets you edit email templates once custom SMTP is configured, and its built-in sender
+is rate-limited to a few messages an hour, so password sign-in is the path of least resistance while
+developing. To move to emailed 6-digit codes later, add custom SMTP (Resend's free tier works), put
+`{{ .Token }}` in the Magic Link template, and switch `AuthService` back to `signInWithOtp` /
+`verifyOTP`. Apple and Google sign-in are independent of all this — see "Native sign-in" below.
 
-## Suggestions for a good README
+**4. PowerSync replication role.** In the Supabase SQL editor, with your own password:
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+```sql
+create role powersync_role with replication bypassrls login password 'YOUR-STRONG-PASSWORD';
+grant select on all tables in schema public to powersync_role;
+alter default privileges in schema public grant select on tables to powersync_role;
+```
 
-## Name
-Choose a self-explaining name for your project.
+The `powersync` publication already exists — the first migration creates it.
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+**5. PowerSync instance.** Create one, connect it to your Supabase database using the
+`powersync_role` credentials, and set client auth to Supabase Auth (it validates the Supabase JWT).
+Then paste [powersync/sync-streams.yaml](powersync/sync-streams.yaml) into the instance's Sync
+Streams config and deploy. Copy the instance URL.
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+**6. App config.**
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+```bash
+cp app/config/dev.example.json app/config/dev.json   # then fill in the three URLs/keys
+cd app && flutter pub get && dart run build_runner build
+flutter run --dart-define-from-file=config/dev.json
+```
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+`config/dev.json` is gitignored. Without it the app opens a screen telling you which values are missing.
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+## Verifying Phase 0
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+The exit test from the roadmap:
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+1. Sign in on your phone.
+2. Turn on airplane mode. The chip in the app bar reads **Offline**.
+3. Train → **Start workout**, then **Finish workout**. Both work with no connection.
+4. Settings shows **Waiting to upload: 2**.
+5. Turn airplane mode off. The chip goes **Syncing** → **Synced** and the count drops to 0.
+6. In Supabase → Table Editor → `sessions`, your row is there.
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+## Native sign-in (optional)
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+- **Apple (iOS):** open `app/ios/Runner.xcworkspace` in Xcode → Signing & Capabilities → add
+  *Sign in with Apple*. Then enable the Apple provider in Supabase Auth with your Service ID.
+- **Google:** create OAuth clients in Google Cloud (iOS + Web), put the web client ID in Supabase's
+  Google provider, and add both IDs to `config/dev.json`. On iOS also add the reversed iOS client ID
+  as a URL scheme in `ios/Runner/Info.plist`. If iOS sign-in fails with a nonce mismatch, turn on
+  "Skip nonce checks" in Supabase's Google provider settings.
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+The app hides the Apple button off iOS and the Google button until its client IDs are configured.
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+## Development
 
-## License
-For open source projects, say how it is licensed.
+From `app/`:
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+```bash
+dart run build_runner build    # after changing Drift tables
+flutter analyze && flutter test
+```
+
+CI runs the same, plus applies every migration to a throwaway Postgres.
+
+## Build tooling on this machine
+
+`flutter doctor` currently reports two gaps, so neither platform can be built here yet:
+
+- **iOS:** needs full Xcode (`xcode-select --switch /Applications/Xcode.app/Contents/Developer`) and
+  CocoaPods.
+- **Android:** needs the `cmdline-tools` component and `flutter doctor --android-licenses`.
+
+Distribution to TestFlight and Play internal testing is not wired up yet: it needs an Apple Developer
+account, an App Store Connect API key and a Play service account.

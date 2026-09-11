@@ -1,0 +1,7 @@
+targets:
+  $default:
+    builders:
+      drift_dev:
+        options:
+          # Postgres timestamptz syncs as text; store DateTimes as ISO-8601 text to match.
+          store_date_time_values_as_text: true

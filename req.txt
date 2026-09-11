@@ -1,0 +1,174 @@
+OVERLOAD — EVERYTHING NEEDED TO RUN AND DEVELOP THIS PROJECT
+============================================================
+
+Dart/Flutter has no requirements.txt: the app's packages live in app/pubspec.yaml
+and are installed with `flutter pub get`. This file covers the toolchain around
+them — what to install on a new machine, in order.
+
+Fast path on macOS:  bash scripts/setup.sh   (installs what it can, checks the rest)
+Verify at any point: cd app && flutter doctor && flutter analyze && flutter test
+
+Versions below are what this project was built and verified with (2026-09-12).
+Newer usually works; older Flutter will not (the code uses Dart 3.11 features).
+
+
+------------------------------------------------------------
+1. REQUIRED TOOLCHAIN
+------------------------------------------------------------
+
+Flutter SDK          3.41.9 (stable)      includes Dart 3.11.5
+  Direct install:    https://docs.flutter.dev/get-started/install
+  Or with fvm 4.0.5: brew tap leoafarias/fvm && brew install fvm && fvm install 3.41.9
+  Check:             flutter --version
+
+Git                  2.54.0               brew install git
+Node.js              24.15.0 (LTS ok)     brew install node
+  npm                11.12.1              ships with Node
+  Used for: npx supabase (schema migrations), optional PGlite SQL checks.
+
+Java JDK             17 (LTS)             brew install --cask temurin@17
+  Required by Gradle for Android builds. Java 21 also works; 17 is what was used.
+  Check:             java -version
+
+Supabase CLI         via npx, no install  npx supabase --version
+  Or global:         brew install supabase/tap/supabase
+
+
+------------------------------------------------------------
+2. ANDROID (to build and run on Android)
+------------------------------------------------------------
+
+Android Studio (easiest way to get the SDK)   brew install --cask android-studio
+Then in Android Studio > SDK Manager install:
+
+  Android SDK Platform            36        (compileSdk/targetSdk = 36)
+  Android SDK Build-Tools         36.0.0
+  Android SDK Command-line Tools  latest    <- flutter doctor fails without this
+  Android SDK Platform-Tools                (adb)
+  Android Emulator
+  NDK                             28.2.13676358   (Flutter's default for 3.41.9)
+  minSdk is 24, so any emulator image API 24+ works. This project used:
+    system image  android-36 / google_apis_playstore / arm64-v8a
+
+Environment (add to ~/.zshrc):
+  export ANDROID_HOME="$HOME/Library/Android/sdk"
+  export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+
+Accept licences:     flutter doctor --android-licenses
+Create an emulator:  flutter emulators --create --name pixel
+Launch it:           flutter emulators --launch pixel
+
+Gradle 8.14 and AGP 8.11.1 / Kotlin 2.2.20 are downloaded automatically by the
+Gradle wrapper on the first build. Nothing to install by hand.
+
+
+------------------------------------------------------------
+3. iOS (to build and run on iPhone — macOS only)
+------------------------------------------------------------
+
+Xcode                latest from the Mac App Store (a full install, not just the
+                     Command Line Tools — Flutter refuses the CLT-only setup)
+  After installing:  sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
+                     sudo xcodebuild -runFirstLaunch
+CocoaPods            brew install cocoapods
+iOS deployment target is 13.0. Sign in with Apple needs a paid Apple Developer
+account and the capability enabled in Xcode (see README).
+
+
+------------------------------------------------------------
+4. ACCOUNTS AND SERVICES
+------------------------------------------------------------
+
+Supabase (free)      https://supabase.com — Postgres, auth, storage.
+  Needed values:     Project URL, publishable key (Project Settings > API)
+  Apply the schema:  npx supabase login
+                     npx supabase link --project-ref YOUR-REF
+                     npx supabase db push
+                     (or paste supabase/migrations/*.sql into the SQL editor)
+
+PowerSync (free)     https://powersync.com — offline-first sync.
+  Needed value:      instance URL
+  Setup:             create the powersync_role in Postgres, connect the instance,
+                     set client auth to Supabase Auth, paste
+                     powersync/sync-streams.yaml into Sync Streams. See README.
+
+Anthropic API        https://console.anthropic.com — only from Phase 4 (the AI
+                     coach service). Not needed to run the app today.
+
+Optional:
+  Google Cloud OAuth clients (iOS + Web)  for Google sign-in
+  Apple Developer account                 for Sign in with Apple
+
+
+------------------------------------------------------------
+5. PROJECT SETUP (after the toolchain is in place)
+------------------------------------------------------------
+
+git clone <your repo>  &&  cd Gym
+
+cp app/config/dev.example.json app/config/dev.json
+  Fill in SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, and POWERSYNC_URL if you have
+  one. This file is gitignored and never committed — copy it across yourself or
+  re-read the values from the dashboards. Without POWERSYNC_URL the app runs
+  local-only; without the two Supabase values it shows a setup screen.
+
+cd app
+flutter pub get                  # installs every package from pubspec.yaml
+dart run build_runner build      # generates Drift code (lib/core/db/app_database.g.dart)
+flutter analyze && flutter test  # should be clean, 9 tests passing
+flutter run --dart-define-from-file=config/dev.json
+
+
+------------------------------------------------------------
+6. APP PACKAGES (installed by `flutter pub get`, listed for reference)
+------------------------------------------------------------
+
+flutter_riverpod 3.3      state management
+go_router 17.5            navigation
+supabase_flutter 2.17     auth and Postgres API
+powersync 2.4             offline-first sync engine
+drift 2.34 + drift_sqlite_async 0.3    typed SQL over the PowerSync database
+path_provider, path, logging, intl, crypto
+google_fonts 8.2          Archivo Narrow + IBM Plex Sans
+sign_in_with_apple 8.1, google_sign_in 7.2
+
+dev: drift_dev 2.34, build_runner 2.15, flutter_lints 6, flutter_test
+
+Exact resolved versions are pinned in app/pubspec.lock, which is committed — run
+`flutter pub get` (not `pub upgrade`) to reproduce this exact set.
+
+
+------------------------------------------------------------
+7. OPTIONAL TOOLS
+------------------------------------------------------------
+
+VS Code + Dart/Flutter extensions, or Android Studio
+gh (GitHub CLI)                brew install gh
+PGlite (Postgres in WASM)      npm i @electric-sql/pglite
+  Lets you test supabase/migrations without Docker. Handy on machines where
+  Docker Desktop isn't installed.
+Docker Desktop                 only if you want a full local Supabase stack
+                               (npx supabase start)
+
+
+------------------------------------------------------------
+8. KNOWN GOTCHAS ON A NEW MACHINE
+------------------------------------------------------------
+
+TLS interception (Zscaler, corporate proxies, some antivirus)
+  Symptom: Gradle can't download from services.gradle.org, and the app fails
+  sign-in with "CERTIFICATE_VERIFY_FAILED: unable to get local issuer
+  certificate". Cause: curl and browsers trust the proxy's CA from the system
+  keychain, but Dart and Java ship their own trust stores and reject it.
+  Fixes: develop off that network, or add the proxy's root CA to Dart's
+  SecurityContext in debug builds and to Java's cacerts.
+
+Gradle wrapper uses the -bin distribution (app/android/gradle/wrapper/
+gradle-wrapper.properties). Keep it that way: -all is a 224 MB download with no
+benefit here.
+
+flutter doctor complaining about cmdline-tools is not cosmetic — Android builds
+fail without it and without accepted licences.
+
+`dart run build_runner build` must be re-run after changing Drift tables in
+app/lib/core/db/tables.dart, or the app won't compile.

@@ -1,0 +1,51 @@
+# PowerSync Sync Streams for Overload.
+# Paste into the PowerSync dashboard (instance → Sync Streams) and deploy.
+#
+# Every stream is auto-subscribed, so a signed-in device receives all of its
+# owner's rows with no client-side subscription code. Soft-deleted rows are
+# filtered out here, so a delete removes the row from every device once synced.
+# Keep this file in step with app/lib/core/db/powersync_schema.dart.
+
+config:
+  edition: 3
+
+streams:
+  profile:
+    auto_subscribe: true
+    query: SELECT * FROM profiles WHERE id = auth.user_id()
+
+  exercise_library:
+    auto_subscribe: true
+    query: SELECT * FROM exercises WHERE user_id IS NULL AND deleted_at IS NULL
+
+  my_exercises:
+    auto_subscribe: true
+    query: SELECT * FROM exercises WHERE user_id = auth.user_id() AND deleted_at IS NULL
+
+  programs:
+    auto_subscribe: true
+    query: SELECT * FROM programs WHERE user_id = auth.user_id() AND deleted_at IS NULL
+
+  mesocycles:
+    auto_subscribe: true
+    query: SELECT * FROM mesocycles WHERE user_id = auth.user_id() AND deleted_at IS NULL
+
+  templates:
+    auto_subscribe: true
+    query: SELECT * FROM templates WHERE user_id = auth.user_id() AND deleted_at IS NULL
+
+  template_exercises:
+    auto_subscribe: true
+    query: SELECT * FROM template_exercises WHERE user_id = auth.user_id() AND deleted_at IS NULL
+
+  sessions:
+    auto_subscribe: true
+    query: SELECT * FROM sessions WHERE user_id = auth.user_id() AND deleted_at IS NULL
+
+  session_exercises:
+    auto_subscribe: true
+    query: SELECT * FROM session_exercises WHERE user_id = auth.user_id() AND deleted_at IS NULL
+
+  sets:
+    auto_subscribe: true
+    query: SELECT * FROM sets WHERE user_id = auth.user_id() AND deleted_at IS NULL
