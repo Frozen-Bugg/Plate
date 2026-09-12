@@ -7,9 +7,11 @@ import '../../app/theme.dart';
 import '../../app/widgets/tab_scaffold.dart';
 import '../../core/db/app_database.dart';
 import '../../core/format.dart';
+import 'exercises_repository.dart';
 import 'live_session.dart';
 import 'logging_repository.dart';
 import 'progression_repository.dart';
+import 'session_detail_screen.dart';
 import 'sessions_repository.dart';
 import 'templates_screen.dart';
 
@@ -261,11 +263,63 @@ class _SessionTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final ended = session.endedAt!;
+    final text = Theme.of(context).textTheme;
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    final summary =
+        ref.watch(sessionSummariesProvider).value?[session.id] ?? emptySummary;
+    final names = ref.watch(exercisesByIdProvider);
+
+    // What was trained, in the order it was trained, and no more of it than
+    // fits on a line. The list used to say only that a workout had happened.
+    final trained = [
+      for (final id in summary.exerciseIds) ?names[id]?.name,
+    ];
+    final shown = trained.take(3).join(' · ');
+    final more = trained.length - 3;
+
     return ListTile(
-      title: Text(formatDay(session.startedAt)),
-      subtitle: Text(
-        '${formatTime(session.startedAt)} · '
-        '${formatDuration(ended.difference(session.startedAt))}',
+      isThreeLine: trained.isNotEmpty,
+      title: Row(
+        children: [
+          Expanded(child: Text(formatDay(session.startedAt))),
+          if (summary.prCount > 0)
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: Text(
+                summary.prCount == 1 ? '1 PR' : '${summary.prCount} PRs',
+                style: text.labelMedium?.copyWith(
+                  color: PillarColors.of(context).move,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+        ],
+      ),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            [
+              formatTime(session.startedAt),
+              formatDuration(ended.difference(session.startedAt)),
+              if (summary.setCount > 0)
+                '${summary.setCount} ${summary.setCount == 1 ? 'set' : 'sets'}',
+              if (summary.volumeKg > 0) '${summary.volumeKg.round()} kg',
+            ].join(' · '),
+          ),
+          if (trained.isNotEmpty)
+            Text(
+              more > 0 ? '$shown  +$more more' : shown,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: text.labelSmall?.copyWith(color: muted),
+            ),
+        ],
+      ),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => SessionDetailScreen(session: session),
+        ),
       ),
       trailing: PopupMenuButton<_SessionAction>(
         tooltip: 'More',

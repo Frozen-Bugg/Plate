@@ -138,6 +138,113 @@ class LoggingRepository {
     return id;
   }
 
+  /// Everything logged in one session: its exercises in order, each with the
+  /// sets done against it.
+  ///
+  /// One joined query rather than one per exercise, and a left join so an
+  /// exercise that was set up and then abandoned still appears — that it was
+  /// started and dropped is information too.
+  Stream<List<LoggedExercise>> watchSession(String sessionId) {
+    final query = _db.select(_db.sessionExercises).join([
+      leftOuterJoin(
+        _db.workoutSets,
+        _db.workoutSets.sessionExerciseId.equalsExp(_db.sessionExercises.id) &
+            _db.workoutSets.deletedAt.isNull(),
+      ),
+    ])
+      ..where(_db.sessionExercises.sessionId.equals(sessionId) &
+          _db.sessionExercises.userId.equals(_userId) &
+          _db.sessionExercises.deletedAt.isNull())
+      ..orderBy([
+        OrderingTerm.asc(_db.sessionExercises.position),
+        OrderingTerm.asc(_db.workoutSets.setIndex),
+      ]);
+
+    // Watching a join means the stream re-emits when *either* table changes,
+    // which is what a screen showing sets inside exercises needs.
+    return query.watch().map(_group);
+  }
+
+  /// A summary of every session, keyed by session id.
+  ///
+  /// Summarised in one query rather than one per session: fifty sessions on the
+  /// Train screen would otherwise be a hundred round-trips every time a set is
+  /// logged.
+  Stream<Map<String, SessionSummary>> watchSummaries() {
+    final query = _db.select(_db.sessionExercises).join([
+      leftOuterJoin(
+        _db.workoutSets,
+        _db.workoutSets.sessionExerciseId.equalsExp(_db.sessionExercises.id) &
+            _db.workoutSets.deletedAt.isNull(),
+      ),
+    ])
+      ..where(_db.sessionExercises.userId.equals(_userId) &
+          _db.sessionExercises.deletedAt.isNull())
+      ..orderBy([OrderingTerm.asc(_db.sessionExercises.position)]);
+
+    return query.watch().map((rows) {
+      final summaries = <String, SessionSummary>{};
+      final counted = <String>{};
+
+      for (final row in rows) {
+        final exercise = row.readTable(_db.sessionExercises);
+        final current = summaries[exercise.sessionId] ?? emptySummary;
+
+        // A left join repeats the exercise once per set, so its id must only
+        // be added the first time it is seen.
+        final first = counted.add(exercise.id);
+        final set = row.readTableOrNull(_db.workoutSets);
+
+        var volume = current.volumeKg;
+        if (set != null) {
+          if (set.reps case final reps? when reps > 0) {
+            volume += (set.weightKg ?? 0) * reps;
+          }
+        }
+        final best = switch ((current.bestE1rmKg, set?.e1rmKg)) {
+          (final a?, final b?) => a > b ? a : b,
+          (final a?, null) => a,
+          (null, final b?) => b,
+          _ => null,
+        };
+
+        summaries[exercise.sessionId] = (
+          exerciseIds: first
+              ? [...current.exerciseIds, exercise.exerciseId]
+              : current.exerciseIds,
+          setCount: current.setCount + (set == null ? 0 : 1),
+          volumeKg: volume,
+          prCount: current.prCount + (set != null && set.isPr ? 1 : 0),
+          bestE1rmKg: best,
+        );
+      }
+      return summaries;
+    });
+  }
+
+  /// Folds a joined exercise/set result back into nested lists.
+  List<LoggedExercise> _group(List<TypedResult> rows) {
+    final order = <String>[];
+    final exercises = <String, SessionExercise>{};
+    final sets = <String, List<WorkoutSet>>{};
+
+    for (final row in rows) {
+      final exercise = row.readTable(_db.sessionExercises);
+      if (!exercises.containsKey(exercise.id)) {
+        exercises[exercise.id] = exercise;
+        sets[exercise.id] = [];
+        order.add(exercise.id);
+      }
+      if (row.readTableOrNull(_db.workoutSets) case final set?) {
+        sets[exercise.id]!.add(set);
+      }
+    }
+
+    return [
+      for (final id in order) (exercise: exercises[id]!, sets: sets[id]!),
+    ];
+  }
+
   Future<void> deleteSet(String setId) =>
       (_db.update(_db.workoutSets)..where((s) => s.id.equals(setId))).write(
         WorkoutSetsCompanion(
@@ -164,4 +271,42 @@ final sessionExercisesProvider =
 final setsProvider = StreamProvider.family<List<WorkoutSet>, String>(
   (ref, sessionExerciseId) =>
       ref.watch(loggingRepositoryProvider).watchSets(sessionExerciseId),
+);
+
+/// What a finished session amounted to.
+///
+/// History used to show only that a workout happened, and for how long. "Sat 12
+/// Sep, 52 min" is a receipt, not a training log: it cannot answer what was
+/// trained, how heavy, or whether it beat last week — which is the entire
+/// reason for keeping one.
+typedef SessionSummary = ({
+  List<String> exerciseIds,
+  int setCount,
+  double volumeKg,
+  int prCount,
+  double? bestE1rmKg,
+});
+
+const emptySummary = (
+  exerciseIds: <String>[],
+  setCount: 0,
+  volumeKg: 0.0,
+  prCount: 0,
+  bestE1rmKg: null,
+);
+
+/// One session's exercises with their sets, in the order they were trained.
+typedef LoggedExercise = ({SessionExercise exercise, List<WorkoutSet> sets});
+
+/// One row per session, for the whole history list.
+final sessionSummariesProvider =
+    StreamProvider<Map<String, SessionSummary>>((ref) {
+  return ref.watch(loggingRepositoryProvider).watchSummaries();
+});
+
+/// One session in full, for the detail screen.
+final sessionDetailProvider =
+    StreamProvider.family<List<LoggedExercise>, String>(
+  (ref, sessionId) =>
+      ref.watch(loggingRepositoryProvider).watchSession(sessionId),
 );
