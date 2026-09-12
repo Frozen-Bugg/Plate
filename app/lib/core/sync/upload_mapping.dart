@@ -12,6 +12,8 @@ const jsonColumns = <String, Set<String>>{
 const boolColumns = <String, Set<String>>{
   'exercises': {'unilateral'},
   'sets': {'is_pr'},
+  'foods': {'favourite'},
+  'recipes': {'favourite'},
 };
 
 /// Converts a PowerSync CRUD payload for [table] into the JSON body Supabase expects.
