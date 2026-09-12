@@ -11035,6 +11035,527 @@ class DailyRollupsCompanion extends UpdateCompanion<DailyRollup> {
   }
 }
 
+class $SyncRejectionsTable extends SyncRejections
+    with TableInfo<$SyncRejectionsTable, SyncRejection> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SyncRejectionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    clientDefault: () => uuid.v7(),
+  );
+  static const VerificationMeta _rejectedTableMeta = const VerificationMeta(
+    'rejectedTable',
+  );
+  @override
+  late final GeneratedColumn<String> rejectedTable = GeneratedColumn<String>(
+    'table_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _rowIdMeta = const VerificationMeta('rowId');
+  @override
+  late final GeneratedColumn<String> rowId = GeneratedColumn<String>(
+    'row_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _opMeta = const VerificationMeta('op');
+  @override
+  late final GeneratedColumn<String> op = GeneratedColumn<String>(
+    'op',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _codeMeta = const VerificationMeta('code');
+  @override
+  late final GeneratedColumn<String> code = GeneratedColumn<String>(
+    'code',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _messageMeta = const VerificationMeta(
+    'message',
+  );
+  @override
+  late final GeneratedColumn<String> message = GeneratedColumn<String>(
+    'message',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _occurredAtMeta = const VerificationMeta(
+    'occurredAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> occurredAt = GeneratedColumn<DateTime>(
+    'occurred_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    clientDefault: nowUtc,
+  );
+  static const VerificationMeta _acknowledgedMeta = const VerificationMeta(
+    'acknowledged',
+  );
+  @override
+  late final GeneratedColumn<bool> acknowledged = GeneratedColumn<bool>(
+    'acknowledged',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("acknowledged" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    rejectedTable,
+    rowId,
+    op,
+    code,
+    message,
+    occurredAt,
+    acknowledged,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'sync_rejections';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SyncRejection> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('table_name')) {
+      context.handle(
+        _rejectedTableMeta,
+        rejectedTable.isAcceptableOrUnknown(
+          data['table_name']!,
+          _rejectedTableMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_rejectedTableMeta);
+    }
+    if (data.containsKey('row_id')) {
+      context.handle(
+        _rowIdMeta,
+        rowId.isAcceptableOrUnknown(data['row_id']!, _rowIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_rowIdMeta);
+    }
+    if (data.containsKey('op')) {
+      context.handle(_opMeta, op.isAcceptableOrUnknown(data['op']!, _opMeta));
+    } else if (isInserting) {
+      context.missing(_opMeta);
+    }
+    if (data.containsKey('code')) {
+      context.handle(
+        _codeMeta,
+        code.isAcceptableOrUnknown(data['code']!, _codeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_codeMeta);
+    }
+    if (data.containsKey('message')) {
+      context.handle(
+        _messageMeta,
+        message.isAcceptableOrUnknown(data['message']!, _messageMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_messageMeta);
+    }
+    if (data.containsKey('occurred_at')) {
+      context.handle(
+        _occurredAtMeta,
+        occurredAt.isAcceptableOrUnknown(data['occurred_at']!, _occurredAtMeta),
+      );
+    }
+    if (data.containsKey('acknowledged')) {
+      context.handle(
+        _acknowledgedMeta,
+        acknowledged.isAcceptableOrUnknown(
+          data['acknowledged']!,
+          _acknowledgedMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  SyncRejection map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SyncRejection(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      rejectedTable: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}table_name'],
+      )!,
+      rowId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}row_id'],
+      )!,
+      op: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}op'],
+      )!,
+      code: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}code'],
+      )!,
+      message: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}message'],
+      )!,
+      occurredAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}occurred_at'],
+      )!,
+      acknowledged: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}acknowledged'],
+      )!,
+    );
+  }
+
+  @override
+  $SyncRejectionsTable createAlias(String alias) {
+    return $SyncRejectionsTable(attachedDatabase, alias);
+  }
+}
+
+class SyncRejection extends DataClass implements Insertable<SyncRejection> {
+  final String id;
+
+  /// Named for SQL rather than Dart:  is Drift's own.
+  final String rejectedTable;
+  final String rowId;
+
+  /// 'put', 'patch' or 'delete'.
+  final String op;
+
+  /// The SQLSTATE Postgres returned, e.g. 23505.
+  final String code;
+  final String message;
+  final DateTime occurredAt;
+
+  /// Whether the lifter has seen it. Dismissing does not un-lose the write; it
+  /// only stops the app shouting about one they have already dealt with.
+  final bool acknowledged;
+  const SyncRejection({
+    required this.id,
+    required this.rejectedTable,
+    required this.rowId,
+    required this.op,
+    required this.code,
+    required this.message,
+    required this.occurredAt,
+    required this.acknowledged,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['table_name'] = Variable<String>(rejectedTable);
+    map['row_id'] = Variable<String>(rowId);
+    map['op'] = Variable<String>(op);
+    map['code'] = Variable<String>(code);
+    map['message'] = Variable<String>(message);
+    map['occurred_at'] = Variable<DateTime>(occurredAt);
+    map['acknowledged'] = Variable<bool>(acknowledged);
+    return map;
+  }
+
+  SyncRejectionsCompanion toCompanion(bool nullToAbsent) {
+    return SyncRejectionsCompanion(
+      id: Value(id),
+      rejectedTable: Value(rejectedTable),
+      rowId: Value(rowId),
+      op: Value(op),
+      code: Value(code),
+      message: Value(message),
+      occurredAt: Value(occurredAt),
+      acknowledged: Value(acknowledged),
+    );
+  }
+
+  factory SyncRejection.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SyncRejection(
+      id: serializer.fromJson<String>(json['id']),
+      rejectedTable: serializer.fromJson<String>(json['rejectedTable']),
+      rowId: serializer.fromJson<String>(json['rowId']),
+      op: serializer.fromJson<String>(json['op']),
+      code: serializer.fromJson<String>(json['code']),
+      message: serializer.fromJson<String>(json['message']),
+      occurredAt: serializer.fromJson<DateTime>(json['occurredAt']),
+      acknowledged: serializer.fromJson<bool>(json['acknowledged']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'rejectedTable': serializer.toJson<String>(rejectedTable),
+      'rowId': serializer.toJson<String>(rowId),
+      'op': serializer.toJson<String>(op),
+      'code': serializer.toJson<String>(code),
+      'message': serializer.toJson<String>(message),
+      'occurredAt': serializer.toJson<DateTime>(occurredAt),
+      'acknowledged': serializer.toJson<bool>(acknowledged),
+    };
+  }
+
+  SyncRejection copyWith({
+    String? id,
+    String? rejectedTable,
+    String? rowId,
+    String? op,
+    String? code,
+    String? message,
+    DateTime? occurredAt,
+    bool? acknowledged,
+  }) => SyncRejection(
+    id: id ?? this.id,
+    rejectedTable: rejectedTable ?? this.rejectedTable,
+    rowId: rowId ?? this.rowId,
+    op: op ?? this.op,
+    code: code ?? this.code,
+    message: message ?? this.message,
+    occurredAt: occurredAt ?? this.occurredAt,
+    acknowledged: acknowledged ?? this.acknowledged,
+  );
+  SyncRejection copyWithCompanion(SyncRejectionsCompanion data) {
+    return SyncRejection(
+      id: data.id.present ? data.id.value : this.id,
+      rejectedTable: data.rejectedTable.present
+          ? data.rejectedTable.value
+          : this.rejectedTable,
+      rowId: data.rowId.present ? data.rowId.value : this.rowId,
+      op: data.op.present ? data.op.value : this.op,
+      code: data.code.present ? data.code.value : this.code,
+      message: data.message.present ? data.message.value : this.message,
+      occurredAt: data.occurredAt.present
+          ? data.occurredAt.value
+          : this.occurredAt,
+      acknowledged: data.acknowledged.present
+          ? data.acknowledged.value
+          : this.acknowledged,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SyncRejection(')
+          ..write('id: $id, ')
+          ..write('rejectedTable: $rejectedTable, ')
+          ..write('rowId: $rowId, ')
+          ..write('op: $op, ')
+          ..write('code: $code, ')
+          ..write('message: $message, ')
+          ..write('occurredAt: $occurredAt, ')
+          ..write('acknowledged: $acknowledged')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    rejectedTable,
+    rowId,
+    op,
+    code,
+    message,
+    occurredAt,
+    acknowledged,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SyncRejection &&
+          other.id == this.id &&
+          other.rejectedTable == this.rejectedTable &&
+          other.rowId == this.rowId &&
+          other.op == this.op &&
+          other.code == this.code &&
+          other.message == this.message &&
+          other.occurredAt == this.occurredAt &&
+          other.acknowledged == this.acknowledged);
+}
+
+class SyncRejectionsCompanion extends UpdateCompanion<SyncRejection> {
+  final Value<String> id;
+  final Value<String> rejectedTable;
+  final Value<String> rowId;
+  final Value<String> op;
+  final Value<String> code;
+  final Value<String> message;
+  final Value<DateTime> occurredAt;
+  final Value<bool> acknowledged;
+  final Value<int> rowid;
+  const SyncRejectionsCompanion({
+    this.id = const Value.absent(),
+    this.rejectedTable = const Value.absent(),
+    this.rowId = const Value.absent(),
+    this.op = const Value.absent(),
+    this.code = const Value.absent(),
+    this.message = const Value.absent(),
+    this.occurredAt = const Value.absent(),
+    this.acknowledged = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SyncRejectionsCompanion.insert({
+    this.id = const Value.absent(),
+    required String rejectedTable,
+    required String rowId,
+    required String op,
+    required String code,
+    required String message,
+    this.occurredAt = const Value.absent(),
+    this.acknowledged = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : rejectedTable = Value(rejectedTable),
+       rowId = Value(rowId),
+       op = Value(op),
+       code = Value(code),
+       message = Value(message);
+  static Insertable<SyncRejection> custom({
+    Expression<String>? id,
+    Expression<String>? rejectedTable,
+    Expression<String>? rowId,
+    Expression<String>? op,
+    Expression<String>? code,
+    Expression<String>? message,
+    Expression<DateTime>? occurredAt,
+    Expression<bool>? acknowledged,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (rejectedTable != null) 'table_name': rejectedTable,
+      if (rowId != null) 'row_id': rowId,
+      if (op != null) 'op': op,
+      if (code != null) 'code': code,
+      if (message != null) 'message': message,
+      if (occurredAt != null) 'occurred_at': occurredAt,
+      if (acknowledged != null) 'acknowledged': acknowledged,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SyncRejectionsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? rejectedTable,
+    Value<String>? rowId,
+    Value<String>? op,
+    Value<String>? code,
+    Value<String>? message,
+    Value<DateTime>? occurredAt,
+    Value<bool>? acknowledged,
+    Value<int>? rowid,
+  }) {
+    return SyncRejectionsCompanion(
+      id: id ?? this.id,
+      rejectedTable: rejectedTable ?? this.rejectedTable,
+      rowId: rowId ?? this.rowId,
+      op: op ?? this.op,
+      code: code ?? this.code,
+      message: message ?? this.message,
+      occurredAt: occurredAt ?? this.occurredAt,
+      acknowledged: acknowledged ?? this.acknowledged,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (rejectedTable.present) {
+      map['table_name'] = Variable<String>(rejectedTable.value);
+    }
+    if (rowId.present) {
+      map['row_id'] = Variable<String>(rowId.value);
+    }
+    if (op.present) {
+      map['op'] = Variable<String>(op.value);
+    }
+    if (code.present) {
+      map['code'] = Variable<String>(code.value);
+    }
+    if (message.present) {
+      map['message'] = Variable<String>(message.value);
+    }
+    if (occurredAt.present) {
+      map['occurred_at'] = Variable<DateTime>(occurredAt.value);
+    }
+    if (acknowledged.present) {
+      map['acknowledged'] = Variable<bool>(acknowledged.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SyncRejectionsCompanion(')
+          ..write('id: $id, ')
+          ..write('rejectedTable: $rejectedTable, ')
+          ..write('rowId: $rowId, ')
+          ..write('op: $op, ')
+          ..write('code: $code, ')
+          ..write('message: $message, ')
+          ..write('occurredAt: $occurredAt, ')
+          ..write('acknowledged: $acknowledged, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -11059,6 +11580,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $RecoveryDaysTable recoveryDays = $RecoveryDaysTable(this);
   late final $ProgressPhotosTable progressPhotos = $ProgressPhotosTable(this);
   late final $DailyRollupsTable dailyRollups = $DailyRollupsTable(this);
+  late final $SyncRejectionsTable syncRejections = $SyncRejectionsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -11079,6 +11601,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     recoveryDays,
     progressPhotos,
     dailyRollups,
+    syncRejections,
   ];
   @override
   DriftDatabaseOptions get options =>
@@ -16358,6 +16881,271 @@ typedef $$DailyRollupsTableProcessedTableManager =
       DailyRollup,
       PrefetchHooks Function()
     >;
+typedef $$SyncRejectionsTableCreateCompanionBuilder =
+    SyncRejectionsCompanion Function({
+      Value<String> id,
+      required String rejectedTable,
+      required String rowId,
+      required String op,
+      required String code,
+      required String message,
+      Value<DateTime> occurredAt,
+      Value<bool> acknowledged,
+      Value<int> rowid,
+    });
+typedef $$SyncRejectionsTableUpdateCompanionBuilder =
+    SyncRejectionsCompanion Function({
+      Value<String> id,
+      Value<String> rejectedTable,
+      Value<String> rowId,
+      Value<String> op,
+      Value<String> code,
+      Value<String> message,
+      Value<DateTime> occurredAt,
+      Value<bool> acknowledged,
+      Value<int> rowid,
+    });
+
+class $$SyncRejectionsTableFilterComposer
+    extends Composer<_$AppDatabase, $SyncRejectionsTable> {
+  $$SyncRejectionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get rejectedTable => $composableBuilder(
+    column: $table.rejectedTable,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get rowId => $composableBuilder(
+    column: $table.rowId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get op => $composableBuilder(
+    column: $table.op,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get code => $composableBuilder(
+    column: $table.code,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get message => $composableBuilder(
+    column: $table.message,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get occurredAt => $composableBuilder(
+    column: $table.occurredAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get acknowledged => $composableBuilder(
+    column: $table.acknowledged,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$SyncRejectionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $SyncRejectionsTable> {
+  $$SyncRejectionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get rejectedTable => $composableBuilder(
+    column: $table.rejectedTable,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get rowId => $composableBuilder(
+    column: $table.rowId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get op => $composableBuilder(
+    column: $table.op,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get code => $composableBuilder(
+    column: $table.code,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get message => $composableBuilder(
+    column: $table.message,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get occurredAt => $composableBuilder(
+    column: $table.occurredAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get acknowledged => $composableBuilder(
+    column: $table.acknowledged,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SyncRejectionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SyncRejectionsTable> {
+  $$SyncRejectionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get rejectedTable => $composableBuilder(
+    column: $table.rejectedTable,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get rowId =>
+      $composableBuilder(column: $table.rowId, builder: (column) => column);
+
+  GeneratedColumn<String> get op =>
+      $composableBuilder(column: $table.op, builder: (column) => column);
+
+  GeneratedColumn<String> get code =>
+      $composableBuilder(column: $table.code, builder: (column) => column);
+
+  GeneratedColumn<String> get message =>
+      $composableBuilder(column: $table.message, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get occurredAt => $composableBuilder(
+    column: $table.occurredAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get acknowledged => $composableBuilder(
+    column: $table.acknowledged,
+    builder: (column) => column,
+  );
+}
+
+class $$SyncRejectionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SyncRejectionsTable,
+          SyncRejection,
+          $$SyncRejectionsTableFilterComposer,
+          $$SyncRejectionsTableOrderingComposer,
+          $$SyncRejectionsTableAnnotationComposer,
+          $$SyncRejectionsTableCreateCompanionBuilder,
+          $$SyncRejectionsTableUpdateCompanionBuilder,
+          (
+            SyncRejection,
+            BaseReferences<_$AppDatabase, $SyncRejectionsTable, SyncRejection>,
+          ),
+          SyncRejection,
+          PrefetchHooks Function()
+        > {
+  $$SyncRejectionsTableTableManager(
+    _$AppDatabase db,
+    $SyncRejectionsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SyncRejectionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SyncRejectionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SyncRejectionsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> rejectedTable = const Value.absent(),
+                Value<String> rowId = const Value.absent(),
+                Value<String> op = const Value.absent(),
+                Value<String> code = const Value.absent(),
+                Value<String> message = const Value.absent(),
+                Value<DateTime> occurredAt = const Value.absent(),
+                Value<bool> acknowledged = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SyncRejectionsCompanion(
+                id: id,
+                rejectedTable: rejectedTable,
+                rowId: rowId,
+                op: op,
+                code: code,
+                message: message,
+                occurredAt: occurredAt,
+                acknowledged: acknowledged,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                required String rejectedTable,
+                required String rowId,
+                required String op,
+                required String code,
+                required String message,
+                Value<DateTime> occurredAt = const Value.absent(),
+                Value<bool> acknowledged = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SyncRejectionsCompanion.insert(
+                id: id,
+                rejectedTable: rejectedTable,
+                rowId: rowId,
+                op: op,
+                code: code,
+                message: message,
+                occurredAt: occurredAt,
+                acknowledged: acknowledged,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$SyncRejectionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SyncRejectionsTable,
+      SyncRejection,
+      $$SyncRejectionsTableFilterComposer,
+      $$SyncRejectionsTableOrderingComposer,
+      $$SyncRejectionsTableAnnotationComposer,
+      $$SyncRejectionsTableCreateCompanionBuilder,
+      $$SyncRejectionsTableUpdateCompanionBuilder,
+      (
+        SyncRejection,
+        BaseReferences<_$AppDatabase, $SyncRejectionsTable, SyncRejection>,
+      ),
+      SyncRejection,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -16392,4 +17180,6 @@ class $AppDatabaseManager {
       $$ProgressPhotosTableTableManager(_db, _db.progressPhotos);
   $$DailyRollupsTableTableManager get dailyRollups =>
       $$DailyRollupsTableTableManager(_db, _db.dailyRollups);
+  $$SyncRejectionsTableTableManager get syncRejections =>
+      $$SyncRejectionsTableTableManager(_db, _db.syncRejections);
 }

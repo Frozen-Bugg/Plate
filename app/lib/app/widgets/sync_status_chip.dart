@@ -6,6 +6,7 @@ import 'package:powersync/powersync.dart';
 import '../../core/config/app_config.dart';
 import '../../core/db/database_providers.dart';
 import '../../core/sync/sync_error_tracker.dart';
+import '../../core/sync/sync_rejections.dart';
 import '../router.dart';
 import '../theme.dart';
 
@@ -17,13 +18,20 @@ enum SyncState {
   connecting('Connecting'),
   syncing('Syncing'),
   synced('Synced'),
-  error('Sync error');
+  error('Sync error'),
+
+  /// Postgres refused a write and it was dropped from the queue.
+  rejected('Not saved');
 
   const SyncState(this.label);
   final String label;
 
   /// Offline wins over errors: a failed request while offline is expected,
   /// and PowerSync retries on its own once the connection is back.
+  ///
+  /// A rejection wins over everything. Offline and error are states the app
+  /// gets itself out of; a rejected write is already gone, and no amount of
+  /// waiting brings it back.
   ///
   /// [hasLiveError] must describe a failure that has not been followed by a
   /// successful sync, not merely the presence of `SyncStatus.anyError` — that
@@ -35,7 +43,9 @@ enum SyncState {
     required bool downloading,
     required bool? hasSynced,
     required bool hasLiveError,
+    bool hasRejections = false,
   }) {
+    if (hasRejections) return SyncState.rejected;
     if (connecting) return SyncState.connecting;
     if (!connected) return SyncState.offline;
     if (hasLiveError) return SyncState.error;
@@ -43,7 +53,11 @@ enum SyncState {
     return SyncState.synced;
   }
 
-  static SyncState of(SyncStatus? status, {required bool hasLiveError}) =>
+  static SyncState of(
+    SyncStatus? status, {
+    required bool hasLiveError,
+    bool hasRejections = false,
+  }) =>
       !AppConfig.syncConfigured
       ? SyncState.localOnly
       : status == null
@@ -55,6 +69,7 @@ enum SyncState {
           downloading: status.downloading,
           hasSynced: status.hasSynced,
           hasLiveError: hasLiveError,
+          hasRejections: hasRejections,
         );
 }
 
@@ -68,13 +83,15 @@ class SyncStatusChip extends ConsumerWidget {
     final state = SyncState.of(
       ref.watch(syncStatusProvider).value,
       hasLiveError: ref.watch(syncHasLiveErrorProvider),
+      hasRejections:
+          (ref.watch(outstandingRejectionsProvider).value ?? const []).isNotEmpty,
     );
     final pillars = PillarColors.of(context);
     final scheme = Theme.of(context).colorScheme;
     final dot = switch (state) {
       SyncState.synced => pillars.fuel,
       SyncState.syncing || SyncState.connecting => pillars.move,
-      SyncState.error => scheme.error,
+      SyncState.error || SyncState.rejected => scheme.error,
       SyncState.offline || SyncState.starting || SyncState.localOnly =>
         scheme.outline,
     };

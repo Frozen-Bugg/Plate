@@ -279,3 +279,32 @@ class DailyRollups extends Table with SyncedRow {
 
   TextColumn get phase => text().nullable()();
 }
+
+/// An upload Postgres refused and PowerSync therefore dropped.
+///
+/// Local only — the write never reached the server, so a record of it has
+/// nowhere to sync to. It exists so that a rejection is something the lifter
+/// can see rather than a line in a log file nobody reads.
+@DataClassName('SyncRejection')
+class SyncRejections extends Table {
+  TextColumn get id => text().clientDefault(() => uuid.v7())();
+  /// The table the write was headed for. Named for SQL rather than for Dart,
+  /// because `tableName` is Drift's own.
+  TextColumn get rejectedTable => text().named('table_name')();
+  TextColumn get rowId => text()();
+
+  /// 'put', 'patch' or 'delete'.
+  TextColumn get op => text()();
+
+  /// The SQLSTATE Postgres returned, e.g. 23505.
+  TextColumn get code => text()();
+  TextColumn get message => text()();
+  DateTimeColumn get occurredAt => dateTime().clientDefault(nowUtc)();
+
+  /// Whether the lifter has seen it. Dismissing does not un-lose the write; it
+  /// only stops the app shouting about one they have already dealt with.
+  BoolColumn get acknowledged => boolean().withDefault(const Constant(false))();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}

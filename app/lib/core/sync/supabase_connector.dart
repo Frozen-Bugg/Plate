@@ -77,13 +77,47 @@ class SupabaseConnector extends PowerSyncBackendConnector {
     } on PostgrestException catch (e) {
       final code = e.code;
       if (code != null && _fatalResponseCodes.any((re) => re.hasMatch(code))) {
-        // A bug in the app, not a network problem. Log loudly and move on so
-        // the rest of the queue can sync.
+        // A bug in the app or in the schema, not a network problem. Retrying
+        // would block every later write behind it forever, so the queue moves
+        // on — but the write is gone, and the device now holds a row Postgres
+        // has never seen. That divergence is invisible from the outside, so
+        // record it where the app can show it.
         _log.severe('Discarding upload that Postgres rejected: $lastOp', e);
+        await _recordRejection(database, lastOp, e);
         await transaction.complete();
       } else {
         rethrow; // Retryable: PowerSync calls uploadData again after a delay.
       }
+    }
+  }
+
+  /// Files a dropped write in the local-only `sync_rejections` table.
+  ///
+  /// Best-effort by design: if this insert fails too, the upload queue still
+  /// has to move on. A rejection nobody could record is no worse than the
+  /// silence this replaced.
+  Future<void> _recordRejection(
+    PowerSyncDatabase database,
+    CrudEntry? op,
+    PostgrestException e,
+  ) async {
+    try {
+      await database.execute(
+        'INSERT INTO sync_rejections '
+        '(id, table_name, row_id, op, code, message, occurred_at, acknowledged) '
+        'VALUES (?, ?, ?, ?, ?, ?, ?, 0)',
+        [
+          uuid.v7(),
+          op?.table ?? 'unknown',
+          op?.id ?? '',
+          op?.op.toJson() ?? 'unknown',
+          e.code ?? '',
+          e.message,
+          DateTime.now().toUtc().toIso8601String(),
+        ],
+      );
+    } catch (error, stack) {
+      _log.severe('Could not record a rejected upload', error, stack);
     }
   }
 }

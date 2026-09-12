@@ -8,6 +8,7 @@ import '../../core/config/app_config.dart';
 import '../../core/db/database_providers.dart';
 import '../../core/format.dart';
 import '../../core/profile/profile_repository.dart';
+import '../../core/sync/sync_rejections.dart';
 import '../body/health_connect_tile.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -48,7 +49,14 @@ class SettingsScreen extends ConsumerWidget {
     final status = ref.watch(syncStatusProvider).value;
     final pending = ref.watch(pendingUploadsProvider).value;
     final hasLiveError = ref.watch(syncHasLiveErrorProvider);
-    final state = SyncState.of(status, hasLiveError: hasLiveError);
+    final rejections =
+        ref.watch(outstandingRejectionsProvider).value ?? const [];
+    // Same inputs as the chip, so the two never disagree about what is wrong.
+    final state = SyncState.of(
+      status,
+      hasLiveError: hasLiveError,
+      hasRejections: rejections.isNotEmpty,
+    );
     final text = Theme.of(context).textTheme;
     final provider = user?.appMetadata['provider'] as String?;
 
@@ -106,6 +114,7 @@ class SettingsScreen extends ConsumerWidget {
               title: const Text('Sync error'),
               subtitle: Text('$error'),
             ),
+          const _Rejections(),
           const SizedBox(height: 24),
           ListTile(
             leading: const Icon(Icons.logout),
@@ -173,6 +182,76 @@ class _PhasePicker extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Writes Postgres refused, which are gone rather than pending.
+///
+/// Shown in full rather than as a count. "3 changes failed" invites ignoring;
+/// "3 sets and 1 weigh-in" tells the lifter what to check and, if it matters
+/// enough, re-enter. Dismissing does not recover anything — nothing here can —
+/// so the wording says so plainly instead of offering a retry that would fail
+/// the same way.
+class _Rejections extends ConsumerWidget {
+  const _Rejections();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    final rejections =
+        ref.watch(outstandingRejectionsProvider).value ?? const [];
+    if (rejections.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ListTile(
+          leading: Icon(Icons.cloud_off_outlined, color: scheme.error),
+          title: const Text('Not saved to the server'),
+          subtitle: Text(
+            'The server refused ${summariseRejections(rejections)}. '
+            'They are still on this phone, but no other device will get them '
+            'and a reinstall would lose them.',
+          ),
+        ),
+        for (final rejection in rejections.take(5))
+          Padding(
+            padding: const EdgeInsets.fromLTRB(72, 0, 16, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(describeRejection(rejection), style: text.bodySmall),
+                Text(
+                  '${rejection.rejectedTable} · ${rejection.code} · '
+                  '${formatAgo(rejection.occurredAt)}',
+                  style: text.labelSmall
+                      ?.copyWith(color: scheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+        if (rejections.length > 5)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(72, 0, 16, 12),
+            child: Text('and ${rejections.length - 5} more',
+                style: text.labelSmall
+                    ?.copyWith(color: scheme.onSurfaceVariant)),
+          ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(72, 0, 16, 8),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () => ref
+                  .read(syncRejectionsRepositoryProvider)
+                  .acknowledgeAll(),
+              child: const Text('Dismiss'),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

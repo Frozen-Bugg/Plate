@@ -198,6 +198,18 @@ const schema = Schema([
   ], indexes: [
     Index('taken', [IndexedColumn.descending('taken_on')]),
   ]),
+  // Local only, and deliberately so: these are writes that never reached
+  // Postgres, so there is nowhere to sync a record of them to. The log belongs
+  // to the device whose queue dropped them.
+  Table.localOnly('sync_rejections', [
+    Column.text('table_name'),
+    Column.text('row_id'),
+    Column.text('op'),
+    Column.text('code'),
+    Column.text('message'),
+    Column.text('occurred_at'),
+    Column.integer('acknowledged'),
+  ]),
   Table('daily_rollup', [
     Column.text('user_id'),
     Column.text('rollup_on'),

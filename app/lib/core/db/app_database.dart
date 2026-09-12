@@ -24,6 +24,7 @@ part 'app_database.g.dart';
   RecoveryDays,
   ProgressPhotos,
   DailyRollups,
+  SyncRejections,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.connection);
