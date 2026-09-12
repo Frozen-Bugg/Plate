@@ -10,6 +10,8 @@ import '../../core/format.dart';
 import '../../core/profile/profile_repository.dart';
 import '../body/activity_repository.dart';
 import '../body/body_repository.dart';
+import '../body/health_connect_tile.dart';
+import '../body/health_import.dart';
 import '../body/log_weight_sheet.dart';
 import '../body/measurements_screen.dart';
 import '../body/photos_screen.dart';
@@ -299,16 +301,21 @@ class _StepsCard extends ConsumerWidget {
     final text = Theme.of(context).textTheme;
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
     final average = ref.watch(stepAverageProvider(7));
+    final connected = ref.watch(healthPermittedProvider).value ?? false;
 
     return Card(
       child: ListTile(
         title: const Text('Steps'),
         subtitle: Text(
-          average == null
-              ? 'Connect Health to bring steps in'
-              : 'Averaging $average a day this week',
+          switch ((average, connected)) {
+            (final int days, _) => 'Averaging $days a day this week',
+            (_, true) => 'Connected — nothing counted yet',
+            (_, false) => 'Connect Health to bring steps in',
+          },
           style: text.bodySmall?.copyWith(color: muted),
         ),
+        trailing: connected ? null : const Icon(Icons.chevron_right),
+        onTap: connected ? null : () => connectHealth(context, ref),
       ),
     );
   }
