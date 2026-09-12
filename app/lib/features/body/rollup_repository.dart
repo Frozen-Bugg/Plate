@@ -5,6 +5,7 @@ import '../../core/auth/auth_service.dart';
 import '../../core/day.dart';
 import '../../core/db/app_database.dart';
 import '../../core/db/database_providers.dart';
+import '../../core/sync/sync_rejections.dart';
 import 'activity_repository.dart';
 import 'body_repository.dart';
 import 'recovery_repository.dart';
@@ -48,9 +49,15 @@ class RollupRepository {
   ///
   /// [trendByDay] comes from the caller: the trend is a property of the whole
   /// series rather than of one day, and the engine owns that arithmetic.
+  /// [skipIds] are rows a previous attempt already had refused. Without it this
+  /// is a loop with no exit: PowerSync treats server data as authoritative, so
+  /// a row the server rejected is removed from the device on the next
+  /// checkpoint, which makes this recompute it, which gets it rejected again.
+  /// Seventy-six times in two minutes, the first time it happened.
   Future<void> recomputeRecent({
     int days = 14,
     Map<String, double> trendByDay = const {},
+    Set<String> skipIds = const {},
   }) async {
     final from = daysAgo(days - 1);
     final training = await _trainingByDay(from);
@@ -75,6 +82,7 @@ class RollupRepository {
 
     for (var i = 0; i < days; i++) {
       final day = daysAgo(i);
+      if (skipIds.contains(_idFor(day))) continue;
       await _write(
         day: day,
         existing: existing[day],
@@ -135,14 +143,15 @@ class RollupRepository {
       return;
     }
 
-    // Views do not support RETURNING, so the id is generated here.
-    await _db.into(_db.dailyRollups).insert(
+    // Views do not support RETURNING, so the id is derived here. It is derived
+    // rather than random so the same day always lands on the same row — and
+    // because it is derived, a row may already exist that the lookup above
+    // missed (a soft-deleted one, or one written by a pass still in flight).
+    // Replacing is the right answer either way: the values here are recomputed
+    // from the sources, not accumulated onto what was there.
+    await _db.into(_db.dailyRollups).insertOnConflictUpdate(
           DailyRollupsCompanion.insert(
-            id: Value(dayRowId(
-              userId: _userId,
-              table: 'daily_rollup',
-              day: day,
-            )),
+            id: Value(_idFor(day)),
             userId: _userId,
             rollupOn: day,
           ).copyWith(
@@ -157,6 +166,9 @@ class RollupRepository {
           ),
         );
   }
+
+  String _idFor(String day) =>
+      dayRowId(userId: _userId, table: 'daily_rollup', day: day);
 
   /// What was lifted on each day since [from], in one pass.
   ///
@@ -274,8 +286,18 @@ final rollupKeeperProvider = Provider<void>((ref) {
   ref.watch(recentActivityProvider);
   ref.watch(recentRecoveryProvider);
 
+  // Days the server has already refused are left alone. Recomputing one would
+  // only get it refused again, and PowerSync removes the local row each time,
+  // which is what turns a single rejection into a loop.
+  final refused = <String>{
+    for (final rejection
+        in ref.watch(outstandingRejectionsProvider).value ?? const <SyncRejection>[])
+      if (rejection.rejectedTable == 'daily_rollup') rejection.rowId,
+  };
+
   final repository = ref.read(rollupRepositoryProvider);
   repository.recomputeRecent(
     trendByDay: {for (final point in trend) dayKey(point.date): point.trendKg},
+    skipIds: refused,
   );
 });

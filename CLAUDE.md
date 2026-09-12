@@ -42,7 +42,16 @@ Health Connect import, `daily_rollup`, Progress v1. Progress photos are the piec
 - **One row per day** (`body_metrics`, `daily_activity`, `recovery_daily`, `daily_rollup`) is enforced
   by a *partial* unique index that ignores soft-deleted rows — never a plain `unique` constraint. A
   deleted row leaves the device but keeps its slot in Postgres, so the next write gets a fresh uuid and
-  is rejected with 23505, which the connector discards without a sound.
+  is rejected with 23505.
+- **A row that is unique per (user, day) gets its id from (user, day)**, via `dayRowId` in
+  `lib/core/day.dart`, not from `uuid.v7()`. Otherwise two devices — or one device writing before the
+  first sync delivers the server's row — generate different ids for the same day and the second is
+  rejected as a duplicate. The connector upserts by id, so a derived id turns a collision into the
+  update it was always meant to be.
+- **A write Postgres refuses is dropped from the queue and recorded** in the local-only
+  `sync_rejections` table, which the chip and Settings read. Anything that catches a fatal error in the
+  sync path has to leave a trace the app can show: a silent discard is how `progression_state` went
+  missing in Phase 1 and how `daily_rollup` did it again in Phase 2.
 - **Day keys are local calendar days** (`lib/core/day.dart`), stored as `date`. A weigh-in belongs to
   the day the lifter stood on the scale, not to whatever UTC thought at the time. Everything else stays
   UTC.
