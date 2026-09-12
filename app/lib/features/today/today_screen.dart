@@ -11,8 +11,11 @@ import '../../core/format.dart';
 import '../body/activity_repository.dart';
 import '../body/body_repository.dart';
 import '../body/check_in_sheet.dart';
+import '../body/health_connect_tile.dart';
+import '../body/health_import.dart';
 import '../body/log_weight_sheet.dart';
 import '../body/recovery_repository.dart';
+import '../body/rollup_repository.dart';
 import '../train/sessions_repository.dart';
 
 class TodayScreen extends ConsumerWidget {
@@ -34,6 +37,14 @@ class TodayScreen extends ConsumerWidget {
         .length;
     final name = user?.userMetadata?['full_name'] as String? ??
         user?.email?.split('@').first;
+
+    // Pulls steps and last night in once per launch, where permission is
+    // already granted. Watched rather than awaited: nothing on this screen
+    // waits for it, the rows arrive through the database streams.
+    ref.watch(healthAutoImportProvider);
+
+    // Keeps daily_rollup in step with everything it is derived from.
+    ref.watch(rollupKeeperProvider);
 
     return TabScaffold(
       title: 'Today',
@@ -203,21 +214,26 @@ class _BodyAndMoveCard extends ConsumerWidget {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _Label('Steps', color: pillars.move),
-                  const SizedBox(height: 6),
-                  if (steps == null)
-                    Text('—', style: text.headlineSmall)
-                  else
-                    _Readout(value: NumberFormat.decimalPattern().format(steps)),
-                  const SizedBox(height: 2),
-                  Text(
-                    steps == null ? 'Not connected yet' : 'Today',
-                    style: text.bodySmall?.copyWith(color: muted),
-                  ),
-                ],
+              child: InkWell(
+                onTap: steps == null ? () => connectHealth(context, ref) : null,
+                borderRadius: BorderRadius.circular(8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _Label('Steps', color: pillars.move),
+                    const SizedBox(height: 6),
+                    if (steps == null)
+                      Text('Connect', style: text.titleMedium)
+                    else
+                      _Readout(
+                          value: NumberFormat.decimalPattern().format(steps)),
+                    const SizedBox(height: 2),
+                    Text(
+                      steps == null ? 'Health Connect' : 'Today',
+                      style: text.bodySmall?.copyWith(color: muted),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],

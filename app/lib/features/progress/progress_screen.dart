@@ -1,6 +1,7 @@
 import 'package:engine/engine.dart' as engine;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../app/theme.dart';
 import '../../app/widgets/tab_scaffold.dart';
@@ -12,6 +13,7 @@ import '../body/body_repository.dart';
 import '../body/log_weight_sheet.dart';
 import '../body/measurements_screen.dart';
 import '../body/recovery_repository.dart';
+import '../body/rollup_repository.dart';
 import '../body/trend_chart.dart';
 
 /// Progress v1: the body side of the loop. Strength curves and sets per muscle
@@ -92,6 +94,8 @@ class ProgressScreen extends ConsumerWidget {
             const SizedBox(height: 12),
             const _PhaseCard(),
           ],
+          const SizedBox(height: 12),
+          const _TrainingCard(),
           const SizedBox(height: 12),
           const _RecoveryCard(),
           const SizedBox(height: 12),
@@ -328,6 +332,59 @@ class _Sparks extends StatelessWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// What the week actually added up to in the gym.
+///
+/// Read from daily_rollup rather than recounted here: the rollup is the record
+/// of the day, and a second implementation of "what is a hard set" is a second
+/// answer waiting to disagree with the first.
+class _TrainingCard extends ConsumerWidget {
+  const _TrainingCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final text = Theme.of(context).textTheme;
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    final rollups = ref.watch(dailyRollupsProvider).value ?? const [];
+    final week = rollups.where((r) => r.rollupOn.compareTo(daysAgo(6)) >= 0);
+
+    final sets = week.fold(0, (total, r) => total + (r.hardSets ?? 0));
+    final volume = week.fold(0.0, (total, r) => total + (r.volumeKg ?? 0));
+    if (sets == 0) return const SizedBox.shrink();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Training', style: text.titleMedium),
+                  const SizedBox(height: 2),
+                  Text('Last seven days',
+                      style: text.bodySmall?.copyWith(color: muted)),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text('$sets ${sets == 1 ? 'hard set' : 'hard sets'}',
+                    style: text.titleMedium),
+                Text(
+                  '${NumberFormat.decimalPattern().format(volume.round())} kg lifted',
+                  style: text.bodySmall?.copyWith(color: muted),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

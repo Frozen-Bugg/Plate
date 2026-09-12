@@ -8,6 +8,7 @@ import '../../core/config/app_config.dart';
 import '../../core/db/database_providers.dart';
 import '../../core/format.dart';
 import '../../core/profile/profile_repository.dart';
+import '../body/health_connect_tile.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -74,6 +75,8 @@ class SettingsScreen extends ConsumerWidget {
           ),
           label('Goal'),
           const _PhasePicker(),
+          label('Health'),
+          const HealthConnectTile(),
           label('Sync'),
           ListTile(
             leading: const Icon(Icons.sync),
