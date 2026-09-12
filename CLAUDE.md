@@ -9,8 +9,13 @@ Phase 0 (foundations) and Phase 1 (training MVP: exercise library, templates, li
 rest timer, PRs, engine v1) are built. Phase 1's exit test — a fortnight of real training with correct
 next-session targets — is still running.
 
-Phase 2 (Body & Move) is in progress: trend weight, measurements, the morning check-in and readiness,
-Health Connect import, `daily_rollup`, Progress v1. Progress photos are the piece still outstanding.
+Phase 2 (Body & Move) is built: trend weight, measurements, the morning check-in and readiness,
+Health Connect import, progress photos, `daily_rollup`, Progress v1.
+
+Phase 3 (Fuel) is built: the foods list, Open Food Facts search, the day log, macro rings, adaptive
+TDEE and calorie targets, and intake written back into `daily_rollup`. Barcode scanning, recipes and
+the USDA source are not built yet. Phase 2's and Phase 3's exit tests — real steps and readiness on
+the dashboard, and a fortnight of food logs producing a believable TDEE — are still running.
 
 ## Layout
 
