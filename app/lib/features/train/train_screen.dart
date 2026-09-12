@@ -7,7 +7,11 @@ import '../../app/theme.dart';
 import '../../app/widgets/tab_scaffold.dart';
 import '../../core/db/app_database.dart';
 import '../../core/format.dart';
+import 'live_session.dart';
+import 'logging_repository.dart';
+import 'progression_repository.dart';
 import 'sessions_repository.dart';
+import 'templates_screen.dart';
 
 class TrainScreen extends ConsumerWidget {
   const TrainScreen({super.key});
@@ -33,6 +37,18 @@ class TrainScreen extends ConsumerWidget {
                   icon: const Icon(Icons.play_arrow_rounded),
                   label: const Text('Start workout'),
                 ),
+              const SizedBox(height: 8),
+              // Reachable mid-workout too: checking the plan is exactly what
+              // you want to do while resting between sets.
+              OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const TemplatesScreen(),
+                  ),
+                ),
+                icon: const Icon(Icons.list_alt, size: 20),
+                label: const Text('Templates'),
+              ),
               const SizedBox(height: 28),
               Text('History', style: text.titleLarge),
               const SizedBox(height: 8),
@@ -97,7 +113,24 @@ class ActiveSessionCard extends ConsumerWidget {
       ),
     );
     if (confirmed == true) {
-      await ref.read(sessionsRepositoryProvider).delete(session.id);
+      await _deleteAndRecompute(ref, session.id);
+    }
+  }
+
+  /// Finishing is what closes the loop: the session is marked done, then the
+  /// engine re-reads every exercise trained and writes the next target. Doing
+  /// it here rather than on the next screen means the answer is already
+  /// waiting, offline included.
+  Future<void> _finish(WidgetRef ref) async {
+    final trained = await ref
+        .read(loggingRepositoryProvider)
+        .watchExercises(session.id)
+        .first;
+    await ref.read(sessionsRepositoryProvider).finish(session.id);
+
+    final progression = ref.read(progressionRepositoryProvider);
+    for (final exerciseId in trained.map((e) => e.exerciseId).toSet()) {
+      await progression.recompute(exerciseId);
     }
   }
 
@@ -135,17 +168,11 @@ class ActiveSessionCard extends ConsumerWidget {
               'Workout started ${formatTime(session.startedAt)}',
               style: text.headlineSmall,
             ),
-            const SizedBox(height: 6),
-            Text(
-              'Exercise and set logging arrives in Phase 1.',
-              style: text.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
+            const SizedBox(height: 12),
+            LiveSessionExercises(sessionId: session.id),
             const SizedBox(height: 16),
             FilledButton(
-              onPressed: () =>
-                  ref.read(sessionsRepositoryProvider).finish(session.id),
+              onPressed: () => _finish(ref),
               child: const Text('Finish workout'),
             ),
             const SizedBox(height: 4),
@@ -227,7 +254,7 @@ class _SessionTile extends ConsumerWidget {
       ),
     );
     if (confirmed == true) {
-      await ref.read(sessionsRepositoryProvider).delete(session.id);
+      await _deleteAndRecompute(ref, session.id);
     }
   }
 
@@ -255,5 +282,17 @@ class _SessionTile extends ConsumerWidget {
         ],
       ),
     );
+  }
+}
+
+/// Deletes a session and asks the engine to reconsider every exercise it
+/// contained. Without this the stored target would still be based on sets the
+/// lifter has just thrown away.
+Future<void> _deleteAndRecompute(WidgetRef ref, String sessionId) async {
+  final affected =
+      await ref.read(sessionsRepositoryProvider).delete(sessionId);
+  final progression = ref.read(progressionRepositoryProvider);
+  for (final exerciseId in affected) {
+    await progression.recompute(exerciseId);
   }
 }

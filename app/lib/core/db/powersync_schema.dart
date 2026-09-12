@@ -121,4 +121,16 @@ const schema = Schema([
   ], indexes: [
     Index('session_exercise', [IndexedColumn('session_exercise_id')]),
   ]),
+  Table('progression_state', [
+    Column.text('user_id'),
+    Column.text('exercise_id'),
+    Column.text('model'),
+    Column.real('next_load_kg'),
+    Column.integer('next_reps'),
+    Column.integer('stall_count'),
+    Column.real('best_e1rm_kg'),
+    ..._timestamps,
+  ], indexes: [
+    Index('exercise', [IndexedColumn('exercise_id')]),
+  ]),
 ]);

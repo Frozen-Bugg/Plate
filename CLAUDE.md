@@ -24,6 +24,12 @@ workout logging, rest timer, PRs, and engine v1 (double + linear progression, e1
   `alter publication powersync add table ...`), a stream in `sync-streams.yaml`, a table in
   `lib/core/db/powersync_schema.dart`, and a Drift table in `lib/core/db/tables.dart`.
   `test/schema_consistency_test.dart` fails if the last two drift apart.
+- **A Drift `withDefault` is not a default on the device.** PowerSync creates the local tables, so
+  they have no DEFAULT clause: a column left out of an insert is written as NULL. Drift then throws
+  mapping NULL into a non-nullable field — and because `.value` on the failed stream is null, the UI
+  renders empty instead of erroring. Postgres rejects the upload too, since these columns are NOT
+  NULL. Always write every non-nullable column explicitly (`sets.kind`, `sets.is_pr`,
+  `session_exercises.position`, …).
 - **Array or jsonb columns** must be listed in `lib/core/sync/upload_mapping.dart`. PowerSync stores
   them as JSON text; Postgres rejects that text for `text[]` and silently stores it as a JSON string
   for `jsonb`.

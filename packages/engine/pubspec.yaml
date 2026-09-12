@@ -1,0 +1,14 @@
+name: engine
+description: >-
+  Deterministic growth engine for Overload: e1RM, progression models and stall
+  detection. Pure Dart — no Flutter, no I/O, no clock. Every number the app or
+  the coach shows comes from here.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ^3.11.5
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.30.0

@@ -6036,6 +6036,667 @@ class WorkoutSetsCompanion extends UpdateCompanion<WorkoutSet> {
   }
 }
 
+class $ProgressionStatesTable extends ProgressionStates
+    with TableInfo<$ProgressionStatesTable, ProgressionState> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ProgressionStatesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    clientDefault: () => uuid.v7(),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    clientDefault: nowUtc,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    clientDefault: nowUtc,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
+  @override
+  late final GeneratedColumn<String> userId = GeneratedColumn<String>(
+    'user_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _exerciseIdMeta = const VerificationMeta(
+    'exerciseId',
+  );
+  @override
+  late final GeneratedColumn<String> exerciseId = GeneratedColumn<String>(
+    'exercise_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _modelMeta = const VerificationMeta('model');
+  @override
+  late final GeneratedColumn<String> model = GeneratedColumn<String>(
+    'model',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('double'),
+  );
+  static const VerificationMeta _nextLoadKgMeta = const VerificationMeta(
+    'nextLoadKg',
+  );
+  @override
+  late final GeneratedColumn<double> nextLoadKg = GeneratedColumn<double>(
+    'next_load_kg',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _nextRepsMeta = const VerificationMeta(
+    'nextReps',
+  );
+  @override
+  late final GeneratedColumn<int> nextReps = GeneratedColumn<int>(
+    'next_reps',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _stallCountMeta = const VerificationMeta(
+    'stallCount',
+  );
+  @override
+  late final GeneratedColumn<int> stallCount = GeneratedColumn<int>(
+    'stall_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _bestE1rmKgMeta = const VerificationMeta(
+    'bestE1rmKg',
+  );
+  @override
+  late final GeneratedColumn<double> bestE1rmKg = GeneratedColumn<double>(
+    'best_e1rm_kg',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    userId,
+    exerciseId,
+    model,
+    nextLoadKg,
+    nextReps,
+    stallCount,
+    bestE1rmKg,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'progression_state';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ProgressionState> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('user_id')) {
+      context.handle(
+        _userIdMeta,
+        userId.isAcceptableOrUnknown(data['user_id']!, _userIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_userIdMeta);
+    }
+    if (data.containsKey('exercise_id')) {
+      context.handle(
+        _exerciseIdMeta,
+        exerciseId.isAcceptableOrUnknown(data['exercise_id']!, _exerciseIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_exerciseIdMeta);
+    }
+    if (data.containsKey('model')) {
+      context.handle(
+        _modelMeta,
+        model.isAcceptableOrUnknown(data['model']!, _modelMeta),
+      );
+    }
+    if (data.containsKey('next_load_kg')) {
+      context.handle(
+        _nextLoadKgMeta,
+        nextLoadKg.isAcceptableOrUnknown(
+          data['next_load_kg']!,
+          _nextLoadKgMeta,
+        ),
+      );
+    }
+    if (data.containsKey('next_reps')) {
+      context.handle(
+        _nextRepsMeta,
+        nextReps.isAcceptableOrUnknown(data['next_reps']!, _nextRepsMeta),
+      );
+    }
+    if (data.containsKey('stall_count')) {
+      context.handle(
+        _stallCountMeta,
+        stallCount.isAcceptableOrUnknown(data['stall_count']!, _stallCountMeta),
+      );
+    }
+    if (data.containsKey('best_e1rm_kg')) {
+      context.handle(
+        _bestE1rmKgMeta,
+        bestE1rmKg.isAcceptableOrUnknown(
+          data['best_e1rm_kg']!,
+          _bestE1rmKgMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ProgressionState map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ProgressionState(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      userId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_id'],
+      )!,
+      exerciseId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}exercise_id'],
+      )!,
+      model: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}model'],
+      )!,
+      nextLoadKg: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}next_load_kg'],
+      ),
+      nextReps: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}next_reps'],
+      ),
+      stallCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}stall_count'],
+      )!,
+      bestE1rmKg: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}best_e1rm_kg'],
+      ),
+    );
+  }
+
+  @override
+  $ProgressionStatesTable createAlias(String alias) {
+    return $ProgressionStatesTable(attachedDatabase, alias);
+  }
+}
+
+class ProgressionState extends DataClass
+    implements Insertable<ProgressionState> {
+  final String id;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? deletedAt;
+  final String userId;
+  final String exerciseId;
+  final String model;
+  final double? nextLoadKg;
+  final int? nextReps;
+  final int stallCount;
+  final double? bestE1rmKg;
+  const ProgressionState({
+    required this.id,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+    required this.userId,
+    required this.exerciseId,
+    required this.model,
+    this.nextLoadKg,
+    this.nextReps,
+    required this.stallCount,
+    this.bestE1rmKg,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    map['user_id'] = Variable<String>(userId);
+    map['exercise_id'] = Variable<String>(exerciseId);
+    map['model'] = Variable<String>(model);
+    if (!nullToAbsent || nextLoadKg != null) {
+      map['next_load_kg'] = Variable<double>(nextLoadKg);
+    }
+    if (!nullToAbsent || nextReps != null) {
+      map['next_reps'] = Variable<int>(nextReps);
+    }
+    map['stall_count'] = Variable<int>(stallCount);
+    if (!nullToAbsent || bestE1rmKg != null) {
+      map['best_e1rm_kg'] = Variable<double>(bestE1rmKg);
+    }
+    return map;
+  }
+
+  ProgressionStatesCompanion toCompanion(bool nullToAbsent) {
+    return ProgressionStatesCompanion(
+      id: Value(id),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      userId: Value(userId),
+      exerciseId: Value(exerciseId),
+      model: Value(model),
+      nextLoadKg: nextLoadKg == null && nullToAbsent
+          ? const Value.absent()
+          : Value(nextLoadKg),
+      nextReps: nextReps == null && nullToAbsent
+          ? const Value.absent()
+          : Value(nextReps),
+      stallCount: Value(stallCount),
+      bestE1rmKg: bestE1rmKg == null && nullToAbsent
+          ? const Value.absent()
+          : Value(bestE1rmKg),
+    );
+  }
+
+  factory ProgressionState.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ProgressionState(
+      id: serializer.fromJson<String>(json['id']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+      userId: serializer.fromJson<String>(json['userId']),
+      exerciseId: serializer.fromJson<String>(json['exerciseId']),
+      model: serializer.fromJson<String>(json['model']),
+      nextLoadKg: serializer.fromJson<double?>(json['nextLoadKg']),
+      nextReps: serializer.fromJson<int?>(json['nextReps']),
+      stallCount: serializer.fromJson<int>(json['stallCount']),
+      bestE1rmKg: serializer.fromJson<double?>(json['bestE1rmKg']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+      'userId': serializer.toJson<String>(userId),
+      'exerciseId': serializer.toJson<String>(exerciseId),
+      'model': serializer.toJson<String>(model),
+      'nextLoadKg': serializer.toJson<double?>(nextLoadKg),
+      'nextReps': serializer.toJson<int?>(nextReps),
+      'stallCount': serializer.toJson<int>(stallCount),
+      'bestE1rmKg': serializer.toJson<double?>(bestE1rmKg),
+    };
+  }
+
+  ProgressionState copyWith({
+    String? id,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+    String? userId,
+    String? exerciseId,
+    String? model,
+    Value<double?> nextLoadKg = const Value.absent(),
+    Value<int?> nextReps = const Value.absent(),
+    int? stallCount,
+    Value<double?> bestE1rmKg = const Value.absent(),
+  }) => ProgressionState(
+    id: id ?? this.id,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    userId: userId ?? this.userId,
+    exerciseId: exerciseId ?? this.exerciseId,
+    model: model ?? this.model,
+    nextLoadKg: nextLoadKg.present ? nextLoadKg.value : this.nextLoadKg,
+    nextReps: nextReps.present ? nextReps.value : this.nextReps,
+    stallCount: stallCount ?? this.stallCount,
+    bestE1rmKg: bestE1rmKg.present ? bestE1rmKg.value : this.bestE1rmKg,
+  );
+  ProgressionState copyWithCompanion(ProgressionStatesCompanion data) {
+    return ProgressionState(
+      id: data.id.present ? data.id.value : this.id,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      userId: data.userId.present ? data.userId.value : this.userId,
+      exerciseId: data.exerciseId.present
+          ? data.exerciseId.value
+          : this.exerciseId,
+      model: data.model.present ? data.model.value : this.model,
+      nextLoadKg: data.nextLoadKg.present
+          ? data.nextLoadKg.value
+          : this.nextLoadKg,
+      nextReps: data.nextReps.present ? data.nextReps.value : this.nextReps,
+      stallCount: data.stallCount.present
+          ? data.stallCount.value
+          : this.stallCount,
+      bestE1rmKg: data.bestE1rmKg.present
+          ? data.bestE1rmKg.value
+          : this.bestE1rmKg,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ProgressionState(')
+          ..write('id: $id, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('userId: $userId, ')
+          ..write('exerciseId: $exerciseId, ')
+          ..write('model: $model, ')
+          ..write('nextLoadKg: $nextLoadKg, ')
+          ..write('nextReps: $nextReps, ')
+          ..write('stallCount: $stallCount, ')
+          ..write('bestE1rmKg: $bestE1rmKg')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    userId,
+    exerciseId,
+    model,
+    nextLoadKg,
+    nextReps,
+    stallCount,
+    bestE1rmKg,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ProgressionState &&
+          other.id == this.id &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt &&
+          other.userId == this.userId &&
+          other.exerciseId == this.exerciseId &&
+          other.model == this.model &&
+          other.nextLoadKg == this.nextLoadKg &&
+          other.nextReps == this.nextReps &&
+          other.stallCount == this.stallCount &&
+          other.bestE1rmKg == this.bestE1rmKg);
+}
+
+class ProgressionStatesCompanion extends UpdateCompanion<ProgressionState> {
+  final Value<String> id;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<String> userId;
+  final Value<String> exerciseId;
+  final Value<String> model;
+  final Value<double?> nextLoadKg;
+  final Value<int?> nextReps;
+  final Value<int> stallCount;
+  final Value<double?> bestE1rmKg;
+  final Value<int> rowid;
+  const ProgressionStatesCompanion({
+    this.id = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.userId = const Value.absent(),
+    this.exerciseId = const Value.absent(),
+    this.model = const Value.absent(),
+    this.nextLoadKg = const Value.absent(),
+    this.nextReps = const Value.absent(),
+    this.stallCount = const Value.absent(),
+    this.bestE1rmKg = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ProgressionStatesCompanion.insert({
+    this.id = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    required String userId,
+    required String exerciseId,
+    this.model = const Value.absent(),
+    this.nextLoadKg = const Value.absent(),
+    this.nextReps = const Value.absent(),
+    this.stallCount = const Value.absent(),
+    this.bestE1rmKg = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : userId = Value(userId),
+       exerciseId = Value(exerciseId);
+  static Insertable<ProgressionState> custom({
+    Expression<String>? id,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<String>? userId,
+    Expression<String>? exerciseId,
+    Expression<String>? model,
+    Expression<double>? nextLoadKg,
+    Expression<int>? nextReps,
+    Expression<int>? stallCount,
+    Expression<double>? bestE1rmKg,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (userId != null) 'user_id': userId,
+      if (exerciseId != null) 'exercise_id': exerciseId,
+      if (model != null) 'model': model,
+      if (nextLoadKg != null) 'next_load_kg': nextLoadKg,
+      if (nextReps != null) 'next_reps': nextReps,
+      if (stallCount != null) 'stall_count': stallCount,
+      if (bestE1rmKg != null) 'best_e1rm_kg': bestE1rmKg,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ProgressionStatesCompanion copyWith({
+    Value<String>? id,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<String>? userId,
+    Value<String>? exerciseId,
+    Value<String>? model,
+    Value<double?>? nextLoadKg,
+    Value<int?>? nextReps,
+    Value<int>? stallCount,
+    Value<double?>? bestE1rmKg,
+    Value<int>? rowid,
+  }) {
+    return ProgressionStatesCompanion(
+      id: id ?? this.id,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      userId: userId ?? this.userId,
+      exerciseId: exerciseId ?? this.exerciseId,
+      model: model ?? this.model,
+      nextLoadKg: nextLoadKg ?? this.nextLoadKg,
+      nextReps: nextReps ?? this.nextReps,
+      stallCount: stallCount ?? this.stallCount,
+      bestE1rmKg: bestE1rmKg ?? this.bestE1rmKg,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (userId.present) {
+      map['user_id'] = Variable<String>(userId.value);
+    }
+    if (exerciseId.present) {
+      map['exercise_id'] = Variable<String>(exerciseId.value);
+    }
+    if (model.present) {
+      map['model'] = Variable<String>(model.value);
+    }
+    if (nextLoadKg.present) {
+      map['next_load_kg'] = Variable<double>(nextLoadKg.value);
+    }
+    if (nextReps.present) {
+      map['next_reps'] = Variable<int>(nextReps.value);
+    }
+    if (stallCount.present) {
+      map['stall_count'] = Variable<int>(stallCount.value);
+    }
+    if (bestE1rmKg.present) {
+      map['best_e1rm_kg'] = Variable<double>(bestE1rmKg.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ProgressionStatesCompanion(')
+          ..write('id: $id, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('userId: $userId, ')
+          ..write('exerciseId: $exerciseId, ')
+          ..write('model: $model, ')
+          ..write('nextLoadKg: $nextLoadKg, ')
+          ..write('nextReps: $nextReps, ')
+          ..write('stallCount: $stallCount, ')
+          ..write('bestE1rmKg: $bestE1rmKg, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -6051,6 +6712,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     this,
   );
   late final $WorkoutSetsTable workoutSets = $WorkoutSetsTable(this);
+  late final $ProgressionStatesTable progressionStates =
+      $ProgressionStatesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -6065,6 +6728,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     sessions,
     sessionExercises,
     workoutSets,
+    progressionStates,
   ];
   @override
   DriftDatabaseOptions get options =>
@@ -9004,6 +9668,341 @@ typedef $$WorkoutSetsTableProcessedTableManager =
       WorkoutSet,
       PrefetchHooks Function()
     >;
+typedef $$ProgressionStatesTableCreateCompanionBuilder =
+    ProgressionStatesCompanion Function({
+      Value<String> id,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      required String userId,
+      required String exerciseId,
+      Value<String> model,
+      Value<double?> nextLoadKg,
+      Value<int?> nextReps,
+      Value<int> stallCount,
+      Value<double?> bestE1rmKg,
+      Value<int> rowid,
+    });
+typedef $$ProgressionStatesTableUpdateCompanionBuilder =
+    ProgressionStatesCompanion Function({
+      Value<String> id,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<String> userId,
+      Value<String> exerciseId,
+      Value<String> model,
+      Value<double?> nextLoadKg,
+      Value<int?> nextReps,
+      Value<int> stallCount,
+      Value<double?> bestE1rmKg,
+      Value<int> rowid,
+    });
+
+class $$ProgressionStatesTableFilterComposer
+    extends Composer<_$AppDatabase, $ProgressionStatesTable> {
+  $$ProgressionStatesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get exerciseId => $composableBuilder(
+    column: $table.exerciseId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get model => $composableBuilder(
+    column: $table.model,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get nextLoadKg => $composableBuilder(
+    column: $table.nextLoadKg,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get nextReps => $composableBuilder(
+    column: $table.nextReps,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get stallCount => $composableBuilder(
+    column: $table.stallCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get bestE1rmKg => $composableBuilder(
+    column: $table.bestE1rmKg,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ProgressionStatesTableOrderingComposer
+    extends Composer<_$AppDatabase, $ProgressionStatesTable> {
+  $$ProgressionStatesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get exerciseId => $composableBuilder(
+    column: $table.exerciseId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get model => $composableBuilder(
+    column: $table.model,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get nextLoadKg => $composableBuilder(
+    column: $table.nextLoadKg,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get nextReps => $composableBuilder(
+    column: $table.nextReps,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get stallCount => $composableBuilder(
+    column: $table.stallCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get bestE1rmKg => $composableBuilder(
+    column: $table.bestE1rmKg,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ProgressionStatesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ProgressionStatesTable> {
+  $$ProgressionStatesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get userId =>
+      $composableBuilder(column: $table.userId, builder: (column) => column);
+
+  GeneratedColumn<String> get exerciseId => $composableBuilder(
+    column: $table.exerciseId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get model =>
+      $composableBuilder(column: $table.model, builder: (column) => column);
+
+  GeneratedColumn<double> get nextLoadKg => $composableBuilder(
+    column: $table.nextLoadKg,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get nextReps =>
+      $composableBuilder(column: $table.nextReps, builder: (column) => column);
+
+  GeneratedColumn<int> get stallCount => $composableBuilder(
+    column: $table.stallCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get bestE1rmKg => $composableBuilder(
+    column: $table.bestE1rmKg,
+    builder: (column) => column,
+  );
+}
+
+class $$ProgressionStatesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ProgressionStatesTable,
+          ProgressionState,
+          $$ProgressionStatesTableFilterComposer,
+          $$ProgressionStatesTableOrderingComposer,
+          $$ProgressionStatesTableAnnotationComposer,
+          $$ProgressionStatesTableCreateCompanionBuilder,
+          $$ProgressionStatesTableUpdateCompanionBuilder,
+          (
+            ProgressionState,
+            BaseReferences<
+              _$AppDatabase,
+              $ProgressionStatesTable,
+              ProgressionState
+            >,
+          ),
+          ProgressionState,
+          PrefetchHooks Function()
+        > {
+  $$ProgressionStatesTableTableManager(
+    _$AppDatabase db,
+    $ProgressionStatesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ProgressionStatesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ProgressionStatesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ProgressionStatesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<String> userId = const Value.absent(),
+                Value<String> exerciseId = const Value.absent(),
+                Value<String> model = const Value.absent(),
+                Value<double?> nextLoadKg = const Value.absent(),
+                Value<int?> nextReps = const Value.absent(),
+                Value<int> stallCount = const Value.absent(),
+                Value<double?> bestE1rmKg = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ProgressionStatesCompanion(
+                id: id,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                userId: userId,
+                exerciseId: exerciseId,
+                model: model,
+                nextLoadKg: nextLoadKg,
+                nextReps: nextReps,
+                stallCount: stallCount,
+                bestE1rmKg: bestE1rmKg,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                required String userId,
+                required String exerciseId,
+                Value<String> model = const Value.absent(),
+                Value<double?> nextLoadKg = const Value.absent(),
+                Value<int?> nextReps = const Value.absent(),
+                Value<int> stallCount = const Value.absent(),
+                Value<double?> bestE1rmKg = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ProgressionStatesCompanion.insert(
+                id: id,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                userId: userId,
+                exerciseId: exerciseId,
+                model: model,
+                nextLoadKg: nextLoadKg,
+                nextReps: nextReps,
+                stallCount: stallCount,
+                bestE1rmKg: bestE1rmKg,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ProgressionStatesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ProgressionStatesTable,
+      ProgressionState,
+      $$ProgressionStatesTableFilterComposer,
+      $$ProgressionStatesTableOrderingComposer,
+      $$ProgressionStatesTableAnnotationComposer,
+      $$ProgressionStatesTableCreateCompanionBuilder,
+      $$ProgressionStatesTableUpdateCompanionBuilder,
+      (
+        ProgressionState,
+        BaseReferences<
+          _$AppDatabase,
+          $ProgressionStatesTable,
+          ProgressionState
+        >,
+      ),
+      ProgressionState,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -9026,4 +10025,6 @@ class $AppDatabaseManager {
       $$SessionExercisesTableTableManager(_db, _db.sessionExercises);
   $$WorkoutSetsTableTableManager get workoutSets =>
       $$WorkoutSetsTableTableManager(_db, _db.workoutSets);
+  $$ProgressionStatesTableTableManager get progressionStates =>
+      $$ProgressionStatesTableTableManager(_db, _db.progressionStates);
 }

@@ -18,6 +18,7 @@ part 'app_database.g.dart';
   Sessions,
   SessionExercises,
   WorkoutSets,
+  ProgressionStates,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.connection);

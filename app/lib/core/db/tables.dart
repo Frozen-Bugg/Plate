@@ -148,3 +148,18 @@ class WorkoutSets extends Table with SyncedRow {
   BoolColumn get isPr => boolean().withDefault(const Constant(false))();
   DateTimeColumn get loggedAt => dateTime().clientDefault(nowUtc)();
 }
+
+/// What the growth engine decided for one exercise. One row per exercise —
+/// the engine keeps a verdict, not a history.
+class ProgressionStates extends Table with SyncedRow {
+  @override
+  String get tableName => 'progression_state';
+
+  TextColumn get userId => text()();
+  TextColumn get exerciseId => text()();
+  TextColumn get model => text().withDefault(const Constant('double'))();
+  RealColumn get nextLoadKg => real().nullable()();
+  IntColumn get nextReps => integer().nullable()();
+  IntColumn get stallCount => integer().withDefault(const Constant(0))();
+  RealColumn get bestE1rmKg => real().nullable()();
+}
