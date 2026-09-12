@@ -1,13 +1,31 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class HomeShell extends StatelessWidget {
+import '../../core/profile/profile_repository.dart';
+import '../body/health_import.dart';
+import '../body/photos_repository.dart';
+import '../body/rollup_repository.dart';
+
+class HomeShell extends ConsumerWidget {
   const HomeShell({super.key, required this.shell});
 
   final StatefulNavigationShell shell;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Both of these belong to the signed-in session rather than to any one
+    // tab. Watched from a screen, they would stop the moment that screen was
+    // not mounted — a weigh-in logged from Progress would leave daily_rollup
+    // stale until Today happened to be visited again.
+    //
+    // Neither is awaited: nothing here waits for them, and their results reach
+    // the screens through the database streams.
+    ref.watch(healthAutoImportProvider);
+    ref.watch(pendingPhotoUploadProvider);
+    ref.watch(profileKeeperProvider);
+    ref.watch(rollupKeeperProvider);
+
     return Scaffold(
       body: shell,
       bottomNavigationBar: NavigationBar(

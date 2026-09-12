@@ -12,6 +12,7 @@ import '../body/activity_repository.dart';
 import '../body/body_repository.dart';
 import '../body/log_weight_sheet.dart';
 import '../body/measurements_screen.dart';
+import '../body/photos_screen.dart';
 import '../body/recovery_repository.dart';
 import '../body/rollup_repository.dart';
 import '../body/trend_chart.dart';
@@ -110,6 +111,17 @@ class ProgressScreen extends ConsumerWidget {
                 MaterialPageRoute<void>(
                   builder: (_) => const MeasurementsScreen(),
                 ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: ListTile(
+              title: const Text('Progress photos'),
+              subtitle: const Text('Private — same light, same spot'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const PhotosScreen()),
               ),
             ),
           ),

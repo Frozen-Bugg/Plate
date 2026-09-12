@@ -28,8 +28,44 @@ class ProfileRepository {
 
   /// Which way the lifter wants the scale to go. Everything that judges the
   /// trend needs it, and 'maintain' is the schema's default.
-  Future<void> setPhase(engine.WeightPhase phase) =>
-      update(ProfilesCompanion(phase: Value(phase.wireName)));
+  Future<void> setPhase(engine.WeightPhase phase) async {
+    await ensureExists();
+    await update(ProfilesCompanion(phase: Value(phase.wireName)));
+  }
+
+  /// Creates the profile row if this account somehow has none.
+  ///
+  /// A trigger on `auth.users` normally writes it at sign-up, so the row is
+  /// there for anyone who signed up after that trigger existed — and missing
+  /// for anyone who did not. Without it every write here updates zero rows and
+  /// says nothing, which is how a phase picker ends up doing nothing at all.
+  ///
+  /// Only call once the first sync has finished. An empty table on a fresh
+  /// install means "not downloaded yet", not "not there", and inserting then
+  /// would upsert defaults over a real profile.
+  ///
+  /// Every non-nullable column is written explicitly: PowerSync creates the
+  /// local tables without DEFAULT clauses (see CLAUDE.md).
+  Future<bool> ensureExists() async {
+    final existing = await (_db.select(_db.profiles)
+          ..where((p) => p.id.equals(_userId))
+          ..limit(1))
+        .getSingleOrNull();
+    if (existing != null) return false;
+
+    await _db.into(_db.profiles).insert(
+          ProfilesCompanion.insert(
+            id: _userId,
+            experience: const Value('novice'),
+            unitSystem: const Value('metric'),
+            phase: const Value('maintain'),
+            equipment: const Value([]),
+            injuries: const Value('[]'),
+            timezone: Value(DateTime.now().timeZoneName),
+          ),
+        );
+    return true;
+  }
 }
 
 final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
@@ -57,4 +93,18 @@ final weightPhaseProvider = Provider<engine.WeightPhase>((ref) {
   } on ArgumentError {
     return engine.WeightPhase.maintain;
   }
+});
+
+/// Makes sure a profile row exists, once the first sync has settled.
+///
+/// Waiting for the sync matters: an empty `profiles` table on a fresh install
+/// means the row has not arrived yet, and writing one then would upsert
+/// defaults over the real thing.
+final profileKeeperProvider = Provider<void>((ref) {
+  final synced = ref.watch(syncStatusProvider).value?.hasSynced ?? false;
+  if (!synced) return;
+  // Depend on the row itself, so this re-runs if it is ever removed.
+  if (ref.watch(profileProvider).value != null) return;
+
+  ref.read(profileRepositoryProvider).ensureExists();
 });

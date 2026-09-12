@@ -15,7 +15,6 @@ import '../body/health_connect_tile.dart';
 import '../body/health_import.dart';
 import '../body/log_weight_sheet.dart';
 import '../body/recovery_repository.dart';
-import '../body/rollup_repository.dart';
 import '../train/sessions_repository.dart';
 
 class TodayScreen extends ConsumerWidget {
@@ -37,14 +36,6 @@ class TodayScreen extends ConsumerWidget {
         .length;
     final name = user?.userMetadata?['full_name'] as String? ??
         user?.email?.split('@').first;
-
-    // Pulls steps and last night in once per launch, where permission is
-    // already granted. Watched rather than awaited: nothing on this screen
-    // waits for it, the rows arrive through the database streams.
-    ref.watch(healthAutoImportProvider);
-
-    // Keeps daily_rollup in step with everything it is derived from.
-    ref.watch(rollupKeeperProvider);
 
     return TabScaffold(
       title: 'Today',
@@ -176,6 +167,7 @@ class _BodyAndMoveCard extends ConsumerWidget {
     final trend = ref.watch(trendWeightProvider);
     final rate = ref.watch(weeklyRateProvider);
     final steps = ref.watch(todayStepsProvider);
+    final connected = ref.watch(healthPermittedProvider).value ?? false;
 
     return Card(
       child: Padding(
@@ -213,23 +205,31 @@ class _BodyAndMoveCard extends ConsumerWidget {
               ),
             ),
             const SizedBox(width: 12),
+            // Three states, not two: connected and counting, connected with
+            // nothing to show yet, and not connected at all. Offering "Connect"
+            // to someone who already connected is how an app looks broken.
             Expanded(
               child: InkWell(
-                onTap: steps == null ? () => connectHealth(context, ref) : null,
+                onTap: connected ? null : () => connectHealth(context, ref),
                 borderRadius: BorderRadius.circular(8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _Label('Steps', color: pillars.move),
                     const SizedBox(height: 6),
-                    if (steps == null)
-                      Text('Connect', style: text.titleMedium)
-                    else
+                    if (steps != null)
                       _Readout(
-                          value: NumberFormat.decimalPattern().format(steps)),
+                          value: NumberFormat.decimalPattern().format(steps))
+                    else
+                      Text(connected ? '—' : 'Connect',
+                          style: text.titleMedium),
                     const SizedBox(height: 2),
                     Text(
-                      steps == null ? 'Health Connect' : 'Today',
+                      switch ((connected, steps)) {
+                        (_, final int _) => 'Today',
+                        (true, _) => 'Nothing counted yet',
+                        (false, _) => 'Health Connect',
+                      },
                       style: text.bodySmall?.copyWith(color: muted),
                     ),
                   ],
