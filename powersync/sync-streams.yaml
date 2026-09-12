@@ -73,3 +73,27 @@ streams:
   daily_rollup:
     auto_subscribe: true
     query: SELECT * FROM daily_rollup WHERE user_id = auth.user_id() AND deleted_at IS NULL
+
+  foods:
+    auto_subscribe: true
+    query: SELECT * FROM foods WHERE user_id = auth.user_id() AND deleted_at IS NULL
+
+  recipes:
+    auto_subscribe: true
+    query: SELECT * FROM recipes WHERE user_id = auth.user_id() AND deleted_at IS NULL
+
+  recipe_items:
+    auto_subscribe: true
+    query: SELECT * FROM recipe_items WHERE user_id = auth.user_id() AND deleted_at IS NULL
+
+  meals:
+    auto_subscribe: true
+    query: SELECT * FROM meals WHERE user_id = auth.user_id() AND deleted_at IS NULL
+
+  meal_items:
+    auto_subscribe: true
+    query: SELECT * FROM meal_items WHERE user_id = auth.user_id() AND deleted_at IS NULL
+
+  nutrition_targets:
+    auto_subscribe: true
+    query: SELECT * FROM nutrition_targets WHERE user_id = auth.user_id() AND deleted_at IS NULL
