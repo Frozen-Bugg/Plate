@@ -163,3 +163,119 @@ class ProgressionStates extends Table with SyncedRow {
   IntColumn get stallCount => integer().withDefault(const Constant(0))();
   RealColumn get bestE1rmKg => real().nullable()();
 }
+
+// ---------------------------------------------------------------------------
+// Phase 2 — Body & Move
+//
+// One row per calendar day per user, in every table below. The `*On` columns
+// are ISO dates (yyyy-MM-dd) rather than DateTimes: they are days in the
+// lifter's timezone, and storing an instant would make "Tuesday" depend on
+// where they were standing. See the migration for the reasoning in full.
+// ---------------------------------------------------------------------------
+
+/// The scale and the tape measure.
+@DataClassName('BodyMetric')
+class BodyMetrics extends Table with SyncedRow {
+  TextColumn get userId => text()();
+  TextColumn get measuredOn => text()();
+  RealColumn get weightKg => real().nullable()();
+  RealColumn get bodyFatPct => real().nullable()();
+  RealColumn get neckCm => real().nullable()();
+  RealColumn get shouldersCm => real().nullable()();
+  RealColumn get chestCm => real().nullable()();
+  RealColumn get waistCm => real().nullable()();
+  RealColumn get hipsCm => real().nullable()();
+  RealColumn get thighCm => real().nullable()();
+  RealColumn get calfCm => real().nullable()();
+  RealColumn get armCm => real().nullable()();
+  RealColumn get forearmCm => real().nullable()();
+
+  /// 'manual' or 'health'. An import must never overwrite a typed-in value.
+  TextColumn get source => text().withDefault(const Constant('manual'))();
+  TextColumn get notes => text().nullable()();
+}
+
+/// Steps and active energy, as imported from Health Connect.
+@DataClassName('DailyActivity')
+class DailyActivities extends Table with SyncedRow {
+  @override
+  String get tableName => 'daily_activity';
+
+  TextColumn get userId => text()();
+  TextColumn get activityOn => text()();
+  IntColumn get steps => integer().nullable()();
+  RealColumn get activeKcal => real().nullable()();
+  RealColumn get restingKcal => real().nullable()();
+  RealColumn get distanceM => real().nullable()();
+  IntColumn get floors => integer().nullable()();
+  IntColumn get exerciseMinutes => integer().nullable()();
+  TextColumn get source => text().withDefault(const Constant('health'))();
+}
+
+/// Last night as the watch measured it, plus the morning check-in.
+@DataClassName('RecoveryDay')
+class RecoveryDays extends Table with SyncedRow {
+  @override
+  String get tableName => 'recovery_daily';
+
+  TextColumn get userId => text()();
+  TextColumn get recoveredOn => text()();
+  IntColumn get sleepMinutes => integer().nullable()();
+  RealColumn get hrvMs => real().nullable()();
+  RealColumn get restingHr => real().nullable()();
+
+  /// The check-in, 1-5 each. [soreness] and [stress] run the other way round;
+  /// packages/engine knows which way each points, and nothing else should.
+  IntColumn get sleepQuality => integer().nullable()();
+  IntColumn get soreness => integer().nullable()();
+  IntColumn get stress => integer().nullable()();
+  IntColumn get energy => integer().nullable()();
+  DateTimeColumn get checkedInAt => dateTime().nullable()();
+
+  /// What the engine scored the morning at, 0-100.
+  IntColumn get readiness => integer().nullable()();
+  TextColumn get notes => text().nullable()();
+}
+
+/// A progress photo. The row syncs; the image itself lives in the private
+/// progress-photos bucket at [storagePath].
+@DataClassName('ProgressPhoto')
+class ProgressPhotos extends Table with SyncedRow {
+  TextColumn get userId => text()();
+  TextColumn get takenOn => text()();
+  TextColumn get pose => text().withDefault(const Constant('front'))();
+  TextColumn get storagePath => text()();
+  RealColumn get weightKg => real().nullable()();
+  TextColumn get notes => text().nullable()();
+}
+
+/// One day with everything already joined — what Today and Progress read.
+///
+/// Derived: every column here can be recomputed from the tables above and from
+/// the training log. It exists so a dashboard is one query, and so the coach
+/// sees a day the same way the lifter did.
+@DataClassName('DailyRollup')
+class DailyRollups extends Table with SyncedRow {
+  @override
+  String get tableName => 'daily_rollup';
+
+  TextColumn get userId => text()();
+  TextColumn get rollupOn => text()();
+  RealColumn get trendWeightKg => real().nullable()();
+  RealColumn get weightKg => real().nullable()();
+  IntColumn get steps => integer().nullable()();
+  IntColumn get sleepMinutes => integer().nullable()();
+  IntColumn get readiness => integer().nullable()();
+  IntColumn get hardSets => integer().nullable()();
+  RealColumn get volumeKg => real().nullable()();
+
+  /// Phase 3 fills these in; nothing writes them yet.
+  IntColumn get intakeKcal => integer().nullable()();
+  RealColumn get proteinG => real().nullable()();
+  IntColumn get tdeeEst => integer().nullable()();
+
+  /// Phase 5.
+  IntColumn get fatigueScore => integer().nullable()();
+
+  TextColumn get phase => text().nullable()();
+}

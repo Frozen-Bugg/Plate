@@ -56,3 +56,15 @@ jobs:
       # out-of-order migration fails here instead of in production.
       - run: supabase db start
       - run: supabase db lint --level error
+
+      # The same migrations against Postgres-in-WASM, asserting what the schema
+      # is supposed to guarantee — RLS, soft-delete uniqueness, cascades,
+      # publication membership. This is the part that would notice a table
+      # quietly dropping out of sync; `db start` only notices SQL that breaks.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+        working-directory: scripts
+      - run: npm run check
+        working-directory: scripts
