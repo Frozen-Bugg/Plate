@@ -7,6 +7,7 @@ import '../../core/auth/auth_service.dart';
 import '../../core/db/app_database.dart';
 import '../../core/db/database_providers.dart';
 import 'logging_repository.dart';
+import 'progression_repository.dart';
 import 'sessions_repository.dart';
 
 /// Workout templates and the prescription they carry for each exercise.
@@ -40,6 +41,19 @@ class TemplatesRepository {
         .watch();
   }
 
+  /// The prescription that applies to [exerciseId] — whichever template
+  /// mentioning it was edited most recently. A stream rather than a one-off
+  /// read so an edit made mid-session shows up straight away.
+  Stream<TemplateExercise?> watchPrescriptionFor(String exerciseId) {
+    return (_db.select(_db.templateExercises)
+          ..where((e) => e.exerciseId.equals(exerciseId))
+          ..where((e) => e.userId.equals(_userId))
+          ..where((e) => e.deletedAt.isNull())
+          ..orderBy([(e) => OrderingTerm.desc(e.updatedAt)])
+          ..limit(1))
+        .watchSingleOrNull();
+  }
+
   Future<String> create({required String name, int dayIndex = 0}) async {
     // Views do not support RETURNING, so the id is generated here.
     final id = uuid.v7();
@@ -61,13 +75,23 @@ class TemplatesRepository {
         TemplatesCompanion(name: Value(name), updatedAt: Value(nowUtc())),
       );
 
-  Future<void> delete(String templateId) =>
-      (_db.update(_db.templates)..where((t) => t.id.equals(templateId))).write(
-        TemplatesCompanion(
-          deletedAt: Value(nowUtc()),
-          updatedAt: Value(nowUtc()),
-        ),
-      );
+  /// Cascades to the exercises in the template, for the same reason deleting a
+  /// session does: a soft delete does not trigger the foreign key, and a
+  /// surviving template_exercise still answers prescriptionFor — so a deleted
+  /// template would go on dictating rep ranges and rest times forever.
+  Future<void> delete(String templateId) async {
+    final now = nowUtc();
+    await (_db.update(_db.templateExercises)
+          ..where((e) => e.templateId.equals(templateId))
+          ..where((e) => e.deletedAt.isNull()))
+        .write(
+      TemplateExercisesCompanion(deletedAt: Value(now), updatedAt: Value(now)),
+    );
+    await (_db.update(_db.templates)..where((t) => t.id.equals(templateId)))
+        .write(
+      TemplatesCompanion(deletedAt: Value(now), updatedAt: Value(now)),
+    );
+  }
 
   Future<String> addExercise({
     required String templateId,
@@ -170,4 +194,15 @@ final templateExercisesProvider =
     StreamProvider.family<List<TemplateExercise>, String>(
   (ref, templateId) =>
       ref.watch(templatesRepositoryProvider).watchExercises(templateId),
+);
+
+/// What an exercise is prescribed at, live. Falls back to the default for
+/// anything no template covers, so the live screen always has something to
+/// count against.
+final prescriptionProvider = StreamProvider.family<Prescription, String>(
+  (ref, exerciseId) => ref
+      .watch(templatesRepositoryProvider)
+      .watchPrescriptionFor(exerciseId)
+      .map((row) =>
+          row == null ? const Prescription() : Prescription.fromTemplate(row)),
 );

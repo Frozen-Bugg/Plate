@@ -4,6 +4,7 @@ import 'package:overload/core/db/app_database.dart';
 import 'package:overload/features/train/progression_repository.dart';
 
 TemplateExercise row({
+  int sets = 3,
   int repMin = 8,
   int repMax = 12,
   double? targetRir = 2,
@@ -18,7 +19,7 @@ TemplateExercise row({
     templateId: 't-1',
     exerciseId: 'e-1',
     position: 0,
-    sets: 3,
+    sets: sets,
     repMin: repMin,
     repMax: repMax,
     targetRir: targetRir,
@@ -57,6 +58,10 @@ void main() {
     // Null targetRir means the rep range alone decides, which is what the
     // engine's DoubleProgression does with a null targetRir.
     expect(Prescription.fromTemplate(row(targetRir: null)).targetRir, isNull);
+  });
+
+  test('carries the planned set count', () {
+    expect(Prescription.fromTemplate(row(sets: 5)).sets, 5);
   });
 
   test('the default prescription is the spec example range', () {

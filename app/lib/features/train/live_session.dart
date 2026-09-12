@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/theme.dart';
 import '../../core/db/app_database.dart';
 import '../../core/format.dart';
 import 'exercises_repository.dart';
 import 'logging_repository.dart';
 import 'progression_repository.dart';
 import 'rest_timer.dart';
+import 'templates_repository.dart';
 
 /// The exercises in the running session, each with its logged sets and a row
 /// for adding the next one.
@@ -62,6 +64,8 @@ class _ExerciseBlock extends ConsumerWidget {
     final sets = setsAsync.value ?? const <WorkoutSet>[];
     final target =
         ref.watch(progressionStateProvider(sessionExercise.exerciseId)).value;
+    final planned =
+        ref.watch(prescriptionProvider(sessionExercise.exerciseId)).value?.sets;
 
     return Container(
       decoration: BoxDecoration(
@@ -77,6 +81,8 @@ class _ExerciseBlock extends ConsumerWidget {
               Expanded(
                 child: _ExerciseName(exerciseId: sessionExercise.exerciseId),
               ),
+              if (planned != null)
+                _SetCount(done: sets.length, planned: planned),
               IconButton(
                 tooltip: 'Remove',
                 icon: const Icon(Icons.close, size: 18),
@@ -446,6 +452,35 @@ class _ExercisePickerState extends ConsumerState<_ExercisePicker> {
                     ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Sets done against sets planned. Turns green once the plan is met, so the
+/// answer to "am I finished with this one?" is available at a glance, from
+/// arm's length, between sets.
+class _SetCount extends StatelessWidget {
+  const _SetCount({required this.done, required this.planned});
+
+  final int done;
+  final int planned;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final met = done >= planned;
+    return Padding(
+      padding: const EdgeInsets.only(left: 8),
+      child: Text(
+        '$done/$planned',
+        style: theme.textTheme.labelLarge?.copyWith(
+          color: met
+              ? PillarColors.of(context).fuel
+              : theme.colorScheme.onSurfaceVariant,
+          fontWeight: met ? FontWeight.w700 : FontWeight.w600,
+          fontFeatures: const [FontFeature.tabularFigures()],
         ),
       ),
     );

@@ -16,6 +16,7 @@ import '../../core/db/database_providers.dart';
 class Prescription {
   const Prescription({
     this.model = engine.ProgressionModel.double_,
+    this.sets = 3,
     this.repMin = 8,
     this.repMax = 12,
     this.targetRir = 2,
@@ -35,6 +36,7 @@ class Prescription {
     }
     return Prescription(
       model: model,
+      sets: row.sets,
       repMin: row.repMin,
       repMax: row.repMax,
       targetRir: row.targetRir,
@@ -43,6 +45,12 @@ class Prescription {
   }
 
   final engine.ProgressionModel model;
+
+  /// How many working sets the plan calls for. Not an engine input — double
+  /// progression judges the sets actually performed, not the number intended —
+  /// but it is what the live screen counts down.
+  final int sets;
+
   final int repMin;
   final int repMax;
   final double? targetRir;
