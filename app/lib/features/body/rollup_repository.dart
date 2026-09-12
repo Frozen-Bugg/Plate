@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:logging/logging.dart';
 
 import '../../core/auth/auth_service.dart';
 import '../../core/day.dart';
@@ -11,6 +12,8 @@ import '../fuel/targets_repository.dart';
 import 'activity_repository.dart';
 import 'body_repository.dart';
 import 'recovery_repository.dart';
+
+final _log = Logger('rollup');
 
 /// What a day amounted to in the gym.
 typedef TrainingDay = ({int hardSets, double volumeKg});
@@ -170,13 +173,29 @@ class RollupRepository {
       return;
     }
 
-    // Views do not support RETURNING, so the id is derived here. It is derived
-    // rather than random so the same day always lands on the same row — and
-    // because it is derived, a row may already exist that the lookup above
-    // missed (a soft-deleted one, or one written by a pass still in flight).
-    // Replacing is the right answer either way: the values here are recomputed
-    // from the sources, not accumulated onto what was there.
-    await _db.into(_db.dailyRollups).insertOnConflictUpdate(
+    // The id is derived rather than random, so the same day always lands on the
+    // same row — which means a row may already exist that the lookup above
+    // missed, because that one ignores soft-deleted rows. Find it by id and
+    // update in place.
+    //
+    // Not an upsert: PowerSync tables are SQLite views, and a view cannot be
+    // upserted any more than it can RETURNING. `insertOnConflictUpdate` throws
+    // "cannot UPSERT a view" — which it did, silently, on every recompute,
+    // because the throw landed in an unawaited future nobody was watching.
+    final byId = await (_db.select(_db.dailyRollups)
+          ..where((r) => r.id.equals(_idFor(day)))
+          ..limit(1))
+        .getSingleOrNull();
+    if (byId != null) {
+      await (_db.update(_db.dailyRollups)..where((r) => r.id.equals(byId.id)))
+          .write(changes.copyWith(
+        deletedAt: const Value(null),
+        updatedAt: Value(nowUtc()),
+      ));
+      return;
+    }
+
+    await _db.into(_db.dailyRollups).insert(
           DailyRollupsCompanion.insert(
             id: Value(_idFor(day)),
             userId: _userId,
@@ -324,7 +343,20 @@ class RollupKeeper extends Notifier<void> {
   }
 
   /// Rebuilds the recent rollups from whatever the sources say right now.
+  ///
+  /// Failures are logged rather than thrown. Nothing awaits this — it is called
+  /// from listeners — so an exception would otherwise land in an unawaited
+  /// future and disappear, which is exactly how "cannot UPSERT a view" went
+  /// unnoticed through two commits.
   Future<void> refresh() async {
+    try {
+      await _refresh();
+    } catch (e, stack) {
+      _log.severe('Could not rebuild the daily rollups', e, stack);
+    }
+  }
+
+  Future<void> _refresh() async {
     // Not before the first sync has landed. Rollups are derived from rows that
     // arrive over the network, so recomputing a half-downloaded database writes
     // a summary of a day the device cannot see all of yet — and, until ids were
