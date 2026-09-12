@@ -1,3 +1,4 @@
+import 'package:engine/engine.dart' as engine;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -6,6 +7,7 @@ import '../../core/auth/auth_service.dart';
 import '../../core/config/app_config.dart';
 import '../../core/db/database_providers.dart';
 import '../../core/format.dart';
+import '../../core/profile/profile_repository.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -70,6 +72,8 @@ class SettingsScreen extends ConsumerWidget {
             title: Text(user?.email ?? 'Signed in'),
             subtitle: provider == null ? null : Text('Signed in with $provider'),
           ),
+          label('Goal'),
+          const _PhasePicker(),
           label('Sync'),
           ListTile(
             leading: const Icon(Icons.sync),
@@ -104,6 +108,65 @@ class SettingsScreen extends ConsumerWidget {
             leading: const Icon(Icons.logout),
             title: const Text('Sign out'),
             onTap: () => _signOut(context, ref),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Cut, maintain or lean bulk.
+///
+/// This is the only thing that tells the engine which way the scale is supposed
+/// to move, so it decides whether a steady loss reads as progress or as a
+/// problem. Phase 3 hangs calorie targets off the same choice.
+class _PhasePicker extends ConsumerWidget {
+  const _PhasePicker();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final text = Theme.of(context).textTheme;
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    final current = ref.watch(weightPhaseProvider);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SegmentedButton<engine.WeightPhase>(
+            segments: const [
+              ButtonSegment(
+                value: engine.WeightPhase.cut,
+                label: Text('Cut'),
+              ),
+              ButtonSegment(
+                value: engine.WeightPhase.maintain,
+                label: Text('Maintain'),
+              ),
+              ButtonSegment(
+                value: engine.WeightPhase.bulk,
+                label: Text('Lean bulk'),
+              ),
+            ],
+            selected: {current},
+            showSelectedIcon: false,
+            onSelectionChanged: (selection) => ref
+                .read(profileRepositoryProvider)
+                .setPhase(selection.first),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            switch (current) {
+              engine.WeightPhase.cut =>
+                'Losing 0.5–1% of bodyweight a week. Holding your loads counts '
+                    'as a win.',
+              engine.WeightPhase.maintain =>
+                'Holding within ±0.25% a week. Normal progression.',
+              engine.WeightPhase.bulk =>
+                'Gaining 0.25–0.5% a week. Faster than that is mostly fat.',
+            },
+            style: text.bodySmall?.copyWith(color: muted),
           ),
         ],
       ),
