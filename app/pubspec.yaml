@@ -49,6 +49,11 @@ dependencies:
   google_fonts: ^8.2.1
   intl: ^0.20.3
 
+  # The growth engine owns every load, target and stall verdict the app shows.
+  # Pure Dart, versioned with the app rather than published.
+  engine:
+    path: ../packages/engine
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -7,6 +7,9 @@ import '../../app/theme.dart';
 import '../../app/widgets/tab_scaffold.dart';
 import '../../core/db/app_database.dart';
 import '../../core/format.dart';
+import 'live_session.dart';
+import 'logging_repository.dart';
+import 'progression_repository.dart';
 import 'sessions_repository.dart';
 
 class TrainScreen extends ConsumerWidget {
@@ -101,6 +104,23 @@ class ActiveSessionCard extends ConsumerWidget {
     }
   }
 
+  /// Finishing is what closes the loop: the session is marked done, then the
+  /// engine re-reads every exercise trained and writes the next target. Doing
+  /// it here rather than on the next screen means the answer is already
+  /// waiting, offline included.
+  Future<void> _finish(WidgetRef ref) async {
+    final trained = await ref
+        .read(loggingRepositoryProvider)
+        .watchExercises(session.id)
+        .first;
+    await ref.read(sessionsRepositoryProvider).finish(session.id);
+
+    final progression = ref.read(progressionRepositoryProvider);
+    for (final exerciseId in trained.map((e) => e.exerciseId).toSet()) {
+      await progression.recompute(exerciseId);
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final text = Theme.of(context).textTheme;
@@ -135,17 +155,11 @@ class ActiveSessionCard extends ConsumerWidget {
               'Workout started ${formatTime(session.startedAt)}',
               style: text.headlineSmall,
             ),
-            const SizedBox(height: 6),
-            Text(
-              'Exercise and set logging arrives in Phase 1.',
-              style: text.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
+            const SizedBox(height: 12),
+            LiveSessionExercises(sessionId: session.id),
             const SizedBox(height: 16),
             FilledButton(
-              onPressed: () =>
-                  ref.read(sessionsRepositoryProvider).finish(session.id),
+              onPressed: () => _finish(ref),
               child: const Text('Finish workout'),
             ),
             const SizedBox(height: 4),

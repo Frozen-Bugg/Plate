@@ -26,3 +26,20 @@ String formatAgo(DateTime utc, {DateTime? now}) {
   if (today.difference(day).inDays == 1) return 'yesterday ${formatTime(utc)}';
   return '${formatDay(utc)} ${formatTime(utc)}';
 }
+
+/// Weights are stored in kilograms and shown without trailing zeros: 60 rather
+/// than 60.0, but 62.5 keeps its half.
+String formatWeight(double kg) {
+  final rounded = (kg * 100).round() / 100;
+  final text = rounded == rounded.roundToDouble()
+      ? rounded.toStringAsFixed(0)
+      : rounded.toString();
+  return '$text kg';
+}
+
+/// Reps in reserve, shown the way lifters write it.
+String formatRir(double rir) {
+  final text =
+      rir == rir.roundToDouble() ? rir.toStringAsFixed(0) : rir.toString();
+  return 'RIR $text';
+}
