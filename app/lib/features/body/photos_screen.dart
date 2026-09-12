@@ -311,23 +311,19 @@ class _Image extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return FutureBuilder<File?>(
-      future: ref.watch(photosRepositoryProvider).localFile(photo),
-      builder: (context, snapshot) {
-        final file = snapshot.data;
-        if (file == null) {
-          // Taken on another device: the row synced, the file did not.
-          return ColoredBox(
-            color: Theme.of(context).colorScheme.surfaceContainerHigh,
-            child: Center(
-              child: Icon(Icons.image_not_supported_outlined,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant),
-            ),
-          );
-        }
-        return Image.file(file, fit: fit);
-      },
-    );
+    final file = ref.watch(photoFileProvider(photo.id)).value;
+    if (file == null) {
+      // Either still being looked up, or taken on another device — the row
+      // synced and the file did not.
+      return ColoredBox(
+        color: Theme.of(context).colorScheme.surfaceContainerHigh,
+        child: Center(
+          child: Icon(Icons.image_outlined,
+              color: Theme.of(context).colorScheme.onSurfaceVariant),
+        ),
+      );
+    }
+    return Image.file(file, fit: fit);
   }
 }
 

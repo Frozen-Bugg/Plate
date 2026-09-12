@@ -54,9 +54,9 @@ class PhotosRepository {
   }
 
   /// The local file for a photo, uploaded or not.
-  Future<File?> localFile(ProgressPhoto photo) async {
+  Future<File?> localFile(String photoId) async {
     final directory = await _localDirectory();
-    for (final name in ['${photo.id}.jpg', '${photo.id}.jpg.pending']) {
+    for (final name in ['$photoId.jpg', '$photoId.jpg.pending']) {
       final file = File(p.join(directory.path, name));
       if (file.existsSync()) return file;
     }
@@ -152,7 +152,7 @@ class PhotosRepository {
       ProgressPhotosCompanion(deletedAt: Value(now), updatedAt: Value(now)),
     );
 
-    if (await localFile(photo) case final file?) {
+    if (await localFile(photo.id) case final file?) {
       await file.delete();
     }
     try {
@@ -188,4 +188,13 @@ final progressPhotosProvider = StreamProvider<List<ProgressPhoto>>(
 /// opens somewhere with wifi.
 final pendingPhotoUploadProvider = FutureProvider<int>(
   (ref) => ref.watch(photosRepositoryProvider).uploadPending(),
+);
+
+/// This device's copy of a photo, if it has one.
+///
+/// A provider rather than a call inside `build`: a FutureBuilder handed a fresh
+/// future on every rebuild restarts on every rebuild, and a wall of thumbnails
+/// flickering is not a feature.
+final photoFileProvider = FutureProvider.family<File?, String>(
+  (ref, photoId) => ref.watch(photosRepositoryProvider).localFile(photoId),
 );
