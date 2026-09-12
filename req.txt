@@ -6,6 +6,7 @@ and are installed with `flutter pub get`. This file covers the toolchain around
 them — what to install on a new machine, in order.
 
 Fast path on macOS:  bash scripts/setup.sh   (installs what it can, checks the rest)
+Fast path on Windows: see section 9 (Android + web only; scripts/setup.sh is macOS-only)
 Verify at any point: cd app && flutter doctor && flutter analyze && flutter test
 
 Versions below are what this project was built and verified with (2026-09-12).
@@ -172,3 +173,83 @@ fail without it and without accepted licences.
 
 `dart run build_runner build` must be re-run after changing Drift tables in
 app/lib/core/db/tables.dart, or the app won't compile.
+
+
+------------------------------------------------------------
+9. WINDOWS SETUP (Android + web only — no iOS without macOS)
+------------------------------------------------------------
+
+Verified end to end on Windows 11 (26200) on 2026-09-12: analyzer clean,
+9/9 tests passing, Flutter 3.41.9 / Dart 3.11.5.
+
+Run these in PowerShell. Everything installs per-user; no admin needed except
+where winget elevates on its own.
+
+9.1 Toolchain via winget
+  winget install --id Git.Git --exact
+  winget install --id OpenJS.NodeJS.LTS --exact
+  winget install --id Microsoft.OpenJDK.17 --exact
+  winget install --id Google.AndroidStudio --exact
+
+  Microsoft's OpenJDK 17 is used instead of the Mac's temurin@17 — same LTS,
+  no click-through licence, and winget has it. It lands in
+  C:\Program Files\Microsoft\jdk-17.<x>-hotspot.
+
+9.2 Flutter SDK (no winget package — official zip)
+  Invoke-WebRequest -Uri https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_3.41.9-stable.zip -OutFile C:\src\flutter.zip
+  Expand-Archive C:\src\flutter.zip -DestinationPath C:\src
+
+  Install to C:\src\flutter, NOT Program Files: the path must have no spaces
+  and stay short, because Gradle and Flutter build paths hit the Windows
+  260-character limit in deep package directories.
+  Expand-Archive takes ~10 min on this 1.8 GB archive (~18k files). Windows'
+  bundled tar is much faster: tar -xf C:\src\flutter.zip -C C:\src
+
+9.3 Android SDK — headless, no Android Studio wizard
+  IMPORTANT: pin cmdline-tools 19.0. Do NOT take "latest".
+  cmdline-tools 22.0+ replaces the classic sdkmanager with a new `android` CLI
+  that crashed here (exit 9 / 0xC0000409) on every command that hits the
+  network, after only partly installing. Version 19.0 still ships the classic
+  sdkmanager and works:
+
+  curl -L https://dl.google.com/android/repository/commandlinetools-win-13114758_latest.zip -o clt.zip
+  tar -xf clt.zip
+  # move the extracted cmdline-tools folder to:
+  #   %LOCALAPPDATA%\Android\Sdk\cmdline-tools\latest
+
+  Then, with JAVA_HOME and ANDROID_HOME set (see 9.4):
+  sdkmanager --licenses            # answer y to each
+  sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools" "emulator"
+  sdkmanager "ndk;28.2.13676358"
+  sdkmanager "system-images;android-36;google_apis_playstore;x86_64"
+
+  Note the system image is x86_64, not the Mac's arm64-v8a.
+  sdkmanager 19.0 prints "only understands SDK XML versions up to 3 but ...
+  version 4 was encountered" — harmless version skew, installs fine.
+
+9.4 Environment (User scope, persists across reboots)
+  [Environment]::SetEnvironmentVariable('JAVA_HOME','C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot','User')
+  [Environment]::SetEnvironmentVariable('ANDROID_HOME',"$env:LOCALAPPDATA\Android\Sdk",'User')
+  Add to the User Path:
+    C:\src\flutter\bin
+    %LOCALAPPDATA%\Android\Sdk\platform-tools
+    %LOCALAPPDATA%\Android\Sdk\emulator
+    %LOCALAPPDATA%\Android\Sdk\cmdline-tools\latest\bin
+    %JAVA_HOME%\bin
+  Open a new terminal afterwards — existing ones keep the old environment.
+
+  flutter config --android-sdk "$env:LOCALAPPDATA\Android\Sdk"
+
+9.5 Expected flutter doctor result
+  Android toolchain, Chrome, Windows Version and Network resources all pass.
+  "[X] Visual Studio not installed" is EXPECTED and safe to ignore — that is
+  only for Windows desktop builds, which this project does not target.
+
+9.6 Differences from the macOS instructions
+  - scripts/setup.sh is bash and macOS-only. Run it under Git Bash if at all;
+    it calls brew, which does not exist here. The steps above replace it.
+  - No iOS, no Xcode, no CocoaPods. Section 3 does not apply.
+  - Section 5 says `cd Gym`; the repo directory is whatever you cloned into
+    (here: C:\Project\Plate).
+  - Use `copy` or the editor rather than `cp` for app\config\dev.json unless
+    you are in Git Bash.
