@@ -1,6 +1,5 @@
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:powersync/powersync.dart' show uuid;
 
 import '../../core/auth/auth_service.dart';
 import '../../core/day.dart';
@@ -139,7 +138,11 @@ class RollupRepository {
     // Views do not support RETURNING, so the id is generated here.
     await _db.into(_db.dailyRollups).insert(
           DailyRollupsCompanion.insert(
-            id: Value(uuid.v7()),
+            id: Value(dayRowId(
+              userId: _userId,
+              table: 'daily_rollup',
+              day: day,
+            )),
             userId: _userId,
             rollupOn: day,
           ).copyWith(
@@ -261,6 +264,12 @@ final dailyRollupsProvider = StreamProvider<List<DailyRollup>>(
 /// rebuild triggered by an unrelated stream — costs a few reads and no sync
 /// traffic.
 final rollupKeeperProvider = Provider<void>((ref) {
+  // Not before the first sync has landed. Rollups are derived from rows that
+  // arrive over the network, so recomputing a half-downloaded database writes
+  // a summary of a day the device cannot see all of yet — and, until ids were
+  // derived from the day, raced the server's own row for it.
+  if (ref.watch(syncStatusProvider).value?.hasSynced != true) return;
+
   final trend = ref.watch(weightTrendProvider);
   ref.watch(recentActivityProvider);
   ref.watch(recentRecoveryProvider);

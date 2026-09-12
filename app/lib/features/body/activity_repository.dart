@@ -1,6 +1,5 @@
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:powersync/powersync.dart' show uuid;
 
 import '../../core/auth/auth_service.dart';
 import '../../core/day.dart';
@@ -73,7 +72,11 @@ class ActivityRepository {
     // non-nullable column is written explicitly (see CLAUDE.md).
     await _db.into(_db.dailyActivities).insert(
           DailyActivitiesCompanion.insert(
-            id: Value(uuid.v7()),
+            id: Value(dayRowId(
+              userId: _userId,
+              table: 'daily_activity',
+              day: on,
+            )),
             userId: _userId,
             activityOn: on,
             source: Value(source),

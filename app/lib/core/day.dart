@@ -6,6 +6,9 @@
 /// here — a day key is built from *local* time on purpose.
 library;
 
+import 'package:powersync/powersync.dart' show uuid;
+import 'package:uuid/uuid.dart' show Namespace;
+
 /// "2026-09-12" for the day [at] falls on locally. Defaults to today.
 String dayKey([DateTime? at]) {
   final local = (at ?? DateTime.now()).toLocal();
@@ -17,6 +20,24 @@ String dayKey([DateTime? at]) {
 /// The day [offset] days before today, as a key. `daysAgo(1)` is yesterday.
 String daysAgo(int offset) =>
     dayKey(DateTime.now().subtract(Duration(days: offset)));
+
+/// The row id for a table that keeps one row per day per user.
+///
+/// Derived from the owner and the day rather than generated, so the same day
+/// always lands on the same id — on this device, on the next one, and after a
+/// reinstall. Every one of these tables has a partial unique index on
+/// `(user_id, <day>)`, and a fresh UUIDv7 for a day the server already holds is
+/// rejected with 23505 and dropped. That is not hypothetical: it happened the
+/// first time `daily_rollup` ran before its rows had finished downloading.
+///
+/// UUIDv5 over a namespaced string, so it is a real UUID and stays stable
+/// across versions of the app.
+String dayRowId({
+  required String userId,
+  required String table,
+  required String day,
+}) =>
+    uuid.v5(Namespace.url.value, 'overload/$table/$userId/$day');
 
 /// Parses a stored day key back to a date.
 ///

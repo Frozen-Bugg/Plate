@@ -1,7 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:engine/engine.dart' as engine;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:powersync/powersync.dart' show uuid;
 
 import '../../core/auth/auth_service.dart';
 import '../../core/day.dart';
@@ -150,7 +149,11 @@ class RecoveryRepository {
     // Views do not support RETURNING, so the id is generated here.
     await _db.into(_db.recoveryDays).insert(
           RecoveryDaysCompanion.insert(
-            id: Value(uuid.v7()),
+            id: Value(dayRowId(
+              userId: _userId,
+              table: 'recovery_daily',
+              day: day,
+            )),
             userId: _userId,
             recoveredOn: day,
           ).copyWith(

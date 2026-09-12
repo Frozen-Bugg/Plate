@@ -50,6 +50,33 @@ void main() {
     });
   });
 
+  group('dayRowId', () {
+    test('is the same id for the same user, table and day', () {
+      final first = dayRowId(userId: 'u1', table: 'daily_rollup', day: '2026-09-12');
+      final again = dayRowId(userId: 'u1', table: 'daily_rollup', day: '2026-09-12');
+      expect(first, again);
+    });
+
+    test('differs by day, by table and by user', () {
+      final base = dayRowId(userId: 'u1', table: 'daily_rollup', day: '2026-09-12');
+      expect(dayRowId(userId: 'u1', table: 'daily_rollup', day: '2026-09-13'),
+          isNot(base));
+      expect(dayRowId(userId: 'u1', table: 'body_metrics', day: '2026-09-12'),
+          isNot(base));
+      expect(dayRowId(userId: 'u2', table: 'daily_rollup', day: '2026-09-12'),
+          isNot(base));
+    });
+
+    test('looks like a uuid, because Postgres stores it as one', () {
+      final id = dayRowId(userId: 'u1', table: 'daily_rollup', day: '2026-09-12');
+      expect(
+        id,
+        matches(RegExp(
+            r'^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')),
+      );
+    });
+  });
+
   group('daysAgo', () {
     test('counts back from today', () {
       expect(daysAgo(0), dayKey());

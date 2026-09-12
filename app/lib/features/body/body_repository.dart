@@ -1,7 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:engine/engine.dart' as engine;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:powersync/powersync.dart' show uuid;
 
 import '../../core/auth/auth_service.dart';
 import '../../core/day.dart';
@@ -115,7 +114,11 @@ class BodyRepository {
     // Drift throws reading it back (see CLAUDE.md).
     await _db.into(_db.bodyMetrics).insert(
           BodyMetricsCompanion.insert(
-            id: Value(uuid.v7()),
+            id: Value(dayRowId(
+              userId: _userId,
+              table: 'body_metrics',
+              day: day,
+            )),
             userId: _userId,
             measuredOn: day,
             source: changes.source.present
