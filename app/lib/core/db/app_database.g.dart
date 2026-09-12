@@ -11261,7 +11261,8 @@ class $SyncRejectionsTable extends SyncRejections
 class SyncRejection extends DataClass implements Insertable<SyncRejection> {
   final String id;
 
-  /// Named for SQL rather than Dart:  is Drift's own.
+  /// The table the write was headed for. Named for SQL rather than for Dart,
+  /// because `tableName` is Drift's own.
   final String rejectedTable;
   final String rowId;
 
