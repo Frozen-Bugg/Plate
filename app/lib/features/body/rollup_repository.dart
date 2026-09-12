@@ -305,38 +305,55 @@ final dailyRollupsProvider = StreamProvider<List<DailyRollup>>(
 /// Recomputing writes nothing when nothing changed, so the common case — a
 /// rebuild triggered by an unrelated stream — costs a few reads and no sync
 /// traffic.
-final rollupKeeperProvider = Provider<void>((ref) {
-  // Not before the first sync has landed. Rollups are derived from rows that
-  // arrive over the network, so recomputing a half-downloaded database writes
-  // a summary of a day the device cannot see all of yet — and, until ids were
-  // derived from the day, raced the server's own row for it.
-  if (ref.watch(syncStatusProvider).value?.hasSynced != true) return;
+class RollupKeeper extends Notifier<void> {
+  @override
+  void build() {
+    // Listened to rather than watched, and the difference is the whole reason
+    // this class exists. A `Provider<void>` always holds the same value — null
+    // — so nothing that watches it ever rebuilds, nothing re-reads it, and its
+    // body runs only when its host widget happens to rebuild for some unrelated
+    // reason. It looked like it worked for a whole phase. A listener fires on
+    // every change, whether or not anybody is looking at the result.
+    ref.listen(syncStatusProvider, (_, _) => refresh());
+    ref.listen(weightTrendProvider, (_, _) => refresh());
+    ref.listen(recentIntakeProvider, (_, _) => refresh());
+    ref.listen(recentActivityProvider, (_, _) => refresh());
+    ref.listen(recentRecoveryProvider, (_, _) => refresh());
+    ref.listen(outstandingRejectionsProvider, (_, _) => refresh());
+    refresh();
+  }
 
-  final trend = ref.watch(weightTrendProvider);
-  final intake = ref.watch(recentIntakeProvider).value ?? const {};
-  ref.watch(recentActivityProvider);
-  ref.watch(recentRecoveryProvider);
+  /// Rebuilds the recent rollups from whatever the sources say right now.
+  Future<void> refresh() async {
+    // Not before the first sync has landed. Rollups are derived from rows that
+    // arrive over the network, so recomputing a half-downloaded database writes
+    // a summary of a day the device cannot see all of yet — and, until ids were
+    // derived from the day, raced the server's own row for it.
+    if (ref.read(syncStatusProvider).value?.hasSynced != true) return;
 
-  // Read rather than watched. The estimate is derived from intake and the
-  // trend, both of which are already watched above, so watching it too would
-  // only add a second rebuild for the same change — and, because it reads meals
-  // that this write does not touch, there is no loop either way.
-  final tdee = ref.read(tdeeProvider).value;
+    final trend = ref.read(weightTrendProvider);
+    final intake = ref.read(recentIntakeProvider).value ?? const {};
+    final tdee = ref.read(tdeeProvider).value;
 
-  // Days the server has already refused are left alone. Recomputing one would
-  // only get it refused again, and PowerSync removes the local row each time,
-  // which is what turns a single rejection into a loop.
-  final refused = <String>{
-    for (final rejection
-        in ref.watch(outstandingRejectionsProvider).value ?? const <SyncRejection>[])
-      if (rejection.rejectedTable == 'daily_rollup') rejection.rowId,
-  };
+    // Days the server has already refused are left alone. Recomputing one would
+    // only get it refused again, and PowerSync removes the local row each time,
+    // which is what turns a single rejection into a loop.
+    final refused = <String>{
+      for (final rejection in ref.read(outstandingRejectionsProvider).value ??
+          const <SyncRejection>[])
+        if (rejection.rejectedTable == 'daily_rollup') rejection.rowId,
+    };
 
-  final repository = ref.read(rollupRepositoryProvider);
-  repository.recomputeRecent(
-    trendByDay: {for (final point in trend) dayKey(point.date): point.trendKg},
-    intakeByDay: intake,
-    tdeeKcal: tdee != null && tdee.kcal > 0 ? tdee.kcal.round() : null,
-    skipIds: refused,
-  );
-});
+    await ref.read(rollupRepositoryProvider).recomputeRecent(
+          trendByDay: {
+            for (final point in trend) dayKey(point.date): point.trendKg,
+          },
+          intakeByDay: intake,
+          tdeeKcal: tdee != null && tdee.kcal > 0 ? tdee.kcal.round() : null,
+          skipIds: refused,
+        );
+  }
+}
+
+final rollupKeeperProvider =
+    NotifierProvider<RollupKeeper, void>(RollupKeeper.new);

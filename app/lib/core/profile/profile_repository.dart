@@ -100,11 +100,25 @@ final weightPhaseProvider = Provider<engine.WeightPhase>((ref) {
 /// Waiting for the sync matters: an empty `profiles` table on a fresh install
 /// means the row has not arrived yet, and writing one then would upsert
 /// defaults over the real thing.
-final profileKeeperProvider = Provider<void>((ref) {
-  final synced = ref.watch(syncStatusProvider).value?.hasSynced ?? false;
-  if (!synced) return;
-  // Depend on the row itself, so this re-runs if it is ever removed.
-  if (ref.watch(profileProvider).value != null) return;
+class ProfileKeeper extends Notifier<void> {
+  @override
+  void build() {
+    // Listened to rather than watched: a provider whose value is always null
+    // never notifies anyone, so nothing re-reads it and its body runs only when
+    // some widget happens to rebuild. See RollupKeeper for the same trap.
+    ref.listen(syncStatusProvider, (_, _) => _check());
+    ref.listen(profileProvider, (_, _) => _check());
+    _check();
+  }
 
-  ref.read(profileRepositoryProvider).ensureExists();
-});
+  void _check() {
+    if (ref.read(syncStatusProvider).value?.hasSynced != true) return;
+    // The row is there; nothing to do. Re-checked on every change so a profile
+    // that somehow goes missing is recreated.
+    if (ref.read(profileProvider).value != null) return;
+    ref.read(profileRepositoryProvider).ensureExists();
+  }
+}
+
+final profileKeeperProvider =
+    NotifierProvider<ProfileKeeper, void>(ProfileKeeper.new);
