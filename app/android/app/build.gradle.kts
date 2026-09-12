@@ -24,7 +24,9 @@ android {
         applicationId = "com.aakifosmani.overload"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        // Health Connect is only available from Android 8.0, and the health
+        // plugin refuses to build below it. Nothing else here needs 26.
+        minSdk = maxOf(flutter.minSdkVersion, 26)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

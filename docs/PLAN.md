@@ -5,7 +5,8 @@
 > them and proposes changes you approve.
 >
 > Visual version: https://claude.ai/code/artifact/e2611415-de7e-4f90-ac1b-83b0b54442b2
-> Status: Phase 0 in progress (started 2026-09-12).
+> Status: Phases 0 and 1 built (2026-09-12); Phase 2 in progress. Phase 1 is still running
+> its exit test — a fortnight of real training.
 
 **Assumptions:** you are the first user; iOS + Android; multi-user safe from day one (auth + row-level
 security); everything stored metric (kg, g, kcal) and displayed in your units.

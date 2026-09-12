@@ -5,8 +5,12 @@ growth engine and an AI coach. **Read [docs/PLAN.md](docs/PLAN.md) before featur
 feature set, the progression/deload rules, the AI harness design, the data model and the phased
 roadmap. Setup instructions are in [README.md](README.md).
 
-Phase 0 (foundations) is done. Phase 1 is the training MVP: exercise library, templates, live
-workout logging, rest timer, PRs, and engine v1 (double + linear progression, e1RM, stall detection).
+Phase 0 (foundations) and Phase 1 (training MVP: exercise library, templates, live workout logging,
+rest timer, PRs, engine v1) are built. Phase 1's exit test — a fortnight of real training with correct
+next-session targets — is still running.
+
+Phase 2 (Body & Move) is in progress: trend weight, measurements, the morning check-in and readiness,
+Health Connect import, `daily_rollup`, Progress v1. Progress photos are the piece still outstanding.
 
 ## Layout
 
@@ -35,6 +39,24 @@ workout logging, rest timer, PRs, and engine v1 (double + linear progression, e1
   for `jsonb`.
 - **Child tables** reference their parent with a composite foreign key `(parent_id, user_id)` so rows
   can never be attached to another user's data.
+- **One row per day** (`body_metrics`, `daily_activity`, `recovery_daily`, `daily_rollup`) is enforced
+  by a *partial* unique index that ignores soft-deleted rows — never a plain `unique` constraint. A
+  deleted row leaves the device but keeps its slot in Postgres, so the next write gets a fresh uuid and
+  is rejected with 23505.
+- **A row that is unique per (user, day) gets its id from (user, day)**, via `dayRowId` in
+  `lib/core/day.dart`, not from `uuid.v7()`. Otherwise two devices — or one device writing before the
+  first sync delivers the server's row — generate different ids for the same day and the second is
+  rejected as a duplicate. The connector upserts by id, so a derived id turns a collision into the
+  update it was always meant to be.
+- **A write Postgres refuses is dropped from the queue and recorded** in the local-only
+  `sync_rejections` table, which the chip and Settings read. Anything that catches a fatal error in the
+  sync path has to leave a trace the app can show: a silent discard is how `progression_state` went
+  missing in Phase 1 and how `daily_rollup` did it again in Phase 2.
+- **Day keys are local calendar days** (`lib/core/day.dart`), stored as `date`. A weigh-in belongs to
+  the day the lifter stood on the scale, not to whatever UTC thought at the time. Everything else stays
+  UTC.
+- **Derived tables are rewritten, never soft-deleted.** `progression_state` blanks its columns and
+  `daily_rollup` recomputes in place, so the row keeps its id and its slot.
 - **The engine owns the numbers.** Loads, targets, deloads, TDEE and macros come from
   `packages/engine`; screens and the AI only display or propose them.
 - **The AI never writes directly.** Changes to a plan go through `ai_proposals` and a user approval.
@@ -50,5 +72,14 @@ flutter analyze && flutter test
 flutter run --dart-define-from-file=config/dev.json
 ```
 
-Schema changes: `npx supabase db push`. No local Postgres on this machine (no Docker), so migrations
-are checked in CI and can be smoke-tested with PGlite.
+Schema changes: `npx supabase db push` (`npx.cmd` on this Windows box — PowerShell's execution policy
+blocks the `.ps1` shim). No local Postgres here (no Docker), so migrations are proved two ways in CI:
+`supabase db start` applies them to real Postgres, and `scripts/check-migrations.mjs` applies them to
+PGlite and asserts what the schema promises. Run the second yourself before pushing:
+
+```bash
+cd scripts && npm install && npm run check
+```
+
+Adding a table means adding its block of checks there too — those checks are where "what this schema
+guarantees" is written down executably.

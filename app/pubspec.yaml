@@ -53,6 +53,9 @@ dependencies:
   # Pure Dart, versioned with the app rather than published.
   engine:
     path: ../packages/engine
+  health: ^13.3.2
+  image_picker: ^1.2.3
+  uuid: ^4.6.0
 
 dev_dependencies:
   flutter_test:

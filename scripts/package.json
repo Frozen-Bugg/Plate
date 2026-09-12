@@ -1,0 +1,12 @@
+{
+  "name": "overload-scripts",
+  "private": true,
+  "type": "module",
+  "description": "Developer scripts. Not part of the app build.",
+  "scripts": {
+    "check": "node check-migrations.mjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8"
+  }
+}

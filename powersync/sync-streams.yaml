@@ -53,3 +53,23 @@ streams:
   progression_state:
     auto_subscribe: true
     query: SELECT * FROM progression_state WHERE user_id = auth.user_id() AND deleted_at IS NULL
+
+  body_metrics:
+    auto_subscribe: true
+    query: SELECT * FROM body_metrics WHERE user_id = auth.user_id() AND deleted_at IS NULL
+
+  daily_activity:
+    auto_subscribe: true
+    query: SELECT * FROM daily_activity WHERE user_id = auth.user_id() AND deleted_at IS NULL
+
+  recovery_daily:
+    auto_subscribe: true
+    query: SELECT * FROM recovery_daily WHERE user_id = auth.user_id() AND deleted_at IS NULL
+
+  progress_photos:
+    auto_subscribe: true
+    query: SELECT * FROM progress_photos WHERE user_id = auth.user_id() AND deleted_at IS NULL
+
+  daily_rollup:
+    auto_subscribe: true
+    query: SELECT * FROM daily_rollup WHERE user_id = auth.user_id() AND deleted_at IS NULL

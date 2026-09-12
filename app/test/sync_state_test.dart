@@ -9,6 +9,7 @@ void main() {
     bool downloading = false,
     bool? hasSynced = true,
     bool hasLiveError = false,
+    bool hasRejections = false,
   }) =>
       SyncState.from(
         connected: connected,
@@ -17,6 +18,7 @@ void main() {
         downloading: downloading,
         hasSynced: hasSynced,
         hasLiveError: hasLiveError,
+        hasRejections: hasRejections,
       );
 
   test('synced when connected, idle and caught up', () {
@@ -35,6 +37,29 @@ void main() {
     expect(state(uploading: true), SyncState.syncing);
     expect(state(downloading: true), SyncState.syncing);
     expect(state(hasSynced: null), SyncState.syncing);
+  });
+
+  group('a rejected write', () {
+    test('outranks a healthy sync', () {
+      expect(state(hasRejections: true), SyncState.rejected);
+    });
+
+    test('outranks being offline, which resolves itself', () {
+      // A dropped write does not come back when the signal does.
+      expect(
+        state(connected: false, hasRejections: true),
+        SyncState.rejected,
+      );
+    });
+
+    test('outranks a live error', () {
+      expect(state(hasLiveError: true, hasRejections: true), SyncState.rejected);
+    });
+
+    test('outranks work still in flight', () {
+      expect(state(uploading: true, hasRejections: true), SyncState.rejected);
+      expect(state(connecting: true, hasRejections: true), SyncState.rejected);
+    });
   });
 
   test('error only when connected', () {
