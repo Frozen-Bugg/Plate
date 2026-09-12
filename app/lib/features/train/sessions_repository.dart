@@ -62,8 +62,40 @@ class SessionsRepository {
       _update(id, SessionsCompanion(endedAt: Value(nowUtc())));
 
   /// Soft delete, so the deletion reaches every device.
-  Future<void> delete(String id) =>
-      _update(id, SessionsCompanion(deletedAt: Value(nowUtc())));
+  ///
+  /// Cascades by hand. Postgres cascades the composite foreign key on a *hard*
+  /// delete, but this is a soft one: without marking the children too, the
+  /// exercises and sets stay in the database forever, invisible to every
+  /// screen and still syncing to every device.
+  ///
+  /// Returns the exercises that were trained, so the caller can ask the engine
+  /// to reconsider — its verdict was based on sets that no longer count.
+  Future<Set<String>> delete(String id) async {
+    final now = nowUtc();
+
+    final trained = await (_db.select(_db.sessionExercises)
+          ..where((e) => e.sessionId.equals(id)))
+        .get();
+
+    for (final exercise in trained) {
+      await (_db.update(_db.workoutSets)
+            ..where((s) => s.sessionExerciseId.equals(exercise.id))
+            ..where((s) => s.deletedAt.isNull()))
+          .write(
+        WorkoutSetsCompanion(deletedAt: Value(now), updatedAt: Value(now)),
+      );
+    }
+
+    await (_db.update(_db.sessionExercises)
+          ..where((e) => e.sessionId.equals(id))
+          ..where((e) => e.deletedAt.isNull()))
+        .write(
+      SessionExercisesCompanion(deletedAt: Value(now), updatedAt: Value(now)),
+    );
+
+    await _update(id, SessionsCompanion(deletedAt: Value(now)));
+    return trained.map((e) => e.exerciseId).toSet();
+  }
 
   Future<void> _update(String id, SessionsCompanion changes) {
     return (_db.update(_db.sessions)..where((s) => s.id.equals(id)))

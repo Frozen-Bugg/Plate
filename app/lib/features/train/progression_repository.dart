@@ -133,7 +133,13 @@ class ProgressionRepository {
     Prescription? prescription,
   }) async {
     final exposures = await recentExposures(exerciseId);
-    if (exposures.isEmpty) return null;
+    if (exposures.isEmpty) {
+      // Every session containing this exercise has been deleted, so the stored
+      // target was derived from sets that no longer count. Showing it would be
+      // worse than showing nothing.
+      await _clear(exerciseId);
+      return null;
+    }
 
     prescription ??= await prescriptionFor(exerciseId);
 
@@ -192,6 +198,19 @@ class ProgressionRepository {
   /// three exposures at the same or higher effort.
   Future<bool> isStalled(String exerciseId) async =>
       engine.isStalled(await recentExposures(exerciseId));
+
+  /// Drops the stored verdict for an exercise with no history left.
+  Future<void> _clear(String exerciseId) =>
+      (_db.update(_db.progressionStates)
+            ..where((p) => p.exerciseId.equals(exerciseId))
+            ..where((p) => p.userId.equals(_userId))
+            ..where((p) => p.deletedAt.isNull()))
+          .write(
+        ProgressionStatesCompanion(
+          deletedAt: Value(nowUtc()),
+          updatedAt: Value(nowUtc()),
+        ),
+      );
 
   Future<void> _upsert({
     required String exerciseId,

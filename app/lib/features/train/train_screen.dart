@@ -113,7 +113,7 @@ class ActiveSessionCard extends ConsumerWidget {
       ),
     );
     if (confirmed == true) {
-      await ref.read(sessionsRepositoryProvider).delete(session.id);
+      await _deleteAndRecompute(ref, session.id);
     }
   }
 
@@ -254,7 +254,7 @@ class _SessionTile extends ConsumerWidget {
       ),
     );
     if (confirmed == true) {
-      await ref.read(sessionsRepositoryProvider).delete(session.id);
+      await _deleteAndRecompute(ref, session.id);
     }
   }
 
@@ -282,5 +282,17 @@ class _SessionTile extends ConsumerWidget {
         ],
       ),
     );
+  }
+}
+
+/// Deletes a session and asks the engine to reconsider every exercise it
+/// contained. Without this the stored target would still be based on sets the
+/// lifter has just thrown away.
+Future<void> _deleteAndRecompute(WidgetRef ref, String sessionId) async {
+  final affected =
+      await ref.read(sessionsRepositoryProvider).delete(sessionId);
+  final progression = ref.read(progressionRepositoryProvider);
+  for (final exerciseId in affected) {
+    await progression.recompute(exerciseId);
   }
 }
