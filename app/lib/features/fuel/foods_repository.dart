@@ -222,3 +222,11 @@ final foodSearchProvider = StreamProvider.family<List<Food>, String>(
       ? ref.watch(foodsRepositoryProvider).watchRecent()
       : ref.watch(foodsRepositoryProvider).watchMatching(query),
 );
+
+/// One food by id, cached.
+///
+/// A provider rather than a lookup inside `build`: the day log names a food per
+/// item, and re-running that future on every rebuild would flicker the lot.
+final foodByIdProvider = FutureProvider.family<Food?, String>(
+  (ref, id) => ref.watch(foodsRepositoryProvider).byId(id),
+);

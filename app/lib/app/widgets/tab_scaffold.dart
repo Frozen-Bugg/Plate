@@ -6,10 +6,16 @@ import 'sync_status_chip.dart';
 
 /// Scaffold for a top-level tab: title, sync status and a Settings button.
 class TabScaffold extends StatelessWidget {
-  const TabScaffold({super.key, required this.title, required this.body});
+  const TabScaffold({
+    super.key,
+    required this.title,
+    required this.body,
+    this.floatingActionButton,
+  });
 
   final String title;
   final Widget body;
+  final Widget? floatingActionButton;
 
   @override
   Widget build(BuildContext context) {
@@ -27,6 +33,7 @@ class TabScaffold extends StatelessWidget {
         ],
       ),
       body: body,
+      floatingActionButton: floatingActionButton,
     );
   }
 }
