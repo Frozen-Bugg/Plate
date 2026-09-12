@@ -3,14 +3,15 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/db/app_database.dart';
+import 'food_search_service.dart';
 import 'foods_repository.dart';
 import 'meals_repository.dart';
 
 /// Search what you already eat, pick an amount, log it.
 ///
-/// Local-only search for now: everything the lifter has used before, which is
-/// most of what they will eat today. USDA and Open Food Facts join it next,
-/// behind the same box.
+/// Yours first, then Open Food Facts. What a lifter has eaten before answers
+/// most searches instantly and offline; the online list is for the thing they
+/// have not logged yet.
 Future<void> showAddFoodSheet(
   BuildContext context, {
   required String day,
@@ -51,7 +52,6 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet> {
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
-    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
     final results = ref.watch(foodSearchProvider(_query)).value ?? const [];
 
     return SizedBox(
@@ -97,46 +97,113 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet> {
               onChanged: (value) => setState(() => _query = value),
             ),
             const SizedBox(height: 8),
-            Expanded(
-              child: results.isEmpty
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Text(
-                          _query.isEmpty
-                              ? 'Nothing logged yet. Add the first food and it '
-                                  'will be here tomorrow.'
-                              : 'No match. "New" adds it from the label.',
-                          textAlign: TextAlign.center,
-                          style: text.bodyMedium?.copyWith(color: muted),
-                        ),
-                      ),
-                    )
-                  : ListView.builder(
-                      itemCount: results.length,
-                      itemBuilder: (context, i) {
-                        final food = results[i];
-                        return ListTile(
-                          title: Text(food.name),
-                          subtitle: Text(
-                            [
-                              ?food.brand,
-                              '${food.kcalPer100.round()} kcal / 100 ${food.basis}',
-                            ].join(' · '),
-                            style: text.labelSmall?.copyWith(color: muted),
-                          ),
-                          trailing: food.favourite
-                              ? const Icon(Icons.star, size: 18)
-                              : null,
-                          onTap: () => _pickQuantity(food),
-                        );
-                      },
-                    ),
-            ),
+            Expanded(child: _results(context, results)),
           ],
         ),
       ),
     );
+  }
+
+  /// Yours first, then Open Food Facts.
+  ///
+  /// The order is the point. What a lifter has eaten before answers most
+  /// searches instantly and offline; the online list is for the thing they have
+  /// not logged yet, and it should never push the familiar answer down the
+  /// screen while it loads.
+  Widget _results(BuildContext context, List<Food> mine) {
+    final text = Theme.of(context).textTheme;
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    final online = ref.watch(onlineFoodSearchProvider(_query));
+    final searching = _query.trim().length >= 2 && online.isLoading;
+    final found = online.value ?? const <FoodFacts>[];
+
+    // Anything already on the shelf is not offered again from the internet.
+    final known = {for (final food in mine) ?food.barcode};
+    final fresh = [
+      for (final facts in found)
+        if (facts.barcode == null || !known.contains(facts.barcode)) facts,
+    ];
+
+    if (mine.isEmpty && fresh.isEmpty && !searching) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            _query.trim().isEmpty
+                ? 'Nothing logged yet. Add the first food and it will be here '
+                    'tomorrow.'
+                : 'Nothing found, here or in Open Food Facts. "New" adds it '
+                    'from the label.',
+            textAlign: TextAlign.center,
+            style: text.bodyMedium?.copyWith(color: muted),
+          ),
+        ),
+      );
+    }
+
+    Widget heading(String label) => Padding(
+          padding: const EdgeInsets.fromLTRB(4, 12, 4, 4),
+          child: Text(
+            label.toUpperCase(),
+            style: text.labelSmall?.copyWith(color: muted, letterSpacing: 1),
+          ),
+        );
+
+    return ListView(
+      children: [
+        if (mine.isNotEmpty) ...[
+          if (fresh.isNotEmpty || searching) heading('Yours'),
+          for (final food in mine)
+            ListTile(
+              title: Text(food.name),
+              subtitle: Text(
+                [
+                  ?food.brand,
+                  '${food.kcalPer100.round()} kcal / 100 ${food.basis}',
+                ].join(' · '),
+                style: text.labelSmall?.copyWith(color: muted),
+              ),
+              trailing:
+                  food.favourite ? const Icon(Icons.star, size: 18) : null,
+              onTap: () => _pickQuantity(food),
+            ),
+        ],
+        if (searching)
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Center(
+              child: SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          ),
+        if (fresh.isNotEmpty) ...[
+          heading('Open Food Facts'),
+          for (final facts in fresh)
+            ListTile(
+              title: Text(facts.name),
+              subtitle: Text(
+                [
+                  ?facts.brand,
+                  '${facts.kcalPer100.round()} kcal / 100 ${facts.basis}',
+                ].join(' · '),
+                style: text.labelSmall?.copyWith(color: muted),
+              ),
+              trailing: const Icon(Icons.south_west, size: 16),
+              // Copied into the lifter's own foods on the way through, so the
+              // next search finds it locally and offline.
+              onTap: () => _logFromFacts(facts),
+            ),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _logFromFacts(FoodFacts facts) async {
+    final food = await ref.read(foodsRepositoryProvider).remember(facts);
+    if (mounted) await _pickQuantity(food);
   }
 
   Future<void> _pickQuantity(Food food) async {
