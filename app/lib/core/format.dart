@@ -47,3 +47,14 @@ String formatRir(double rir) {
 /// A single plate, as a lifter would say it: 25, 2.5, 1.25.
 String formatPlate(double kg) =>
     kg == kg.roundToDouble() ? kg.toStringAsFixed(0) : kg.toString();
+
+/// A weekly rate of change: "−0.6 kg/week", "+0.3 kg/week".
+///
+/// Anything under 50 g a week reads as holding rather than as a number. At that
+/// size the figure is noise dressed up as progress, and showing it invites
+/// reacting to it.
+String formatWeeklyRate(double kgPerWeek) {
+  if (kgPerWeek.abs() < 0.05) return 'Holding steady';
+  final sign = kgPerWeek > 0 ? '+' : '−';
+  return '$sign${kgPerWeek.abs().toStringAsFixed(1)} kg/week';
+}

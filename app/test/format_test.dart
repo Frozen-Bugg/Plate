@@ -34,6 +34,23 @@ void main() {
     });
   });
 
+  group('formatWeeklyRate', () {
+    test('signs the direction', () {
+      expect(formatWeeklyRate(-0.6), '−0.6 kg/week');
+      expect(formatWeeklyRate(0.3), '+0.3 kg/week');
+    });
+
+    test('calls a rate under 50 g a week what it is', () {
+      expect(formatWeeklyRate(0.02), 'Holding steady');
+      expect(formatWeeklyRate(-0.04), 'Holding steady');
+      expect(formatWeeklyRate(0), 'Holding steady');
+    });
+
+    test('rounds to the tenth a scale can actually support', () {
+      expect(formatWeeklyRate(-0.6449), '−0.6 kg/week');
+    });
+  });
+
   group('formatPlate', () {
     test('says plates the way a lifter does', () {
       expect(formatPlate(25), '25');
