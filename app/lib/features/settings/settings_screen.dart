@@ -44,7 +44,8 @@ class SettingsScreen extends ConsumerWidget {
     final user = ref.watch(currentUserProvider);
     final status = ref.watch(syncStatusProvider).value;
     final pending = ref.watch(pendingUploadsProvider).value;
-    final state = SyncState.of(status);
+    final hasLiveError = ref.watch(syncHasLiveErrorProvider);
+    final state = SyncState.of(status, hasLiveError: hasLiveError);
     final text = Theme.of(context).textTheme;
     final provider = user?.appMetadata['provider'] as String?;
 
@@ -90,10 +91,12 @@ class SettingsScreen extends ConsumerWidget {
               style: text.titleMedium,
             ),
           ),
-          if (status?.anyError case final error?)
+          // Only while it still stands: a recovered-from error would otherwise
+          // sit here indefinitely, reporting a failure that has since synced.
+          if (status?.anyError case final error? when hasLiveError)
             ListTile(
               leading: const Icon(Icons.error_outline),
-              title: const Text('Last sync error'),
+              title: const Text('Sync error'),
               subtitle: Text('$error'),
             ),
           const SizedBox(height: 24),

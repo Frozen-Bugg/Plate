@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/app_config.dart';
 import '../sync/supabase_connector.dart';
+import '../sync/sync_error_tracker.dart';
 import 'app_database.dart';
 import 'powersync_schema.dart';
 
@@ -78,4 +79,22 @@ final pendingUploadsProvider = FutureProvider<int>((ref) async {
   ref.watch(syncStatusProvider);
   final db = await ref.watch(powerSyncProvider.future);
   return (await db.getUploadQueueStats()).count;
+});
+
+/// One tracker per database, so it sees every status in order.
+final _syncErrorTrackerProvider = Provider<SyncErrorTracker>((ref) {
+  ref.watch(powerSyncProvider);
+  return SyncErrorTracker();
+});
+
+/// Whether sync is currently failing, as opposed to having failed at some
+/// point in the past. `SyncStatus.anyError` only ever answers the second
+/// question — see [SyncErrorTracker].
+final syncHasLiveErrorProvider = Provider<bool>((ref) {
+  final status = ref.watch(syncStatusProvider).value;
+  if (status == null) return false;
+  return ref.watch(_syncErrorTrackerProvider).errorIsLive(
+        error: status.anyError,
+        lastSyncedAt: status.lastSyncedAt,
+      );
 });

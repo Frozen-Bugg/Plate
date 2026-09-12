@@ -8,7 +8,7 @@ void main() {
     bool uploading = false,
     bool downloading = false,
     bool? hasSynced = true,
-    bool hasError = false,
+    bool hasLiveError = false,
   }) =>
       SyncState.from(
         connected: connected,
@@ -16,7 +16,7 @@ void main() {
         uploading: uploading,
         downloading: downloading,
         hasSynced: hasSynced,
-        hasError: hasError,
+        hasLiveError: hasLiveError,
       );
 
   test('synced when connected, idle and caught up', () {
@@ -24,7 +24,7 @@ void main() {
   });
 
   test('offline beats errors, since failed requests are expected with no signal', () {
-    expect(state(connected: false, hasError: true), SyncState.offline);
+    expect(state(connected: false, hasLiveError: true), SyncState.offline);
   });
 
   test('connecting is shown while the connection is being set up', () {
@@ -38,6 +38,6 @@ void main() {
   });
 
   test('error only when connected', () {
-    expect(state(hasError: true), SyncState.error);
+    expect(state(hasLiveError: true), SyncState.error);
   });
 }

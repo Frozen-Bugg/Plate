@@ -5,6 +5,7 @@ import 'package:powersync/powersync.dart';
 
 import '../../core/config/app_config.dart';
 import '../../core/db/database_providers.dart';
+import '../../core/sync/sync_error_tracker.dart';
 import '../router.dart';
 import '../theme.dart';
 
@@ -23,22 +24,27 @@ enum SyncState {
 
   /// Offline wins over errors: a failed request while offline is expected,
   /// and PowerSync retries on its own once the connection is back.
+  ///
+  /// [hasLiveError] must describe a failure that has not been followed by a
+  /// successful sync, not merely the presence of `SyncStatus.anyError` — that
+  /// field is never cleared. See [SyncErrorTracker].
   static SyncState from({
     required bool connected,
     required bool connecting,
     required bool uploading,
     required bool downloading,
     required bool? hasSynced,
-    required bool hasError,
+    required bool hasLiveError,
   }) {
     if (connecting) return SyncState.connecting;
     if (!connected) return SyncState.offline;
-    if (hasError) return SyncState.error;
+    if (hasLiveError) return SyncState.error;
     if (uploading || downloading || hasSynced != true) return SyncState.syncing;
     return SyncState.synced;
   }
 
-  static SyncState of(SyncStatus? status) => !AppConfig.syncConfigured
+  static SyncState of(SyncStatus? status, {required bool hasLiveError}) =>
+      !AppConfig.syncConfigured
       ? SyncState.localOnly
       : status == null
       ? SyncState.starting
@@ -48,7 +54,7 @@ enum SyncState {
           uploading: status.uploading,
           downloading: status.downloading,
           hasSynced: status.hasSynced,
-          hasError: status.anyError != null,
+          hasLiveError: hasLiveError,
         );
 }
 
@@ -59,7 +65,10 @@ class SyncStatusChip extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = SyncState.of(ref.watch(syncStatusProvider).value);
+    final state = SyncState.of(
+      ref.watch(syncStatusProvider).value,
+      hasLiveError: ref.watch(syncHasLiveErrorProvider),
+    );
     final pillars = PillarColors.of(context);
     final scheme = Theme.of(context).colorScheme;
     final dot = switch (state) {
