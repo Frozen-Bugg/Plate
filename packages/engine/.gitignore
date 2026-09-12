@@ -1,0 +1,3 @@
+# Dart tooling state
+.dart_tool/
+build/
