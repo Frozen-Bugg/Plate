@@ -49,3 +49,7 @@ streams:
   sets:
     auto_subscribe: true
     query: SELECT * FROM sets WHERE user_id = auth.user_id() AND deleted_at IS NULL
+
+  progression_state:
+    auto_subscribe: true
+    query: SELECT * FROM progression_state WHERE user_id = auth.user_id() AND deleted_at IS NULL
