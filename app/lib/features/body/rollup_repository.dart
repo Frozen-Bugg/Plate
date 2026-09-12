@@ -1,14 +1,19 @@
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:logging/logging.dart';
 
 import '../../core/auth/auth_service.dart';
 import '../../core/day.dart';
 import '../../core/db/app_database.dart';
 import '../../core/db/database_providers.dart';
 import '../../core/sync/sync_rejections.dart';
+import '../fuel/meals_repository.dart';
+import '../fuel/targets_repository.dart';
 import 'activity_repository.dart';
 import 'body_repository.dart';
 import 'recovery_repository.dart';
+
+final _log = Logger('rollup');
 
 /// What a day amounted to in the gym.
 typedef TrainingDay = ({int hardSets, double volumeKg});
@@ -57,6 +62,8 @@ class RollupRepository {
   Future<void> recomputeRecent({
     int days = 14,
     Map<String, double> trendByDay = const {},
+    Map<String, Nutrition> intakeByDay = const {},
+    int? tdeeKcal,
     Set<String> skipIds = const {},
   }) async {
     final from = daysAgo(days - 1);
@@ -92,6 +99,10 @@ class RollupRepository {
         recovery: recovery[day],
         phase: profile?.phase,
         trendWeightKg: trendByDay[day],
+        intake: intakeByDay[day],
+        // Only today gets a fresh estimate; every earlier row keeps the one it
+        // was given at the time.
+        tdeeKcal: i == 0 ? tdeeKcal : null,
       );
     }
   }
@@ -105,7 +116,16 @@ class RollupRepository {
     required RecoveryDay? recovery,
     required String? phase,
     required double? trendWeightKg,
+    required Nutrition? intake,
+    required int? tdeeKcal,
   }) async {
+    // What the engine believed maintenance was, kept once it is known. The
+    // estimate is a rolling figure rather than a property of a day, so only
+    // today's row gets a fresh one and yesterday keeps what it was told then —
+    // which is the point of storing it at all: a weekly review can see what the
+    // app thought at the time rather than what it thinks now.
+    final tdee = tdeeKcal ?? existing?.tdeeEst;
+
     final changes = DailyRollupsCompanion(
       trendWeightKg: Value(trendWeightKg),
       weightKg: Value(body?.weightKg),
@@ -114,6 +134,9 @@ class RollupRepository {
       readiness: Value(recovery?.readiness),
       hardSets: Value(training?.hardSets),
       volumeKg: Value(training?.volumeKg),
+      intakeKcal: Value(intake?.kcal.round()),
+      proteinG: Value(intake?.proteinG),
+      tdeeEst: Value(tdee),
       phase: Value(phase),
     );
 
@@ -128,6 +151,9 @@ class RollupRepository {
           existing.readiness == recovery?.readiness &&
           existing.hardSets == training?.hardSets &&
           existing.volumeKg == training?.volumeKg &&
+          existing.intakeKcal == intake?.kcal.round() &&
+          existing.proteinG == intake?.proteinG &&
+          existing.tdeeEst == tdee &&
           existing.phase == phase;
       if (same) return;
 
@@ -139,17 +165,37 @@ class RollupRepository {
     // Nothing happened and nothing is stored: do not write an empty row. A
     // rollup for every rest day would be mostly nulls and would make "days
     // logged" meaningless.
-    if (training == null && body == null && activity == null && recovery == null) {
+    if (training == null &&
+        body == null &&
+        activity == null &&
+        recovery == null &&
+        intake == null) {
       return;
     }
 
-    // Views do not support RETURNING, so the id is derived here. It is derived
-    // rather than random so the same day always lands on the same row — and
-    // because it is derived, a row may already exist that the lookup above
-    // missed (a soft-deleted one, or one written by a pass still in flight).
-    // Replacing is the right answer either way: the values here are recomputed
-    // from the sources, not accumulated onto what was there.
-    await _db.into(_db.dailyRollups).insertOnConflictUpdate(
+    // The id is derived rather than random, so the same day always lands on the
+    // same row — which means a row may already exist that the lookup above
+    // missed, because that one ignores soft-deleted rows. Find it by id and
+    // update in place.
+    //
+    // Not an upsert: PowerSync tables are SQLite views, and a view cannot be
+    // upserted any more than it can RETURNING. `insertOnConflictUpdate` throws
+    // "cannot UPSERT a view" — which it did, silently, on every recompute,
+    // because the throw landed in an unawaited future nobody was watching.
+    final byId = await (_db.select(_db.dailyRollups)
+          ..where((r) => r.id.equals(_idFor(day)))
+          ..limit(1))
+        .getSingleOrNull();
+    if (byId != null) {
+      await (_db.update(_db.dailyRollups)..where((r) => r.id.equals(byId.id)))
+          .write(changes.copyWith(
+        deletedAt: const Value(null),
+        updatedAt: Value(nowUtc()),
+      ));
+      return;
+    }
+
+    await _db.into(_db.dailyRollups).insert(
           DailyRollupsCompanion.insert(
             id: Value(_idFor(day)),
             userId: _userId,
@@ -162,6 +208,9 @@ class RollupRepository {
             readiness: changes.readiness,
             hardSets: changes.hardSets,
             volumeKg: changes.volumeKg,
+            intakeKcal: changes.intakeKcal,
+            proteinG: changes.proteinG,
+            tdeeEst: changes.tdeeEst,
             phase: changes.phase,
           ),
         );
@@ -275,29 +324,68 @@ final dailyRollupsProvider = StreamProvider<List<DailyRollup>>(
 /// Recomputing writes nothing when nothing changed, so the common case — a
 /// rebuild triggered by an unrelated stream — costs a few reads and no sync
 /// traffic.
-final rollupKeeperProvider = Provider<void>((ref) {
-  // Not before the first sync has landed. Rollups are derived from rows that
-  // arrive over the network, so recomputing a half-downloaded database writes
-  // a summary of a day the device cannot see all of yet — and, until ids were
-  // derived from the day, raced the server's own row for it.
-  if (ref.watch(syncStatusProvider).value?.hasSynced != true) return;
+class RollupKeeper extends Notifier<void> {
+  @override
+  void build() {
+    // Listened to rather than watched, and the difference is the whole reason
+    // this class exists. A `Provider<void>` always holds the same value — null
+    // — so nothing that watches it ever rebuilds, nothing re-reads it, and its
+    // body runs only when its host widget happens to rebuild for some unrelated
+    // reason. It looked like it worked for a whole phase. A listener fires on
+    // every change, whether or not anybody is looking at the result.
+    ref.listen(syncStatusProvider, (_, _) => refresh());
+    ref.listen(weightTrendProvider, (_, _) => refresh());
+    ref.listen(recentIntakeProvider, (_, _) => refresh());
+    ref.listen(recentActivityProvider, (_, _) => refresh());
+    ref.listen(recentRecoveryProvider, (_, _) => refresh());
+    ref.listen(outstandingRejectionsProvider, (_, _) => refresh());
+    refresh();
+  }
 
-  final trend = ref.watch(weightTrendProvider);
-  ref.watch(recentActivityProvider);
-  ref.watch(recentRecoveryProvider);
+  /// Rebuilds the recent rollups from whatever the sources say right now.
+  ///
+  /// Failures are logged rather than thrown. Nothing awaits this — it is called
+  /// from listeners — so an exception would otherwise land in an unawaited
+  /// future and disappear, which is exactly how "cannot UPSERT a view" went
+  /// unnoticed through two commits.
+  Future<void> refresh() async {
+    try {
+      await _refresh();
+    } catch (e, stack) {
+      _log.severe('Could not rebuild the daily rollups', e, stack);
+    }
+  }
 
-  // Days the server has already refused are left alone. Recomputing one would
-  // only get it refused again, and PowerSync removes the local row each time,
-  // which is what turns a single rejection into a loop.
-  final refused = <String>{
-    for (final rejection
-        in ref.watch(outstandingRejectionsProvider).value ?? const <SyncRejection>[])
-      if (rejection.rejectedTable == 'daily_rollup') rejection.rowId,
-  };
+  Future<void> _refresh() async {
+    // Not before the first sync has landed. Rollups are derived from rows that
+    // arrive over the network, so recomputing a half-downloaded database writes
+    // a summary of a day the device cannot see all of yet — and, until ids were
+    // derived from the day, raced the server's own row for it.
+    if (ref.read(syncStatusProvider).value?.hasSynced != true) return;
 
-  final repository = ref.read(rollupRepositoryProvider);
-  repository.recomputeRecent(
-    trendByDay: {for (final point in trend) dayKey(point.date): point.trendKg},
-    skipIds: refused,
-  );
-});
+    final trend = ref.read(weightTrendProvider);
+    final intake = ref.read(recentIntakeProvider).value ?? const {};
+    final tdee = ref.read(tdeeProvider).value;
+
+    // Days the server has already refused are left alone. Recomputing one would
+    // only get it refused again, and PowerSync removes the local row each time,
+    // which is what turns a single rejection into a loop.
+    final refused = <String>{
+      for (final rejection in ref.read(outstandingRejectionsProvider).value ??
+          const <SyncRejection>[])
+        if (rejection.rejectedTable == 'daily_rollup') rejection.rowId,
+    };
+
+    await ref.read(rollupRepositoryProvider).recomputeRecent(
+          trendByDay: {
+            for (final point in trend) dayKey(point.date): point.trendKg,
+          },
+          intakeByDay: intake,
+          tdeeKcal: tdee != null && tdee.kcal > 0 ? tdee.kcal.round() : null,
+          skipIds: refused,
+        );
+  }
+}
+
+final rollupKeeperProvider =
+    NotifierProvider<RollupKeeper, void>(RollupKeeper.new);

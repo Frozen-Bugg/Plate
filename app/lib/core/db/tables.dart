@@ -308,3 +308,134 @@ class SyncRejections extends Table {
   @override
   Set<Column<Object>> get primaryKey => {id};
 }
+
+// ---------------------------------------------------------------------------
+// Phase 3 — Fuel
+//
+// Foods are per-lifter copies, never a shared library: USDA and Open Food Facts
+// are far too big to sync, so search hits them online and a food is copied in
+// the moment it is used. That copy syncs, so logging works offline — which is
+// where food logging actually happens. See the migration for the reasoning.
+// ---------------------------------------------------------------------------
+
+/// Something this lifter eats, with its nutrition per 100 g (or 100 ml).
+class Foods extends Table with SyncedRow {
+  TextColumn get userId => text()();
+  TextColumn get name => text()();
+  TextColumn get brand => text().nullable()();
+
+  /// 'custom', 'usda', 'off', 'label' or 'coach' — where the copy came from.
+  TextColumn get source => text().withDefault(const Constant('custom'))();
+  TextColumn get sourceId => text().nullable()();
+  TextColumn get barcode => text().nullable()();
+
+  /// 'g' or 'ml'. One canonical basis means a portion is a multiplication.
+  TextColumn get basis => text().withDefault(const Constant('g'))();
+  RealColumn get kcalPer100 => real().named('kcal_per_100')();
+  RealColumn get proteinPer100 =>
+      real().named('protein_per_100').withDefault(const Constant(0))();
+  RealColumn get carbPer100 =>
+      real().named('carb_per_100').withDefault(const Constant(0))();
+  RealColumn get fatPer100 =>
+      real().named('fat_per_100').withDefault(const Constant(0))();
+  RealColumn get fibrePer100 => real().named('fibre_per_100').nullable()();
+  RealColumn get sugarPer100 => real().named('sugar_per_100').nullable()();
+  RealColumn get satFatPer100 => real().named('sat_fat_per_100').nullable()();
+  RealColumn get sodiumMgPer100 =>
+      real().named('sodium_mg_per_100').nullable()();
+
+  /// The portion the lifter thinks in — "1 slice", 34 g.
+  RealColumn get servingG => real().nullable()();
+  TextColumn get servingLabel => text().nullable()();
+
+  /// Bumped on every use, so "recents" is a query rather than another table.
+  DateTimeColumn get lastUsedAt => dateTime().nullable()();
+  BoolColumn get favourite => boolean().withDefault(const Constant(false))();
+}
+
+/// Something cooked from several foods. [totalWeightG] is what the finished
+/// dish weighed — the only honest way to portion a pot, since water boils off.
+class Recipes extends Table with SyncedRow {
+  TextColumn get userId => text()();
+  TextColumn get name => text()();
+  IntColumn get servings => integer().nullable()();
+  RealColumn get totalWeightG => real().nullable()();
+  TextColumn get notes => text().nullable()();
+  DateTimeColumn get lastUsedAt => dateTime().nullable()();
+  BoolColumn get favourite => boolean().withDefault(const Constant(false))();
+}
+
+class RecipeItems extends Table with SyncedRow {
+  TextColumn get userId => text()();
+  TextColumn get recipeId => text()();
+  TextColumn get foodId => text()();
+  IntColumn get position => integer().withDefault(const Constant(0))();
+  RealColumn get quantityG => real()();
+}
+
+/// A meal on a day. Several per day on purpose — the day's totals live in
+/// `daily_rollup`, not here.
+class Meals extends Table with SyncedRow {
+  TextColumn get userId => text()();
+  TextColumn get mealOn => text()();
+  TextColumn get slot => text().withDefault(const Constant('snack'))();
+  TextColumn get name => text().nullable()();
+  DateTimeColumn get loggedAt => dateTime().clientDefault(nowUtc)();
+  TextColumn get notes => text().nullable()();
+}
+
+/// One food or one portion of a recipe, inside a meal.
+///
+/// The macros are stored, not looked up. Food databases are corrected
+/// constantly, and a correction in November must not rewrite what March says
+/// you ate.
+class MealItems extends Table with SyncedRow {
+  TextColumn get userId => text()();
+  TextColumn get mealId => text()();
+
+  /// Exactly one of these is set.
+  TextColumn get foodId => text().nullable()();
+  TextColumn get recipeId => text().nullable()();
+
+  IntColumn get position => integer().withDefault(const Constant(0))();
+  RealColumn get quantityG => real()();
+
+  RealColumn get kcal => real()();
+  RealColumn get proteinG => real().withDefault(const Constant(0))();
+  RealColumn get carbG => real().withDefault(const Constant(0))();
+  RealColumn get fatG => real().withDefault(const Constant(0))();
+  RealColumn get fibreG => real().nullable()();
+
+  /// How it got logged: 'manual', 'barcode', 'recent', 'copy', 'recipe', and
+  /// from Phase 4 'photo', 'voice' and 'label' — each confirmed before landing.
+  TextColumn get source => text().withDefault(const Constant('manual'))();
+}
+
+/// What to aim for, effective-dated.
+///
+/// A history rather than one live row: targets move as the phase changes and as
+/// adaptive TDEE learns, and a weekly review that cannot see what the target
+/// *was* cannot explain the week. The current one is the newest row whose
+/// [effectiveFrom] has arrived.
+class NutritionTargets extends Table with SyncedRow {
+  TextColumn get userId => text()();
+  TextColumn get effectiveFrom => text()();
+  IntColumn get kcal => integer()();
+  RealColumn get proteinG => real()();
+  RealColumn get carbG => real()();
+  RealColumn get fatG => real()();
+  RealColumn get fibreG => real().nullable()();
+  IntColumn get waterMl => integer().nullable()();
+
+  /// Move this share of carbohydrate from rest days onto training days, weekly
+  /// total unchanged (docs/PLAN.md §6).
+  IntColumn get trainingDayCarbShiftPct => integer().nullable()();
+
+  /// 'engine', 'manual' or 'coach'. The coach's changes reach here only through
+  /// `ai_proposals` and an approval.
+  TextColumn get source => text().withDefault(const Constant('engine'))();
+
+  /// What the engine believed maintenance was when these were set.
+  IntColumn get tdeeKcal => integer().nullable()();
+  TextColumn get notes => text().nullable()();
+}

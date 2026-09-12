@@ -24,6 +24,12 @@ part 'app_database.g.dart';
   RecoveryDays,
   ProgressPhotos,
   DailyRollups,
+  Foods,
+  Recipes,
+  RecipeItems,
+  Meals,
+  MealItems,
+  NutritionTargets,
   SyncRejections,
 ])
 class AppDatabase extends _$AppDatabase {

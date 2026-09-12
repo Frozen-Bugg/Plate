@@ -103,6 +103,8 @@ const SYNCED = [
   'sessions', 'session_exercises', 'sets', 'progression_state',
   'body_metrics', 'daily_activity', 'recovery_daily', 'progress_photos',
   'daily_rollup',
+  'foods', 'recipes', 'recipe_items', 'meals', 'meal_items',
+  'nutrition_targets',
 ];
 
 console.log('\nevery synced table:');
@@ -379,6 +381,260 @@ await check('daily_rollup has a column for every part of a day', async () => {
     'steps', 'hard_sets', 'volume_kg', 'sleep_minutes', 'readiness',
     'fatigue_score', 'phase']) {
     expect(cols.includes(c), `missing ${c}`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Phase 3 — Fuel
+// ---------------------------------------------------------------------------
+
+console.log('\nfuel:');
+
+/// A user with one food, ready to hang meals off.
+const userWithFood = async (name = 'Oats') => {
+  const uid = await newUser();
+  const food = (await db.query(
+    `insert into public.foods (user_id, name, kcal_per_100, protein_per_100)
+     values ($1,$2,379,13.2) returning id`, [uid, name])).rows[0].id;
+  return { uid, food };
+};
+
+await check('a food belongs to exactly one lifter', async () => {
+  const cols = (await db.query(
+    `select is_nullable from information_schema.columns
+     where table_name='foods' and column_name='user_id'`)).rows[0];
+  // Unlike exercises, there is no shared library: the real food databases are
+  // too big to sync, so foods are per-lifter copies and children can use the
+  // composite key safely.
+  expect(cols.is_nullable === 'NO', 'foods.user_id must be not null');
+});
+
+await check('a meal item cannot borrow another lifter food', async () => {
+  const mine = await userWithFood();
+  const theirs = await userWithFood('Rice');
+  const meal = (await db.query(
+    `insert into public.meals (user_id, meal_on) values ($1,'2026-09-13')
+     returning id`, [mine.uid])).rows[0].id;
+  expect(
+    await rejects(
+      `insert into public.meal_items (user_id, meal_id, food_id, quantity_g, kcal)
+       values ($1,$2,$3,100,379)`, [mine.uid, meal, theirs.food]),
+    'a meal item pointed at another user food');
+});
+
+await check('a meal item is a food or a recipe, never both or neither', async () => {
+  const { uid, food } = await userWithFood();
+  const meal = (await db.query(
+    `insert into public.meals (user_id, meal_on) values ($1,'2026-09-13')
+     returning id`, [uid])).rows[0].id;
+  const recipe = (await db.query(
+    `insert into public.recipes (user_id, name) values ($1,'Chilli') returning id`,
+    [uid])).rows[0].id;
+
+  await db.query(
+    `insert into public.meal_items (user_id, meal_id, food_id, quantity_g, kcal)
+     values ($1,$2,$3,100,379)`, [uid, meal, food]);
+  await db.query(
+    `insert into public.meal_items (user_id, meal_id, recipe_id, quantity_g, kcal)
+     values ($1,$2,$3,300,450)`, [uid, meal, recipe]);
+
+  expect(
+    await rejects(
+      `insert into public.meal_items (user_id, meal_id, quantity_g, kcal)
+       values ($1,$2,100,379)`, [uid, meal]),
+    'accepted an item that was neither a food nor a recipe');
+  expect(
+    await rejects(
+      `insert into public.meal_items
+         (user_id, meal_id, food_id, recipe_id, quantity_g, kcal)
+       values ($1,$2,$3,$4,100,379)`, [uid, meal, food, recipe]),
+    'accepted an item that was both');
+});
+
+await check('deleting a meal takes its items with it', async () => {
+  const { uid, food } = await userWithFood();
+  const meal = (await db.query(
+    `insert into public.meals (user_id, meal_on) values ($1,'2026-09-13')
+     returning id`, [uid])).rows[0].id;
+  await db.query(
+    `insert into public.meal_items (user_id, meal_id, food_id, quantity_g, kcal)
+     values ($1,$2,$3,100,379)`, [uid, meal, food]);
+  await db.query(`delete from public.meals where id=$1`, [meal]);
+  const left = (await db.query(
+    `select 1 from public.meal_items where meal_id=$1`, [meal])).rows;
+  expect(left.length === 0, 'orphan meal items left behind');
+});
+
+await check('a food in use cannot be hard-deleted out from under a recipe', async () => {
+  const { uid, food } = await userWithFood();
+  const recipe = (await db.query(
+    `insert into public.recipes (user_id, name) values ($1,'Porridge') returning id`,
+    [uid])).rows[0].id;
+  await db.query(
+    `insert into public.recipe_items (user_id, recipe_id, food_id, quantity_g)
+     values ($1,$2,$3,80)`, [uid, recipe, food]);
+  expect(
+    await rejects(`delete from public.foods where id=$1`, [food]),
+    'a recipe was left pointing at nothing');
+});
+
+await check('a food that has been eaten cannot be hard-deleted', async () => {
+  // Removing a food from the list is a soft delete. Hard-deleting it would
+  // either take the meal with it or leave an item that is neither a food nor a
+  // recipe, and a logged day must stay exactly as it was logged.
+  const { uid, food } = await userWithFood();
+  const meal = (await db.query(
+    `insert into public.meals (user_id, meal_on) values ($1,'2026-09-13')
+     returning id`, [uid])).rows[0].id;
+  await db.query(
+    `insert into public.meal_items (user_id, meal_id, food_id, quantity_g, kcal, protein_g)
+     values ($1,$2,$3,100,379,13.2)`, [uid, meal, food]);
+  expect(
+    await rejects(`delete from public.foods where id=$1`, [food]),
+    'a logged meal lost the food underneath it');
+
+  // Soft-deleting it leaves the log untouched.
+  await db.query(
+    `update public.foods set deleted_at = now() where id=$1`, [food]);
+  const item = (await db.query(
+    `select kcal, protein_g from public.meal_items where meal_id=$1`,
+    [meal])).rows[0];
+  expect(Number(item.kcal) === 379, 'the logged calories were lost');
+});
+
+await check('one live food per barcode per lifter', async () => {
+  const uid = await newUser();
+  await db.query(
+    `insert into public.foods (user_id, name, kcal_per_100, barcode)
+     values ($1,'Beans',78,'5000157024671')`, [uid]);
+  expect(
+    await rejects(
+      `insert into public.foods (user_id, name, kcal_per_100, barcode)
+       values ($1,'Beans again',78,'5000157024671')`, [uid]),
+    'the same barcode was stored twice');
+
+  // Two lifters can each have their own copy of the same tin.
+  const other = await newUser();
+  await db.query(
+    `insert into public.foods (user_id, name, kcal_per_100, barcode)
+     values ($1,'Beans',78,'5000157024671')`, [other]);
+});
+
+await check('a deleted food frees its barcode again', async () => {
+  const uid = await newUser();
+  await db.query(
+    `insert into public.foods (user_id, name, kcal_per_100, barcode, deleted_at)
+     values ($1,'Old',78,'5000157024999',now())`, [uid]);
+  await db.query(
+    `insert into public.foods (user_id, name, kcal_per_100, barcode)
+     values ($1,'New',78,'5000157024999')`, [uid]);
+});
+
+await check('a barcode has to look like a barcode', async () => {
+  const uid = await newUser();
+  expect(
+    await rejects(
+      `insert into public.foods (user_id, name, kcal_per_100, barcode)
+       values ($1,'Nonsense',78,'not-a-barcode')`, [uid]),
+    'accepted a barcode that was not digits');
+});
+
+await check('nutrition has to be physically possible', async () => {
+  const uid = await newUser();
+  expect(
+    await rejects(
+      `insert into public.foods (user_id, name, kcal_per_100) values ($1,'Dense',1200)`,
+      [uid]),
+    'accepted more kcal than a gram of fat can carry');
+  expect(
+    await rejects(
+      `insert into public.foods (user_id, name, kcal_per_100, protein_per_100)
+       values ($1,'Impossible',400,150)`, [uid]),
+    'accepted more than 100 g of protein per 100 g');
+});
+
+await check('a food is measured by weight or by volume, not by vibes', async () => {
+  const uid = await newUser();
+  expect(
+    await rejects(
+      `insert into public.foods (user_id, name, kcal_per_100, basis)
+       values ($1,'Soup',40,'cups')`, [uid]),
+    'accepted an unknown basis');
+});
+
+await check('one live target per start date', async () => {
+  const uid = await newUser();
+  const insert = `insert into public.nutrition_targets
+      (user_id, effective_from, kcal, protein_g, carb_g, fat_g)
+    values ($1,'2026-09-13',2400,180,220,70)`;
+  await db.query(insert, [uid]);
+  expect(await rejects(insert, [uid]), 'two live targets started the same day');
+});
+
+await check('targets keep their history rather than overwriting', async () => {
+  const uid = await newUser();
+  for (const [from, kcal] of [['2026-08-01', 2600], ['2026-09-01', 2400]]) {
+    await db.query(
+      `insert into public.nutrition_targets
+         (user_id, effective_from, kcal, protein_g, carb_g, fat_g)
+       values ($1,$2,$3,180,220,70)`, [uid, from, kcal]);
+  }
+  const rows = (await db.query(
+    `select kcal from public.nutrition_targets
+     where user_id=$1 order by effective_from desc`, [uid])).rows;
+  expect(rows.length === 2, 'the older target was lost');
+  expect(Number(rows[0].kcal) === 2400, 'the newest target is not first');
+});
+
+await check('a target has to be survivable', async () => {
+  const uid = await newUser();
+  expect(
+    await rejects(
+      `insert into public.nutrition_targets
+         (user_id, effective_from, kcal, protein_g, carb_g, fat_g)
+       values ($1,'2026-09-13',400,180,220,70)`, [uid]),
+    'accepted a starvation target');
+});
+
+await check('the carb shift is a share, not a multiplier', async () => {
+  const uid = await newUser();
+  expect(
+    await rejects(
+      `insert into public.nutrition_targets
+         (user_id, effective_from, kcal, protein_g, carb_g, fat_g,
+          training_day_carb_shift_pct)
+       values ($1,'2026-09-13',2400,180,220,70,90)`, [uid]),
+    'accepted a 90% carb shift');
+});
+
+await check('meals go with the lifter', async () => {
+  // Deliberately exercises every "no action" edge at once: deleting the account
+  // has to take the food, the recipe built from it and the meal that ate both,
+  // all in one statement, without any of them blocking the others.
+  const { uid, food } = await userWithFood();
+  const recipe = (await db.query(
+    `insert into public.recipes (user_id, name) values ($1,'Overnight oats')
+     returning id`, [uid])).rows[0].id;
+  await db.query(
+    `insert into public.recipe_items (user_id, recipe_id, food_id, quantity_g)
+     values ($1,$2,$3,80)`, [uid, recipe, food]);
+  const meal = (await db.query(
+    `insert into public.meals (user_id, meal_on) values ($1,'2026-09-13')
+     returning id`, [uid])).rows[0].id;
+  await db.query(
+    `insert into public.meal_items (user_id, meal_id, food_id, quantity_g, kcal)
+     values ($1,$2,$3,100,379)`, [uid, meal, food]);
+  await db.query(
+    `insert into public.nutrition_targets
+       (user_id, effective_from, kcal, protein_g, carb_g, fat_g)
+     values ($1,'2026-09-13',2400,180,220,70)`, [uid]);
+
+  await db.query(`delete from auth.users where id=$1`, [uid]);
+  for (const table of ['foods', 'recipes', 'recipe_items', 'meals',
+    'meal_items', 'nutrition_targets']) {
+    const left = (await db.query(
+      `select 1 from public.${table} where user_id=$1`, [uid])).rows;
+    expect(left.length === 0, `${table} survived the account being deleted`);
   }
 });
 

@@ -9,6 +9,8 @@
 library;
 
 export 'src/e1rm.dart';
+export 'src/energy.dart';
+export 'src/macros.dart';
 export 'src/plates.dart';
 export 'src/progression.dart';
 export 'src/readiness.dart';
