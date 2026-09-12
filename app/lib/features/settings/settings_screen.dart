@@ -10,6 +10,7 @@ import '../../core/format.dart';
 import '../../core/profile/profile_repository.dart';
 import '../../core/sync/sync_rejections.dart';
 import '../body/health_connect_tile.dart';
+import 'profile_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -81,6 +82,7 @@ class SettingsScreen extends ConsumerWidget {
             title: Text(user?.email ?? 'Signed in'),
             subtitle: provider == null ? null : Text('Signed in with $provider'),
           ),
+          const _ProfileTile(),
           label('Goal'),
           const _PhasePicker(),
           label('Health'),
@@ -254,4 +256,51 @@ class _Rejections extends ConsumerWidget {
       ],
     );
   }
+}
+
+/// What the engine knows about the lifter, and whether it is enough.
+///
+/// The subtitle is the useful part: an estimate needs height, year of birth and
+/// sex, and until all three are there the app will not produce a calorie target
+/// at all. Saying so here beats leaving someone to wonder why the Fuel rings
+/// have nothing to measure against.
+class _ProfileTile extends ConsumerWidget {
+  const _ProfileTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profile = ref.watch(profileProvider).value;
+    final missing = [
+      if (profile?.heightCm == null) 'height',
+      if (profile?.birthYear == null) 'year of birth',
+      if (engine.Sex.fromWire(profile?.sex) == null) 'sex',
+    ];
+
+    final parts = [
+      if (profile?.heightCm case final cm?) '${cm.round()} cm',
+      if (profile?.birthYear case final year?)
+        '${DateTime.now().year - year}',
+    ];
+
+    return ListTile(
+      leading: const Icon(Icons.straighten),
+      title: Text(profile?.displayName ?? 'About you'),
+      subtitle: Text(
+        missing.isEmpty
+            ? parts.join(' · ')
+            : 'Needed for calorie targets: ${_list(missing)}',
+      ),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => const ProfileScreen()),
+      ),
+    );
+  }
+
+  static String _list(List<String> items) => switch (items.length) {
+        1 => items.single,
+        2 => '${items.first} and ${items.last}',
+        _ => '${items.sublist(0, items.length - 1).join(', ')} '
+            'and ${items.last}',
+      };
 }

@@ -8,6 +8,7 @@ import '../../app/theme.dart';
 import '../../app/widgets/tab_scaffold.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/format.dart';
+import '../../core/profile/profile_repository.dart';
 import '../body/activity_repository.dart';
 import '../body/body_repository.dart';
 import '../body/check_in_sheet.dart';
@@ -34,7 +35,10 @@ class TodayScreen extends ConsumerWidget {
     final thisWeek = sessions
         .where((s) => s.endedAt != null && !s.startedAt.toLocal().isBefore(weekStart))
         .length;
-    final name = user?.userMetadata?['full_name'] as String? ??
+    // What they called themselves beats what the identity provider called
+    // them, which in turn beats the front half of an email address.
+    final name = ref.watch(profileProvider).value?.displayName ??
+        user?.userMetadata?['full_name'] as String? ??
         user?.email?.split('@').first;
 
     return TabScaffold(
