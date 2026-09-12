@@ -30,24 +30,25 @@ class TrainScreen extends ConsumerWidget {
             children: [
               if (active != null)
                 ActiveSessionCard(session: active)
-              else ...[
+              else
                 FilledButton.icon(
                   onPressed: () =>
                       ref.read(sessionsRepositoryProvider).start(),
                   icon: const Icon(Icons.play_arrow_rounded),
                   label: const Text('Start workout'),
                 ),
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const TemplatesScreen(),
-                    ),
+              const SizedBox(height: 8),
+              // Reachable mid-workout too: checking the plan is exactly what
+              // you want to do while resting between sets.
+              OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const TemplatesScreen(),
                   ),
-                  icon: const Icon(Icons.list_alt, size: 20),
-                  label: const Text('Templates'),
                 ),
-              ],
+                icon: const Icon(Icons.list_alt, size: 20),
+                label: const Text('Templates'),
+              ),
               const SizedBox(height: 28),
               Text('History', style: text.titleLarge),
               const SizedBox(height: 8),

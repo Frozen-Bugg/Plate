@@ -22,9 +22,29 @@ class SessionsRepository {
         .watch();
   }
 
+  /// The session that has been started but not finished, if any. There should
+  /// never be more than one; the oldest wins so a stray extra cannot hide the
+  /// real one.
+  Future<WorkoutSession?> activeSession() async {
+    final open = await (_db.select(_db.sessions)
+          ..where((s) => s.userId.equals(_userId))
+          ..where((s) => s.deletedAt.isNull())
+          ..where((s) => s.endedAt.isNull())
+          ..orderBy([(s) => OrderingTerm.asc(s.startedAt)])
+          ..limit(1))
+        .get();
+    return open.firstOrNull;
+  }
+
   /// Starts a session now and returns its id. [templateId] records which plan
   /// it came from, when it came from one at all.
+  ///
+  /// Throws if one is already running: two open sessions orphan the earlier
+  /// one, which then cannot be finished or discarded from anywhere.
   Future<String> start({String? templateId}) async {
+    if (await activeSession() case final running?) {
+      throw StateError('A workout is already running (${running.id})');
+    }
     // PowerSync tables are views, which don't support RETURNING, so the id is
     // generated here rather than read back.
     final id = uuid.v7();
@@ -64,7 +84,11 @@ final recentSessionsProvider = StreamProvider<List<WorkoutSession>>(
 );
 
 /// The session that has been started but not finished, if any.
+///
+/// recentSessionsProvider is newest first, so this takes the last match: the
+/// oldest unfinished session. If an extra one ever gets created, the original
+/// still surfaces and can be finished or discarded rather than stranded.
 final activeSessionProvider = Provider<WorkoutSession?>((ref) {
   final sessions = ref.watch(recentSessionsProvider).value ?? const [];
-  return sessions.where((s) => s.endedAt == null).firstOrNull;
+  return sessions.where((s) => s.endedAt == null).lastOrNull;
 });

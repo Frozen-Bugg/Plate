@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/db/app_database.dart';
 import 'exercises_repository.dart';
 import 'live_session.dart';
+import 'sessions_repository.dart';
 import 'templates_repository.dart';
 
 /// The saved plans. A template is what you intend to do; starting one copies
@@ -154,6 +155,44 @@ class TemplateEditorScreen extends ConsumerWidget {
         .addExercise(templateId: templateId, exerciseId: chosen.id);
   }
 
+  /// Starts the template, then leaves the templates stack entirely — the
+  /// running workout is on the Train tab, and popping back to a list of
+  /// templates makes it look as though nothing happened.
+  Future<void> _start(BuildContext context, WidgetRef ref) async {
+    // Two open sessions would orphan the earlier one, so offer the running
+    // workout instead of quietly starting a second.
+    if (ref.read(activeSessionProvider) != null) {
+      final go = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('A workout is already running'),
+          content: const Text(
+            'Finish or discard it before starting another.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Stay here'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Go to it'),
+            ),
+          ],
+        ),
+      );
+      if (go == true && context.mounted) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+      return;
+    }
+
+    await ref.read(templatesRepositoryProvider).startSession(templateId);
+    if (context.mounted) {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final planned = ref.watch(templateExercisesProvider(templateId));
@@ -182,12 +221,7 @@ class TemplateEditorScreen extends ConsumerWidget {
           const SizedBox(height: 16),
           if ((planned.value ?? const []).isNotEmpty)
             FilledButton.icon(
-              onPressed: () async {
-                await ref
-                    .read(templatesRepositoryProvider)
-                    .startSession(templateId);
-                if (context.mounted) Navigator.of(context).pop();
-              },
+              onPressed: () => _start(context, ref),
               icon: const Icon(Icons.play_arrow_rounded),
               label: const Text('Start this workout'),
             ),
