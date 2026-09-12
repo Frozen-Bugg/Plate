@@ -208,6 +208,27 @@ class _Item extends ConsumerWidget {
 
   final MealItem item;
 
+  /// Correcting an amount, rather than deleting the row and logging it again.
+  ///
+  /// Weighing after cooking, or going back for more, is the ordinary case; the
+  /// repository could already rescale an item's macros and nothing in the app
+  /// could reach it.
+  Future<void> _edit(BuildContext context, WidgetRef ref) async {
+    final foodId = item.foodId;
+    if (foodId == null) return;
+    final food = await ref.read(foodsRepositoryProvider).byId(foodId);
+    if (food == null || !context.mounted) return;
+
+    final grams = await showQuantitySheet(
+      context,
+      food: food,
+      initialGrams: item.quantityG,
+      cta: 'Save',
+    );
+    if (grams == null) return;
+    await ref.read(mealsRepositoryProvider).setQuantity(item, grams);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final text = Theme.of(context).textTheme;
@@ -230,6 +251,7 @@ class _Item extends ConsumerWidget {
           ref.read(mealsRepositoryProvider).deleteItem(item.id),
       child: ListTile(
         dense: true,
+        onTap: item.foodId == null ? null : () => _edit(context, ref),
         // A provider rather than a future built here: a FutureBuilder handed a
         // fresh future on every rebuild restarts on every rebuild, and a day
         // with twenty items would flicker through all of them.
