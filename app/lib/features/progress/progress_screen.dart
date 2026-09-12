@@ -77,7 +77,9 @@ class ProgressScreen extends ConsumerWidget {
                       children: [
                         Text(_shortDay(trend.first.date),
                             style: text.labelSmall?.copyWith(color: muted)),
-                        Text('${trend.length} weigh-ins',
+                        Text(
+                            '${trend.length} '
+                            '${trend.length == 1 ? 'weigh-in' : 'weigh-ins'}',
                             style: text.labelSmall?.copyWith(color: muted)),
                         Text(_shortDay(trend.last.date),
                             style: text.labelSmall?.copyWith(color: muted)),

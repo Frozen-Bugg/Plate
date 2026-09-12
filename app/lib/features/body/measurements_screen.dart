@@ -110,11 +110,21 @@ class _MeasurementsScreenState extends ConsumerState<MeasurementsScreen> {
                         FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
                       ],
                       textAlign: TextAlign.right,
-                      decoration: InputDecoration(
+                      decoration: const InputDecoration(
                         isDense: true,
-                        suffixText: field.unit,
                         hintText: '—',
                       ),
+                    ),
+                  ),
+                  // The unit sits outside the field on purpose: Flutter hides
+                  // `suffixText` until a field has focus or content, which on a
+                  // form of ten empty boxes means ten unlabelled boxes.
+                  SizedBox(
+                    width: 34,
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 6),
+                      child: Text(field.unit,
+                          style: text.bodySmall?.copyWith(color: muted)),
                     ),
                   ),
                   Expanded(
