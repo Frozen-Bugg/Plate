@@ -33,4 +33,12 @@ void main() {
       expect(formatRir(1.5), 'RIR 1.5');
     });
   });
+
+  group('formatPlate', () {
+    test('says plates the way a lifter does', () {
+      expect(formatPlate(25), '25');
+      expect(formatPlate(2.5), '2.5');
+      expect(formatPlate(1.25), '1.25');
+    });
+  });
 }

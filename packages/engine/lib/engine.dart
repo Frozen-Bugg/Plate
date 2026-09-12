@@ -9,6 +9,7 @@
 library;
 
 export 'src/e1rm.dart';
+export 'src/plates.dart';
 export 'src/progression.dart';
 export 'src/set_log.dart';
 export 'src/stall.dart';

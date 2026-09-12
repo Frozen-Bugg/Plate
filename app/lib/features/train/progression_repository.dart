@@ -207,7 +207,14 @@ class ProgressionRepository {
   Future<bool> isStalled(String exerciseId) async =>
       engine.isStalled(await recentExposures(exerciseId));
 
-  /// Drops the stored verdict for an exercise with no history left.
+  /// Blanks the stored verdict for an exercise with no history left.
+  ///
+  /// Emptied rather than soft-deleted, deliberately. The row is derived state,
+  /// one per exercise, and `unique (user_id, exercise_id)` in Postgres does not
+  /// exclude soft-deleted rows: deleting it locally drops it from the sync
+  /// stream, the next write inserts a fresh id, and Postgres rejects that as a
+  /// duplicate. The connector treats 23xxx as fatal and discards it, so the
+  /// target would silently never come back.
   Future<void> _clear(String exerciseId) =>
       (_db.update(_db.progressionStates)
             ..where((p) => p.exerciseId.equals(exerciseId))
@@ -215,7 +222,10 @@ class ProgressionRepository {
             ..where((p) => p.deletedAt.isNull()))
           .write(
         ProgressionStatesCompanion(
-          deletedAt: Value(nowUtc()),
+          nextLoadKg: const Value(null),
+          nextReps: const Value(null),
+          bestE1rmKg: const Value(null),
+          stallCount: const Value(0),
           updatedAt: Value(nowUtc()),
         ),
       );

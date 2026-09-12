@@ -43,3 +43,7 @@ String formatRir(double rir) {
       rir == rir.roundToDouble() ? rir.toStringAsFixed(0) : rir.toString();
   return 'RIR $text';
 }
+
+/// A single plate, as a lifter would say it: 25, 2.5, 1.25.
+String formatPlate(double kg) =>
+    kg == kg.roundToDouble() ? kg.toStringAsFixed(0) : kg.toString();

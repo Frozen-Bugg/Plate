@@ -1,3 +1,4 @@
+import 'package:engine/engine.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -92,17 +93,17 @@ class _ExerciseBlock extends ConsumerWidget {
               ),
             ],
           ),
-          if (target?.nextLoadKg case final load?)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                // The engine decided this last time; the screen only shows it.
-                'Target ${formatWeight(load)} x ${target?.nextReps ?? '-'}'
-                '${(target?.stallCount ?? 0) >= 3 ? '  ·  stalled' : ''}',
-                style: theme.textTheme.labelLarge
-                    ?.copyWith(color: scheme.onSurfaceVariant),
-              ),
+          if (target?.nextLoadKg case final load?) ...[
+            Text(
+              // The engine decided this last time; the screen only shows it.
+              'Target ${formatWeight(load)} x ${target?.nextReps ?? '-'}'
+              '${(target?.stallCount ?? 0) >= 3 ? '  ·  stalled' : ''}',
+              style: theme.textTheme.labelLarge
+                  ?.copyWith(color: scheme.onSurfaceVariant),
             ),
+            _Plates(targetKg: load),
+            const SizedBox(height: 8),
+          ],
           // Never swallow a failure here: a set that was logged but cannot be
           // read back must say so, not render as an empty list.
           if (setsAsync case AsyncError(:final error))
@@ -183,6 +184,18 @@ class _SetRow extends StatelessWidget {
               style: theme.textTheme.bodyLarge,
             ),
           ),
+          if (set.isPr)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Text(
+                'PR',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: PillarColors.of(context).move,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
           if (set.e1rmKg case final e?)
             Text(
               'e1RM ${formatWeight(e)}',
@@ -265,6 +278,7 @@ class _AddSetRowState extends ConsumerState<_AddSetRow> {
 
     await ref.read(loggingRepositoryProvider).logSet(
           sessionExerciseId: widget.sessionExerciseId,
+          exerciseId: widget.exerciseId,
           weightKg: weight,
           reps: reps,
           rir: rir,
@@ -483,6 +497,35 @@ class _SetCount extends StatelessWidget {
           fontFeatures: const [FontFeature.tabularFigures()],
         ),
       ),
+    );
+  }
+}
+
+/// What to put on the bar for the engine's target.
+///
+/// Shown next to the target rather than behind a tap: the lifter is standing
+/// at the rack working it out in their head otherwise, and the arithmetic is
+/// the same every time.
+class _Plates extends StatelessWidget {
+  const _Plates({required this.targetKg});
+
+  final double targetKg;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final load = platesFor(targetKg: targetKg);
+    if (load.belowBar || load.perSide.isEmpty) return const SizedBox.shrink();
+
+    final plates = load.perSide.map(formatPlate).join(' + ');
+    return Text(
+      load.isExact
+          ? 'Bar + $plates per side'
+          // Never claim a weight the plates cannot make.
+          : 'Bar + $plates per side — ${formatWeight(load.totalKg)}, '
+              'closest below',
+      style: theme.textTheme.labelMedium
+          ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
     );
   }
 }

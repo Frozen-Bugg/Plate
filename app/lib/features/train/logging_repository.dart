@@ -69,8 +69,31 @@ class LoggingRepository {
   /// Logs one working set. The estimated one-rep max is computed here rather
   /// than read back later, so history stays comparable even if the formula
   /// changes: the number is what the engine believed at the time.
+  /// The best estimated one-rep max ever logged for [exerciseId], across every
+  /// session that still counts. Read from the sets themselves rather than from
+  /// progression_state, which is only rewritten when a session is finished and
+  /// so would miss earlier sets of the session in progress.
+  Future<double?> bestE1rmFor(String exerciseId) async {
+    final sets = _db.workoutSets;
+    final exercises = _db.sessionExercises;
+    final best = sets.e1rmKg.max();
+
+    final row = await (_db.selectOnly(sets).join([
+      innerJoin(exercises, exercises.id.equalsExp(sets.sessionExerciseId)),
+    ])
+          ..addColumns([best])
+          ..where(exercises.exerciseId.equals(exerciseId) &
+              sets.userId.equals(_userId) &
+              sets.deletedAt.isNull() &
+              exercises.deletedAt.isNull()))
+        .getSingleOrNull();
+
+    return row?.read(best);
+  }
+
   Future<String> logSet({
     required String sessionExerciseId,
+    required String exerciseId,
     required double weightKg,
     required int reps,
     double? rir,
@@ -83,6 +106,13 @@ class LoggingRepository {
     final e1rm = rir == null
         ? engine.e1rm(loadKg: weightKg, reps: reps)
         : engine.e1rmWithRir(loadKg: weightKg, reps: reps, rir: rir);
+
+    // A personal best is measured in estimated one-rep max, not in load: five
+    // reps at 100 beats a single at 105, and a lifter who only ever added
+    // weight would never see the sets that actually moved them forward.
+    // Strictly greater, so repeating a previous best is not a new one.
+    final previousBest = await bestE1rmFor(exerciseId);
+    final isPr = previousBest == null || e1rm > previousBest + 1e-9;
 
     final id = uuid.v7();
     await _db.into(_db.workoutSets).insert(
@@ -97,7 +127,7 @@ class LoggingRepository {
             // non-nullable field, and Postgres rejects the upload because both
             // are NOT NULL. Always write them.
             kind: const Value('working'),
-            isPr: const Value(false),
+            isPr: Value(isPr),
             weightKg: Value(weightKg),
             reps: Value(reps),
             rir: Value(rir),
