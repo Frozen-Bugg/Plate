@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -302,17 +303,36 @@ class _PlannedExercise extends ConsumerWidget {
                       repo.updatePrescription(planned.id, repMax: v),
                 ),
               ),
-              const SizedBox(width: 6),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Two rows rather than five across: at five, "rep min" and "rep max"
+          // both truncate to "rep …" and the field stops saying what it is.
+          Row(
+            children: [
               Expanded(
                 child: _NumberField(
-                  label: 'RIR',
+                  label: 'target RIR',
                   value: planned.targetRir?.round(),
                   onChanged: (v) => repo.updatePrescription(
                     planned.id,
-                    targetRir: v?.toDouble(),
+                    targetRir: Value(v?.toDouble()),
                   ),
                 ),
               ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: _NumberField(
+                  // Blank means the app's default rest applies.
+                  label: 'rest (s)',
+                  value: planned.restSeconds,
+                  onChanged: (v) => repo.updatePrescription(
+                    planned.id,
+                    restSeconds: Value(v),
+                  ),
+                ),
+              ),
+              const Spacer(),
             ],
           ),
         ],

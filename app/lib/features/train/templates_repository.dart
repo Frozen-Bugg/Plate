@@ -107,14 +107,19 @@ class TemplatesRepository {
         ),
       );
 
+  /// [sets], [repMin], [repMax] and [model] are not nullable in the database,
+  /// so null means "leave it alone". [targetRir] and [restSeconds] are, and
+  /// clearing them is meaningful — blank RIR means effort is not judged, blank
+  /// rest means the app default — so they take a [Value] and can be set to
+  /// null deliberately.
   Future<void> updatePrescription(
     String templateExerciseId, {
     int? sets,
     int? repMin,
     int? repMax,
-    double? targetRir,
     engine.ProgressionModel? model,
-    int? restSeconds,
+    Value<double?> targetRir = const Value.absent(),
+    Value<int?> restSeconds = const Value.absent(),
   }) =>
       (_db.update(_db.templateExercises)
             ..where((e) => e.id.equals(templateExerciseId)))
@@ -123,12 +128,10 @@ class TemplatesRepository {
           sets: sets == null ? const Value.absent() : Value(sets),
           repMin: repMin == null ? const Value.absent() : Value(repMin),
           repMax: repMax == null ? const Value.absent() : Value(repMax),
-          targetRir:
-              targetRir == null ? const Value.absent() : Value(targetRir),
           progressionModel:
               model == null ? const Value.absent() : Value(model.wireName),
-          restSeconds:
-              restSeconds == null ? const Value.absent() : Value(restSeconds),
+          targetRir: targetRir,
+          restSeconds: restSeconds,
           updatedAt: Value(nowUtc()),
         ),
       );

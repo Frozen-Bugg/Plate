@@ -20,6 +20,7 @@ class Prescription {
     this.repMax = 12,
     this.targetRir = 2,
     this.linearIncrementKg = 2.5,
+    this.restSeconds,
   });
 
   /// Reads a template's row. An unrecognised model falls back to the default
@@ -37,6 +38,7 @@ class Prescription {
       repMin: row.repMin,
       repMax: row.repMax,
       targetRir: row.targetRir,
+      restSeconds: row.restSeconds,
     );
   }
 
@@ -45,6 +47,11 @@ class Prescription {
   final int repMax;
   final double? targetRir;
   final double linearIncrementKg;
+
+  /// Rest between sets. Null means the template does not say, and the app's
+  /// default applies. Not an engine input — it changes nothing about the next
+  /// target — but it rides along with the rest of the prescription.
+  final int? restSeconds;
 }
 
 /// Turns logged sets into the engine's verdict, and stores it.

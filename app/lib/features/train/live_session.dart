@@ -7,6 +7,7 @@ import '../../core/format.dart';
 import 'exercises_repository.dart';
 import 'logging_repository.dart';
 import 'progression_repository.dart';
+import 'rest_timer.dart';
 
 /// The exercises in the running session, each with its logged sets and a row
 /// for adding the next one.
@@ -113,10 +114,12 @@ class _ExerciseBlock extends ConsumerWidget {
             }),
           _AddSetRow(
             sessionExerciseId: sessionExercise.id,
+            exerciseId: sessionExercise.exerciseId,
             suggestedLoad: target?.nextLoadKg,
             suggestedReps: target?.nextReps,
             lastSet: sets.isEmpty ? null : sets.last,
           ),
+          RestTimerBar(exerciseId: sessionExercise.exerciseId),
         ],
       ),
     );
@@ -198,12 +201,14 @@ class _SetRow extends StatelessWidget {
 class _AddSetRow extends ConsumerStatefulWidget {
   const _AddSetRow({
     required this.sessionExerciseId,
+    required this.exerciseId,
     this.suggestedLoad,
     this.suggestedReps,
     this.lastSet,
   });
 
   final String sessionExerciseId;
+  final String exerciseId;
   final double? suggestedLoad;
   final int? suggestedReps;
   final WorkoutSet? lastSet;
@@ -261,6 +266,17 @@ class _AddSetRowState extends ConsumerState<_AddSetRow> {
     _weight.clear();
     _reps.clear();
     _rir.clear();
+
+    // Rest starts the moment the set is logged, which is the moment it
+    // actually started. Read the template fresh rather than caching it, so an
+    // edit made mid-session takes effect on the next set.
+    final prescription = await ref
+        .read(progressionRepositoryProvider)
+        .prescriptionFor(widget.exerciseId);
+    ref.read(restTimerProvider.notifier).start(
+          Duration(seconds: prescription.restSeconds ?? defaultRest.inSeconds),
+          exerciseId: widget.exerciseId,
+        );
   }
 
   @override
