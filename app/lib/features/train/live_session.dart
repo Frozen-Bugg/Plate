@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/theme.dart';
 import '../../core/db/app_database.dart';
 import '../../core/format.dart';
+import 'exercise_picker.dart';
 import 'exercises_repository.dart';
 import 'logging_repository.dart';
 import 'progression_repository.dart';
@@ -140,13 +141,8 @@ class _ExerciseName extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final library = ref.watch(exerciseLibraryProvider).value ?? const [];
-    final name = library
-        .where((e) => e.id == exerciseId)
-        .map((e) => e.name)
-        .firstOrNull;
     return Text(
-      name ?? 'Exercise',
+      ref.watch(exerciseByIdProvider(exerciseId))?.name ?? 'Exercise',
       style: Theme.of(context).textTheme.titleMedium,
     );
   }
@@ -214,9 +210,16 @@ class _SetRow extends StatelessWidget {
   }
 }
 
-/// Weight, reps and optional RIR, then Log. Prefilled from the engine's target
-/// on the first set and from the previous set after that, because the common
-/// case is repeating what you just did.
+/// Weight, reps and optional RIR, then Log.
+///
+/// The fields hold real values rather than hints, and keep whatever was just
+/// logged. Straight sets — which is most of them — are one tap on Log, and a
+/// change is a tap on plus or minus rather than a keyboard, a select-all and a
+/// retype with chalk on your hands.
+///
+/// The old version left the fields empty and showed the target as placeholder
+/// text, with "empty means the hint" as invisible logic. It read as a form
+/// waiting to be filled in, and half of it had to be filled in every set.
 class _AddSetRow extends ConsumerStatefulWidget {
   const _AddSetRow({
     required this.sessionExerciseId,
@@ -241,6 +244,33 @@ class _AddSetRowState extends ConsumerState<_AddSetRow> {
   final _reps = TextEditingController();
   final _rir = TextEditingController();
   String? _error;
+  var _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _prefill();
+  }
+
+  @override
+  void didUpdateWidget(_AddSetRow old) {
+    super.didUpdateWidget(old);
+    // The engine's target arrives asynchronously, and the previous set arrives
+    // when it is written. Fill in whatever is still blank, but never overwrite
+    // something the lifter has typed.
+    _prefill(onlyEmpty: true);
+  }
+
+  void _prefill({bool onlyEmpty = false}) {
+    final weight = widget.lastSet?.weightKg ?? widget.suggestedLoad;
+    final reps = widget.lastSet?.reps ?? widget.suggestedReps;
+    if (weight != null && (!onlyEmpty || _weight.text.isEmpty)) {
+      _weight.text = _trim(weight);
+    }
+    if (reps != null && (!onlyEmpty || _reps.text.isEmpty)) {
+      _reps.text = '$reps';
+    }
+  }
 
   @override
   void dispose() {
@@ -250,96 +280,129 @@ class _AddSetRowState extends ConsumerState<_AddSetRow> {
     super.dispose();
   }
 
-  String? get _weightHint {
-    final source = widget.lastSet?.weightKg ?? widget.suggestedLoad;
-    return source == null ? 'kg' : formatWeight(source);
+  static String _trim(double value) {
+    final rounded = (value * 100).round() / 100;
+    return rounded == rounded.roundToDouble()
+        ? rounded.toStringAsFixed(0)
+        : '$rounded';
   }
 
-  String? get _repsHint {
-    final source = widget.lastSet?.reps ?? widget.suggestedReps;
-    return source?.toString() ?? 'reps';
+  static double? _parse(TextEditingController c) =>
+      double.tryParse(c.text.trim().replaceAll(',', '.'));
+
+  /// The jump this equipment makes. A machine's pin does not move in 1.25s.
+  double get _loadStep =>
+      ref.read(exerciseByIdProvider(widget.exerciseId))?.loadStepKg ?? 2.5;
+
+  void _nudgeWeight(double by) {
+    final current = _parse(_weight) ?? widget.suggestedLoad ?? 0;
+    final next = current + by;
+    setState(() => _weight.text = _trim(next < 0 ? 0 : next));
+  }
+
+  void _nudgeReps(int by) {
+    final current = int.tryParse(_reps.text.trim()) ?? widget.suggestedReps ?? 0;
+    final next = current + by;
+    setState(() => _reps.text = '${next < 1 ? 1 : next}');
   }
 
   Future<void> _log() async {
-    // An empty field means "same as the hint", which is what the lifter sees.
-    final weight = double.tryParse(_weight.text.trim()) ??
-        widget.lastSet?.weightKg ??
-        widget.suggestedLoad;
-    final reps = int.tryParse(_reps.text.trim()) ??
-        widget.lastSet?.reps ??
-        widget.suggestedReps;
-    final rir = _rir.text.trim().isEmpty ? null : double.tryParse(_rir.text.trim());
+    final weight = _parse(_weight);
+    final reps = int.tryParse(_reps.text.trim());
+    final rir = _rir.text.trim().isEmpty ? null : _parse(_rir);
 
     if (weight == null || reps == null || reps < 1) {
       setState(() => _error = 'Enter a weight and at least one rep');
       return;
     }
-    setState(() => _error = null);
+    // Tapping Log twice in the half-second before the row rebuilds would
+    // otherwise log the set twice, which is easy to do with a phone on a bench.
+    if (_saving) return;
+    setState(() {
+      _error = null;
+      _saving = true;
+    });
 
-    await ref.read(loggingRepositoryProvider).logSet(
-          sessionExerciseId: widget.sessionExerciseId,
-          exerciseId: widget.exerciseId,
-          weightKg: weight,
-          reps: reps,
-          rir: rir,
-        );
-    _weight.clear();
-    _reps.clear();
-    _rir.clear();
+    try {
+      await ref.read(loggingRepositoryProvider).logSet(
+            sessionExerciseId: widget.sessionExerciseId,
+            exerciseId: widget.exerciseId,
+            weightKg: weight,
+            reps: reps,
+            rir: rir,
+          );
 
-    // Rest starts the moment the set is logged, which is the moment it
-    // actually started. Read the template fresh rather than caching it, so an
-    // edit made mid-session takes effect on the next set.
-    final prescription = await ref
-        .read(progressionRepositoryProvider)
-        .prescriptionFor(widget.exerciseId);
-    ref.read(restTimerProvider.notifier).start(
-          Duration(seconds: prescription.restSeconds ?? defaultRest.inSeconds),
-          exerciseId: widget.exerciseId,
-        );
+      // Rest starts the moment the set is logged, which is the moment it
+      // actually started. Read the template fresh rather than caching it, so an
+      // edit made mid-session takes effect on the next set.
+      final prescription = await ref
+          .read(progressionRepositoryProvider)
+          .prescriptionFor(widget.exerciseId);
+      if (!mounted) return;
+      ref.read(restTimerProvider.notifier).start(
+            Duration(seconds: prescription.restSeconds ?? defaultRest.inSeconds),
+            exerciseId: widget.exerciseId,
+          );
+    } finally {
+      // The values stay put: the next set is usually this set again, and
+      // clearing them was the single biggest reason logging felt like data
+      // entry rather than training.
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
         Row(
           children: [
             Expanded(
-              flex: 3,
-              child: _Field(
+              flex: 5,
+              child: _Stepper(
                 controller: _weight,
-                hint: _weightHint,
                 label: 'kg',
                 decimal: true,
+                onDown: () => _nudgeWeight(-_loadStep),
+                onUp: () => _nudgeWeight(_loadStep),
               ),
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 8),
             Expanded(
-              flex: 2,
-              child:
-                  _Field(controller: _reps, hint: _repsHint, label: 'reps'),
+              flex: 4,
+              child: _Stepper(
+                controller: _reps,
+                label: 'reps',
+                onDown: () => _nudgeReps(-1),
+                onUp: () => _nudgeReps(1),
+              ),
             ),
-            const SizedBox(width: 6),
-            Expanded(
-              flex: 2,
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            SizedBox(
+              width: 84,
               child: _Field(
                 controller: _rir,
-                hint: 'RIR',
                 label: 'RIR',
+                hint: '—',
                 decimal: true,
               ),
             ),
-            const SizedBox(width: 6),
-            FilledButton(
-              onPressed: _log,
-              style: FilledButton.styleFrom(
-                minimumSize: const Size(64, 44),
-                padding: const EdgeInsets.symmetric(horizontal: 12),
+            const SizedBox(width: 8),
+            Expanded(
+              child: FilledButton(
+                onPressed: _saving ? null : _log,
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                ),
+                child: Text(_saving ? 'Logging…' : 'Log set'),
               ),
-              child: const Text('Log'),
             ),
           ],
         ),
@@ -348,13 +411,133 @@ class _AddSetRowState extends ConsumerState<_AddSetRow> {
             padding: const EdgeInsets.only(top: 6),
             child: Text(
               message,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: Theme.of(context).colorScheme.error),
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.error),
             ),
           ),
       ],
+    );
+  }
+}
+
+/// A number with a minus on one side and a plus on the other.
+///
+/// The buttons are the point: between sets, with chalk on your hands and a
+/// minute of rest, tapping plus twice is a different act from opening a
+/// keyboard and retyping 62.5. The field is still there for the times the jump
+/// is not a multiple of anything.
+class _Stepper extends StatelessWidget {
+  const _Stepper({
+    required this.controller,
+    required this.label,
+    required this.onDown,
+    required this.onUp,
+    this.decimal = false,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final VoidCallback onDown;
+  final VoidCallback onUp;
+  final bool decimal;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Above the box, not inside it. Flutter hides `suffixText` until the
+        // field has focus or content, so an empty weight box and an empty reps
+        // box are the same blank rectangle — which is exactly what they looked
+        // like the first time this was built.
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 4),
+          child: Text(
+            label.toUpperCase(),
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              letterSpacing: 1,
+            ),
+          ),
+        ),
+        Container(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: theme.colorScheme.outlineVariant),
+          ),
+          child: Row(
+            children: [
+              _NudgeButton(
+                icon: Icons.remove,
+                onPressed: onDown,
+                label: '$label down',
+              ),
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  keyboardType:
+                      TextInputType.numberWithOptions(decimal: decimal),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(
+                      decimal ? RegExp(r'[0-9.,]') : RegExp(r'[0-9]'),
+                    ),
+                  ],
+                  textAlign: TextAlign.center,
+                  textInputAction: TextInputAction.done,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                  // Tapping the number selects all of it, so typing replaces
+                  // rather than appending to what is already there — otherwise
+                  // editing 100 into 105 produces 100105 more often than not.
+                  onTap: () => controller.selection = TextSelection(
+                    baseOffset: 0,
+                    extentOffset: controller.text.length,
+                  ),
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    isDense: true,
+                    hintText: '—',
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+                  ),
+                ),
+              ),
+              _NudgeButton(
+                icon: Icons.add,
+                onPressed: onUp,
+                label: '$label up',
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _NudgeButton extends StatelessWidget {
+  const _NudgeButton({
+    required this.icon,
+    required this.onPressed,
+    required this.label,
+  });
+
+  final IconData icon;
+  final VoidCallback onPressed;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 20),
+      tooltip: label,
+      // A comfortable target for a thumb, which is what is available.
+      constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+      visualDensity: VisualDensity.compact,
     );
   }
 }
@@ -379,94 +562,17 @@ class _Field extends StatelessWidget {
       keyboardType: TextInputType.numberWithOptions(decimal: decimal),
       inputFormatters: [
         FilteringTextInputFormatter.allow(
-          decimal ? RegExp(r'[0-9.]') : RegExp(r'[0-9]'),
+          decimal ? RegExp(r'[0-9.,]') : RegExp(r'[0-9]'),
         ),
       ],
-      textInputAction: TextInputAction.next,
+      textAlign: TextAlign.center,
+      textInputAction: TextInputAction.done,
       decoration: InputDecoration(
         hintText: hint,
         labelText: label,
         isDense: true,
         contentPadding:
-            const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-      ),
-    );
-  }
-}
-
-/// Opens the exercise picker and returns what was chosen, or null if the sheet
-/// was dismissed. Shared by the live session and the template editor.
-Future<Exercise?> showExercisePicker(BuildContext context) =>
-    showModalBottomSheet<Exercise>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => const _ExercisePicker(),
-    );
-
-/// The seeded library plus anything the lifter added, filtered by name.
-class _ExercisePicker extends ConsumerStatefulWidget {
-  const _ExercisePicker();
-
-  @override
-  ConsumerState<_ExercisePicker> createState() => _ExercisePickerState();
-}
-
-class _ExercisePickerState extends ConsumerState<_ExercisePicker> {
-  final _query = TextEditingController();
-
-  @override
-  void dispose() {
-    _query.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final all = ref.watch(exerciseLibraryProvider).value ?? const [];
-    final needle = _query.text.trim().toLowerCase();
-    final shown = needle.isEmpty
-        ? all
-        : all.where((e) => e.name.toLowerCase().contains(needle)).toList();
-
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
-          top: 16,
-          bottom: MediaQuery.viewInsetsOf(context).bottom + 16,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _query,
-              autofocus: true,
-              onChanged: (_) => setState(() {}),
-              decoration: const InputDecoration(
-                hintText: 'Search exercises',
-                prefixIcon: Icon(Icons.search),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Flexible(
-              child: shown.isEmpty
-                  ? const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 32),
-                      child: Text('No exercise matches that.'),
-                    )
-                  : ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: shown.length,
-                      itemBuilder: (context, i) => ListTile(
-                        title: Text(shown[i].name),
-                        subtitle: Text(shown[i].equipment),
-                        onTap: () => Navigator.pop(context, shown[i]),
-                      ),
-                    ),
-            ),
-          ],
-        ),
+            const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
       ),
     );
   }
