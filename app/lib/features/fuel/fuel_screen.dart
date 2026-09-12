@@ -10,6 +10,7 @@ import 'foods_repository.dart';
 import 'macro_rings.dart';
 import 'meals_repository.dart';
 import 'targets_repository.dart';
+import 'targets_screen.dart';
 
 /// The day log: what was eaten, against what was meant to be.
 class FuelScreen extends ConsumerWidget {
@@ -30,17 +31,25 @@ class FuelScreen extends ConsumerWidget {
           const _DayBar(),
           const SizedBox(height: 16),
           Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: MacroRings(
-                kcal: total.kcal,
-                kcalTarget: target?.kcal.toDouble(),
-                proteinG: total.proteinG,
-                proteinTarget: target?.proteinG,
-                carbG: total.carbG,
-                carbTarget: target?.carbG,
-                fatG: total.fatG,
-                fatTarget: target?.fatG,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              // Tapping the rings goes to where the numbers came from, which is
+              // the question anyone looking at them eventually asks.
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const TargetsScreen()),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: MacroRings(
+                  kcal: total.kcal,
+                  kcalTarget: target?.kcal.toDouble(),
+                  proteinG: total.proteinG,
+                  proteinTarget: target?.proteinG,
+                  carbG: total.carbG,
+                  carbTarget: target?.carbG,
+                  fatG: total.fatG,
+                  fatTarget: target?.fatG,
+                ),
               ),
             ),
           ),
@@ -130,6 +139,13 @@ class _NoTargetCard extends ConsumerWidget {
                       'weigh-in. Add them in Settings and the engine will do '
                       'the rest.',
               style: text.bodySmall?.copyWith(color: muted),
+            ),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const TargetsScreen()),
+              ),
+              child: Text(canEstimate ? 'Set targets' : 'See what is missing'),
             ),
           ],
         ),

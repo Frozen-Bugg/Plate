@@ -190,3 +190,26 @@ final tdeeProvider = FutureProvider<engine.TdeeEstimate>((ref) async {
         ?.toDouble(),
   );
 });
+
+/// Resting burn from the profile, or null when the profile cannot support one.
+///
+/// Separate from [tdeeProvider] because the target screen needs it in its own
+/// right: a deficit is never allowed to take intake below this, and the screen
+/// has to say so when it bites.
+final bmrProvider = Provider<double?>((ref) {
+  final profile = ref.watch(profileProvider).value;
+  final weightKg = ref.watch(weightTrendProvider).lastOrNull?.trendKg;
+  final heightCm = profile?.heightCm;
+  final birthYear = profile?.birthYear;
+  final sex = engine.Sex.fromWire(profile?.sex);
+
+  if (weightKg == null || heightCm == null || birthYear == null || sex == null) {
+    return null;
+  }
+  return engine.basalMetabolicRate(
+    weightKg: weightKg,
+    heightCm: heightCm,
+    ageYears: DateTime.now().year - birthYear,
+    sex: sex,
+  );
+});
