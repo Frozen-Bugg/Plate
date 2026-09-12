@@ -145,7 +145,12 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                   const SizedBox(height: 24),
                 ],
                 Text(
-                  'Or sign in with your email and password.',
+                  // "Or" only makes sense with a native button above it. With
+                  // neither provider configured this is the only way in.
+                  AuthService.appleAvailable ||
+                          AppConfig.googleSignInConfigured
+                      ? 'Or sign in with your email and password.'
+                      : 'Sign in with your email and password.',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),

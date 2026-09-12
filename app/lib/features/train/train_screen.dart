@@ -198,10 +198,38 @@ class _ElapsedState extends State<_Elapsed> {
   }
 }
 
+enum _SessionAction { delete }
+
 class _SessionTile extends ConsumerWidget {
   const _SessionTile({required this.session});
 
   final WorkoutSession session;
+
+  /// Deleting is a soft delete that syncs, so it reaches every device and the
+  /// stream filter drops the row — there is nothing local left to undo from.
+  /// One stray tap in a menu should not be able to do that silently.
+  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete ${formatDay(session.startedAt)}?'),
+        content: const Text('It will be removed from every device.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Keep'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await ref.read(sessionsRepositoryProvider).delete(session.id);
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -212,12 +240,17 @@ class _SessionTile extends ConsumerWidget {
         '${formatTime(session.startedAt)} · '
         '${formatDuration(ended.difference(session.startedAt))}',
       ),
-      trailing: PopupMenuButton<void>(
+      trailing: PopupMenuButton<_SessionAction>(
         tooltip: 'More',
-        itemBuilder: (_) => [
+        // onSelected rather than PopupMenuItem.onTap: it runs once the menu
+        // route has popped, so the dialog opens over the list, not the menu.
+        onSelected: (action) => switch (action) {
+          _SessionAction.delete => unawaited(_confirmDelete(context, ref)),
+        },
+        itemBuilder: (_) => const [
           PopupMenuItem(
-            onTap: () => ref.read(sessionsRepositoryProvider).delete(session.id),
-            child: const Text('Delete'),
+            value: _SessionAction.delete,
+            child: Text('Delete'),
           ),
         ],
       ),
