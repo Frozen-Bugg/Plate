@@ -16,11 +16,7 @@ class LiveSessionExercises extends ConsumerWidget {
   final String sessionId;
 
   Future<void> _pickExercise(BuildContext context, WidgetRef ref) async {
-    final chosen = await showModalBottomSheet<Exercise>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => const _ExercisePicker(),
-    );
+    final chosen = await showExercisePicker(context);
     if (chosen == null) return;
     await ref
         .read(loggingRepositoryProvider)
@@ -361,6 +357,15 @@ class _Field extends StatelessWidget {
     );
   }
 }
+
+/// Opens the exercise picker and returns what was chosen, or null if the sheet
+/// was dismissed. Shared by the live session and the template editor.
+Future<Exercise?> showExercisePicker(BuildContext context) =>
+    showModalBottomSheet<Exercise>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => const _ExercisePicker(),
+    );
 
 /// The seeded library plus anything the lifter added, filtered by name.
 class _ExercisePicker extends ConsumerStatefulWidget {

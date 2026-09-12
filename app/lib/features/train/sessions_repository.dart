@@ -22,14 +22,19 @@ class SessionsRepository {
         .watch();
   }
 
-  /// Starts a session now and returns its id.
-  Future<String> start() async {
+  /// Starts a session now and returns its id. [templateId] records which plan
+  /// it came from, when it came from one at all.
+  Future<String> start({String? templateId}) async {
     // PowerSync tables are views, which don't support RETURNING, so the id is
     // generated here rather than read back.
     final id = uuid.v7();
-    await _db
-        .into(_db.sessions)
-        .insert(SessionsCompanion.insert(id: Value(id), userId: _userId));
+    await _db.into(_db.sessions).insert(
+          SessionsCompanion.insert(
+            id: Value(id),
+            userId: _userId,
+            templateId: Value(templateId),
+          ),
+        );
     return id;
   }
 

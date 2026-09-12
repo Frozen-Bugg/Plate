@@ -10,9 +10,9 @@ import '../../core/db/database_providers.dart';
 /// What an exercise is prescribed at: the rep range and effort the engine
 /// judges the last session against.
 ///
-/// Templates will supply this per exercise in the next slice. Until then the
-/// defaults are the spec's example range (docs/PLAN.md §5) — 8–12 reps leaving
-/// two in reserve, which is a reasonable hypertrophy prescription.
+/// Templates supply this per exercise. The defaults are the spec's example
+/// range (docs/PLAN.md §5) — 8–12 reps leaving two in reserve — and apply to
+/// anything trained ad hoc, outside any template.
 class Prescription {
   const Prescription({
     this.model = engine.ProgressionModel.double_,
@@ -21,6 +21,24 @@ class Prescription {
     this.targetRir = 2,
     this.linearIncrementKg = 2.5,
   });
+
+  /// Reads a template's row. An unrecognised model falls back to the default
+  /// rather than throwing: a bad value in the database should not stop the
+  /// lifter getting a target.
+  factory Prescription.fromTemplate(TemplateExercise row) {
+    engine.ProgressionModel model;
+    try {
+      model = engine.ProgressionModel.fromWire(row.progressionModel);
+    } on ArgumentError {
+      model = engine.ProgressionModel.double_;
+    }
+    return Prescription(
+      model: model,
+      repMin: row.repMin,
+      repMax: row.repMax,
+      targetRir: row.targetRir,
+    );
+  }
 
   final engine.ProgressionModel model;
   final int repMin;
@@ -101,12 +119,16 @@ class ProgressionRepository {
   ///
   /// Call after finishing a session. Returns the target for next time, or null
   /// when the exercise has never been logged and there is nothing to judge.
+  /// [prescription] defaults to whatever a template says about this exercise,
+  /// falling back to the spec's example range when no template covers it.
   Future<engine.NextTarget?> recompute(
     String exerciseId, {
-    Prescription prescription = const Prescription(),
+    Prescription? prescription,
   }) async {
     final exposures = await recentExposures(exerciseId);
     if (exposures.isEmpty) return null;
+
+    prescription ??= await prescriptionFor(exerciseId);
 
     final exercise = await (_db.select(_db.exercises)
           ..where((e) => e.id.equals(exerciseId)))
@@ -143,6 +165,20 @@ class ProgressionRepository {
       bestE1rmKg: bestE1rm,
     );
     return target;
+  }
+
+  /// The prescription a template gives for [exerciseId], or the default when
+  /// no template covers it.
+  Future<Prescription> prescriptionFor(String exerciseId) async {
+    final rows = await (_db.select(_db.templateExercises)
+          ..where((e) => e.exerciseId.equals(exerciseId))
+          ..where((e) => e.userId.equals(_userId))
+          ..where((e) => e.deletedAt.isNull())
+          ..orderBy([(e) => OrderingTerm.desc(e.updatedAt)])
+          ..limit(1))
+        .get();
+    final row = rows.firstOrNull;
+    return row == null ? const Prescription() : Prescription.fromTemplate(row);
   }
 
   /// Whether the engine considers this exercise stalled — no e1RM gain across

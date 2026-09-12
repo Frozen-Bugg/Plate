@@ -11,6 +11,7 @@ import 'live_session.dart';
 import 'logging_repository.dart';
 import 'progression_repository.dart';
 import 'sessions_repository.dart';
+import 'templates_screen.dart';
 
 class TrainScreen extends ConsumerWidget {
   const TrainScreen({super.key});
@@ -29,13 +30,24 @@ class TrainScreen extends ConsumerWidget {
             children: [
               if (active != null)
                 ActiveSessionCard(session: active)
-              else
+              else ...[
                 FilledButton.icon(
                   onPressed: () =>
                       ref.read(sessionsRepositoryProvider).start(),
                   icon: const Icon(Icons.play_arrow_rounded),
                   label: const Text('Start workout'),
                 ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const TemplatesScreen(),
+                    ),
+                  ),
+                  icon: const Icon(Icons.list_alt, size: 20),
+                  label: const Text('Templates'),
+                ),
+              ],
               const SizedBox(height: 28),
               Text('History', style: text.titleLarge),
               const SizedBox(height: 8),
