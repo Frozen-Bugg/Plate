@@ -4,8 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/db/app_database.dart';
+import 'exercise_picker.dart';
 import 'exercises_repository.dart';
-import 'live_session.dart';
 import 'sessions_repository.dart';
 import 'templates_repository.dart';
 
