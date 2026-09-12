@@ -24,7 +24,19 @@ class FoodSearchService {
 
   final http.Client _client;
 
+  /// Product lookups by barcode still live on the main site.
   static const _host = 'world.openfoodfacts.org';
+
+  /// Full-text search does not. The old `/cgi/search.pl` endpoint answers 503
+  /// now, with or without a User-Agent — it has been superseded by this one,
+  /// which is a different service with a different response shape.
+  static const _searchHost = 'search.openfoodfacts.org';
+
+  /// Open Food Facts asks callers to identify themselves, and throttles the
+  /// ones that do not.
+  static const _headers = {
+    'User-Agent': 'Overload/0.1 (github.com/Frozen-Bugg/Plate)',
+  };
 
   /// The fields worth asking for. OFF returns a great deal per product and the
   /// search endpoint is slow enough without carrying all of it over a phone
@@ -41,27 +53,26 @@ class FoodSearchService {
     final term = query.trim();
     if (term.length < 2) return const [];
 
-    final url = Uri.https(_host, '/cgi/search.pl', {
-      'search_terms': term,
-      'search_simple': '1',
-      'action': 'process',
-      'json': '1',
+    final url = Uri.https(_searchHost, '/search', {
+      'q': term,
       'page_size': '$limit',
-      'fields': _fields,
     });
 
     try {
-      final response = await _client.get(url).timeout(_timeout);
+      final response =
+          await _client.get(url, headers: _headers).timeout(_timeout);
       if (response.statusCode != 200) {
         _log.info('Food search returned ${response.statusCode}');
         return const [];
       }
       final body = jsonDecode(response.body) as Map<String, dynamic>;
-      final products = (body['products'] as List<dynamic>? ?? const [])
-          .cast<Map<String, dynamic>>();
+      // `hits` is the search service; `products` is the older shape, kept so a
+      // fixture or a fallback endpoint still parses.
+      final products =
+          (body['hits'] ?? body['products']) as List<dynamic>? ?? const [];
       return [
         for (final product in products)
-          ?_toFacts(product),
+          ?_toFacts((product as Map).cast<String, dynamic>()),
       ];
     } catch (e) {
       // Offline, blocked, or slow. The local list is still there, and a search
@@ -78,7 +89,8 @@ class FoodSearchService {
       'fields': _fields,
     });
     try {
-      final response = await _client.get(url).timeout(_timeout);
+      final response =
+          await _client.get(url, headers: _headers).timeout(_timeout);
       if (response.statusCode != 200) return null;
       final body = jsonDecode(response.body) as Map<String, dynamic>;
       if (body['status'] != 1) return null;
@@ -105,14 +117,9 @@ class FoodSearchService {
         _fromKilojoules(_number(nutriments['energy_100g']));
     if (kcal == null || kcal <= 0 || kcal > 900) return null;
 
-    final brand = (product['brands'] as String?)
-        ?.split(',')
-        .first
-        .trim();
-
     return FoodFacts(
       name: name,
-      brand: brand == null || brand.isEmpty ? null : brand,
+      brand: _brand(product['brands']),
       source: 'off',
       sourceId: product['code'] as String?,
       barcode: _barcode(product['code']),
@@ -127,6 +134,23 @@ class FoodSearchService {
       servingG: _serving(product),
       servingLabel: (product['serving_size'] as String?)?.trim(),
     );
+  }
+
+  /// The first brand, however this endpoint happens to spell them.
+  ///
+  /// The search service returns a list; the product endpoint returns one
+  /// comma-separated string. Either way a food belongs to one brand as far as a
+  /// lifter is concerned, and "Quaker, Quaker Oats, PepsiCo" on a list row is
+  /// noise.
+  static String? _brand(Object? value) {
+    final first = switch (value) {
+      final List<dynamic> list =>
+        list.isEmpty ? null : list.first?.toString(),
+      final String s => s.split(',').first,
+      _ => null,
+    };
+    final trimmed = first?.trim();
+    return trimmed == null || trimmed.isEmpty ? null : trimmed;
   }
 
   static double? _number(Object? value) => switch (value) {

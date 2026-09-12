@@ -19,7 +19,8 @@ FoodSearchService serving(Object body, {int status = 200}) => FoodSearchService(
 
 Map<String, dynamic> product({
   String? name = 'Greek Yoghurt',
-  String? brands = 'Fage, Total',
+  /// A String from the product endpoint, a List from the search service.
+  Object? brands = 'Fage, Total',
   String code = '5201054003014',
   Map<String, dynamic>? nutriments,
   Object? servingQuantity = 170,
@@ -48,13 +49,13 @@ void main() {
   group('search', () {
     test('maps a well-filled product', () async {
       final results = await serving({
-        'products': [product()],
+        'hits': [product()],
       }).search('yoghurt');
 
       expect(results, hasLength(1));
       final food = results.single;
       expect(food.name, 'Greek Yoghurt');
-      // Only the first brand: OFF stores a comma-separated pile of them.
+      // Only the first brand: OFF stores a pile of them.
       expect(food.brand, 'Fage');
       expect(food.source, 'off');
       expect(food.sourceId, '5201054003014');
@@ -67,7 +68,7 @@ void main() {
 
     test('converts sodium from grams to milligrams', () async {
       final food = (await serving({
-        'products': [product()],
+        'hits': [product()],
       }).search('yoghurt'))
           .single;
       expect(food.sodiumMgPer100, closeTo(36, 1e-9));
@@ -75,7 +76,7 @@ void main() {
 
     test('falls back to kilojoules when there is no kcal figure', () async {
       final food = (await serving({
-        'products': [
+        'hits': [
           product(nutriments: {'energy_100g': 406}),
         ],
       }).search('yoghurt'))
@@ -85,14 +86,14 @@ void main() {
 
     test('drops a product with no name', () async {
       final results = await serving({
-        'products': [product(name: null), product(name: '  ')],
+        'hits': [product(name: null), product(name: '  ')],
       }).search('yoghurt');
       expect(results, isEmpty);
     });
 
     test('drops a product with no energy, rather than logging a zero', () async {
       final results = await serving({
-        'products': [
+        'hits': [
           product(nutriments: {'proteins_100g': 9}),
         ],
       }).search('yoghurt');
@@ -101,7 +102,7 @@ void main() {
 
     test('drops an energy figure no food could have', () async {
       final results = await serving({
-        'products': [
+        'hits': [
           product(nutriments: {'energy-kcal_100g': 4000}),
         ],
       }).search('yoghurt');
@@ -114,7 +115,7 @@ void main() {
       // calories are still usable, so the food is offered with the macro zeroed
       // rather than thrown away.
       final food = (await serving({
-        'products': [
+        'hits': [
           product(nutriments: {
             'energy-kcal_100g': 97,
             'proteins_100g': 150,
@@ -129,7 +130,7 @@ void main() {
 
     test('keeps only barcodes that look like barcodes', () async {
       final food = (await serving({
-        'products': [product(code: 'abc')],
+        'hits': [product(code: 'abc')],
       }).search('yoghurt'))
           .single;
       expect(food.barcode, isNull);
@@ -139,7 +140,7 @@ void main() {
 
     test('ignores a serving size that is not a serving', () async {
       final food = (await serving({
-        'products': [product(servingQuantity: 90000)],
+        'hits': [product(servingQuantity: 90000)],
       }).search('yoghurt'))
           .single;
       expect(food.servingG, isNull);
@@ -147,7 +148,7 @@ void main() {
 
     test('parses numbers that arrive as strings', () async {
       final food = (await serving({
-        'products': [
+        'hits': [
           product(nutriments: {
             'energy-kcal_100g': '97',
             'proteins_100g': '9',
@@ -157,6 +158,40 @@ void main() {
           .single;
       expect(food.kcalPer100, 97);
       expect(food.proteinPer100, 9);
+    });
+
+    test('reads brands whether they arrive as a list or a string', () async {
+      // The search service returns a list; the product endpoint returns one
+      // comma-separated string. Getting this wrong made every search silently
+      // return nothing, because the cast threw and the catch swallowed it.
+      final fromList = (await serving({
+        'hits': [
+          product(brands: ['Quaker', ' Quaker Oats']),
+        ],
+      }).search('oats'))
+          .single;
+      expect(fromList.brand, 'Quaker');
+
+      final fromString =
+          (await serving({'hits': [product(brands: 'Fage, Total')]})
+                  .search('yoghurt'))
+              .single;
+      expect(fromString.brand, 'Fage');
+    });
+
+    test('copes with a product that names no brand at all', () async {
+      for (final brands in [null, '', <String>[], '  ']) {
+        final food = (await serving({
+          'hits': [product(brands: brands)],
+        }).search('yoghurt'))
+            .single;
+        expect(food.brand, isNull, reason: 'for $brands');
+      }
+    });
+
+    test('reads the search service shape as well as the older one', () async {
+      expect(await serving({'hits': [product()]}).search('xy'), hasLength(1));
+      expect(await serving({'products': [product()]}).search('xy'), hasLength(1));
     });
 
     test('says nothing for a one-letter query rather than fetching the world',
@@ -173,7 +208,7 @@ void main() {
     });
 
     test('returns nothing when the service is unhappy', () async {
-      expect(await serving({'products': []}, status: 500).search('x'), isEmpty);
+      expect(await serving({'products': []}, status: 500).search('xy'), isEmpty);
     });
 
     test('returns nothing rather than throwing when the network is gone',
@@ -185,8 +220,8 @@ void main() {
     });
 
     test('survives a body that is not the shape it promised', () async {
-      expect(await serving({'products': 'nonsense'}).search('x'), isEmpty);
-      expect(await serving({'unexpected': true}).search('x'), isEmpty);
+      expect(await serving({'products': 'nonsense'}).search('xy'), isEmpty);
+      expect(await serving({'unexpected': true}).search('xy'), isEmpty);
     });
   });
 
