@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
@@ -325,6 +327,17 @@ final dailyRollupsProvider = StreamProvider<List<DailyRollup>>(
 /// rebuild triggered by an unrelated stream — costs a few reads and no sync
 /// traffic.
 class RollupKeeper extends Notifier<void> {
+  /// Long enough to swallow a burst, short enough that nobody sees it.
+  ///
+  /// One weigh-in changes the trend, the rollups and — through the trend — the
+  /// TDEE estimate, so a single tap wakes several of the listeners below within
+  /// a few milliseconds of each other. Without this they each get their own
+  /// full recompute.
+  static const _coalesce = Duration(milliseconds: 400);
+
+  Timer? _pending;
+  var _synced = false;
+
   @override
   void build() {
     // Listened to rather than watched, and the difference is the whole reason
@@ -333,13 +346,31 @@ class RollupKeeper extends Notifier<void> {
     // body runs only when its host widget happens to rebuild for some unrelated
     // reason. It looked like it worked for a whole phase. A listener fires on
     // every change, whether or not anybody is looking at the result.
-    ref.listen(syncStatusProvider, (_, _) => refresh());
-    ref.listen(weightTrendProvider, (_, _) => refresh());
-    ref.listen(recentIntakeProvider, (_, _) => refresh());
-    ref.listen(recentActivityProvider, (_, _) => refresh());
-    ref.listen(recentRecoveryProvider, (_, _) => refresh());
-    ref.listen(outstandingRejectionsProvider, (_, _) => refresh());
-    refresh();
+    ref.listen(syncStatusProvider, (_, next) {
+      // Only the *first* sync is news. `SyncStatus` ticks constantly on a
+      // connected device — every checkpoint, every upload, every download moves
+      // it — and a recompute reads a fortnight across six tables. Refreshing on
+      // each tick meant the phone was doing that work more or less
+      // continuously, which is what a battery notices. After the first sync the
+      // data streams below are the honest signal: they fire when a row actually
+      // changes.
+      final synced = next.value?.hasSynced == true;
+      if (synced && !_synced) schedule();
+      _synced = synced;
+    });
+    ref.listen(weightTrendProvider, (_, _) => schedule());
+    ref.listen(recentIntakeProvider, (_, _) => schedule());
+    ref.listen(recentActivityProvider, (_, _) => schedule());
+    ref.listen(recentRecoveryProvider, (_, _) => schedule());
+    ref.listen(outstandingRejectionsProvider, (_, _) => schedule());
+    ref.onDispose(() => _pending?.cancel());
+    schedule();
+  }
+
+  /// Asks for a recompute soon, collapsing several asks into one.
+  void schedule() {
+    _pending?.cancel();
+    _pending = Timer(_coalesce, refresh);
   }
 
   /// Rebuilds the recent rollups from whatever the sources say right now.

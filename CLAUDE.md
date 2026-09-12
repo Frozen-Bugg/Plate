@@ -70,6 +70,14 @@ the dashboard, and a fortnight of food logs producing a believable TDEE — are 
   work — generate the id, then insert. **Nor can a view be upserted:** Drift's
   `insertOnConflictUpdate` compiles to `ON CONFLICT DO UPDATE` and throws "cannot UPSERT a view".
   Look the row up by id, then update or insert.
+- **`SyncStatus` is a gate, not a trigger.** It ticks on every checkpoint, upload and download, so a
+  connected device emits constantly. Use it to answer "has the first sync landed yet?" and let the data
+  streams say when something actually changed. `RollupKeeper` recomputing a fortnight across six tables
+  on every tick was invisible on an emulator and obvious on a phone with a battery.
+- **The sync connection is dropped while the app is out of view** (`SyncLifecycle`), after a grace
+  period so a glance at a notification does not cost a reconnect. Writes queue locally meanwhile, which
+  is the same path a workout logged in a basement gym already takes. Uploads are batched by
+  `uploadThrottle`; PowerSync's own default is 10 ms, which gives every single write its own request.
 - **A side effect belongs in a `Notifier` that listens, never a `Provider<void>` that watches.** A
   provider whose value is always null never notifies its watchers, so nothing re-reads it and its body
   runs only when some widget happens to rebuild for an unrelated reason. `RollupKeeper` and
