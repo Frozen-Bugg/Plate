@@ -92,6 +92,34 @@ class MealsRepository {
         .map((rows) => rows.map((r) => r.readTable(items)).toList());
   }
 
+  /// Totals per day since [from], updating as food is logged.
+  ///
+  /// The rollup watches this: a meal logged at midday should move the day's
+  /// summary at midday, not whenever something else happens to trigger a
+  /// rebuild.
+  Stream<Map<String, Nutrition>> watchTotalsSince(String from) {
+    final items = _db.mealItems;
+    final meals = _db.meals;
+    return (_db.select(items).join([
+      innerJoin(meals, meals.id.equalsExp(items.mealId)),
+    ])
+          ..where(items.userId.equals(_userId) &
+              items.deletedAt.isNull() &
+              meals.deletedAt.isNull() &
+              meals.mealOn.isBiggerOrEqualValue(from)))
+        .watch()
+        .map((rows) {
+      final byDay = <String, List<MealItem>>{};
+      for (final row in rows) {
+        (byDay[row.readTable(meals).mealOn] ??= []).add(row.readTable(items));
+      }
+      return {
+        for (final MapEntry(:key, :value) in byDay.entries)
+          key: DayLog.totalOf(value),
+      };
+    });
+  }
+
   /// Totals for a range of days, for the rollup and for Progress.
   Future<Map<String, Nutrition>> totalsSince(String from) async {
     final items = _db.mealItems;
@@ -305,3 +333,9 @@ final dayLogProvider = StreamProvider.family<DayLog, String>((ref, day) {
             ),
       );
 });
+
+/// Intake per day over the last fortnight, which is the window the rollup
+/// rewrites and the window adaptive TDEE measures over.
+final recentIntakeProvider = StreamProvider<Map<String, Nutrition>>(
+  (ref) => ref.watch(mealsRepositoryProvider).watchTotalsSince(daysAgo(13)),
+);

@@ -18,6 +18,7 @@ import '../body/photos_screen.dart';
 import '../body/recovery_repository.dart';
 import '../body/rollup_repository.dart';
 import '../body/trend_chart.dart';
+import '../fuel/targets_repository.dart';
 
 /// Progress v1: the body side of the loop. Strength curves and sets per muscle
 /// join it in Phase 5, when the engine has the volume landmarks to judge them.
@@ -97,6 +98,8 @@ class ProgressScreen extends ConsumerWidget {
             const SizedBox(height: 12),
             const _PhaseCard(),
           ],
+          const SizedBox(height: 12),
+          const _FuelCard(),
           const SizedBox(height: 12),
           const _TrainingCard(),
           const SizedBox(height: 12),
@@ -400,6 +403,84 @@ class _TrainingCard extends ConsumerWidget {
                   '${NumberFormat.decimalPattern().format(volume.round())} kg lifted',
                   style: text.bodySmall?.copyWith(color: muted),
                 ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Intake against maintenance, which is the pair of numbers a phase lives or
+/// dies by.
+///
+/// Read from daily_rollup rather than recounted: the rollup is the record of
+/// the day, and the estimate stored on it is what the engine believed at the
+/// time rather than what it believes now.
+class _FuelCard extends ConsumerWidget {
+  const _FuelCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final text = Theme.of(context).textTheme;
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    final rollups = ref.watch(dailyRollupsProvider).value ?? const [];
+    final week = rollups
+        .where((r) => r.rollupOn.compareTo(daysAgo(6)) >= 0)
+        .where((r) => (r.intakeKcal ?? 0) > 0)
+        .toList();
+    if (week.isEmpty) return const SizedBox.shrink();
+
+    final average =
+        week.map((r) => r.intakeKcal!).reduce((a, b) => a + b) / week.length;
+    final tdee = ref.watch(tdeeProvider).value;
+    final maintenance = tdee != null && tdee.kcal > 0 ? tdee.kcal : null;
+    final gap = maintenance == null ? null : average - maintenance;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Fuel', style: text.titleMedium),
+                  const SizedBox(height: 2),
+                  Text(
+                    // Days without a log are left out rather than counted as
+                    // zero — the same rule the engine uses, for the same reason.
+                    '${week.length} of the last 7 days logged',
+                    style: text.bodySmall?.copyWith(color: muted),
+                  ),
+                  if (gap != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      switch (gap) {
+                        < -50 =>
+                          '${gap.abs().round()} kcal a day under maintenance',
+                        > 50 => '${gap.round()} kcal a day over maintenance',
+                        _ => 'About maintenance',
+                      },
+                      style: text.bodySmall?.copyWith(color: muted),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text('${average.round()} kcal', style: text.titleMedium),
+                if (maintenance != null)
+                  Text(
+                    tdee!.isMeasured
+                        ? 'burning ~$maintenance'
+                        : 'estimating ~$maintenance',
+                    style: text.bodySmall?.copyWith(color: muted),
+                  ),
               ],
             ),
           ],

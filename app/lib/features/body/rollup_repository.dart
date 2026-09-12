@@ -6,6 +6,8 @@ import '../../core/day.dart';
 import '../../core/db/app_database.dart';
 import '../../core/db/database_providers.dart';
 import '../../core/sync/sync_rejections.dart';
+import '../fuel/meals_repository.dart';
+import '../fuel/targets_repository.dart';
 import 'activity_repository.dart';
 import 'body_repository.dart';
 import 'recovery_repository.dart';
@@ -57,6 +59,8 @@ class RollupRepository {
   Future<void> recomputeRecent({
     int days = 14,
     Map<String, double> trendByDay = const {},
+    Map<String, Nutrition> intakeByDay = const {},
+    int? tdeeKcal,
     Set<String> skipIds = const {},
   }) async {
     final from = daysAgo(days - 1);
@@ -92,6 +96,10 @@ class RollupRepository {
         recovery: recovery[day],
         phase: profile?.phase,
         trendWeightKg: trendByDay[day],
+        intake: intakeByDay[day],
+        // Only today gets a fresh estimate; every earlier row keeps the one it
+        // was given at the time.
+        tdeeKcal: i == 0 ? tdeeKcal : null,
       );
     }
   }
@@ -105,7 +113,16 @@ class RollupRepository {
     required RecoveryDay? recovery,
     required String? phase,
     required double? trendWeightKg,
+    required Nutrition? intake,
+    required int? tdeeKcal,
   }) async {
+    // What the engine believed maintenance was, kept once it is known. The
+    // estimate is a rolling figure rather than a property of a day, so only
+    // today's row gets a fresh one and yesterday keeps what it was told then —
+    // which is the point of storing it at all: a weekly review can see what the
+    // app thought at the time rather than what it thinks now.
+    final tdee = tdeeKcal ?? existing?.tdeeEst;
+
     final changes = DailyRollupsCompanion(
       trendWeightKg: Value(trendWeightKg),
       weightKg: Value(body?.weightKg),
@@ -114,6 +131,9 @@ class RollupRepository {
       readiness: Value(recovery?.readiness),
       hardSets: Value(training?.hardSets),
       volumeKg: Value(training?.volumeKg),
+      intakeKcal: Value(intake?.kcal.round()),
+      proteinG: Value(intake?.proteinG),
+      tdeeEst: Value(tdee),
       phase: Value(phase),
     );
 
@@ -128,6 +148,9 @@ class RollupRepository {
           existing.readiness == recovery?.readiness &&
           existing.hardSets == training?.hardSets &&
           existing.volumeKg == training?.volumeKg &&
+          existing.intakeKcal == intake?.kcal.round() &&
+          existing.proteinG == intake?.proteinG &&
+          existing.tdeeEst == tdee &&
           existing.phase == phase;
       if (same) return;
 
@@ -139,7 +162,11 @@ class RollupRepository {
     // Nothing happened and nothing is stored: do not write an empty row. A
     // rollup for every rest day would be mostly nulls and would make "days
     // logged" meaningless.
-    if (training == null && body == null && activity == null && recovery == null) {
+    if (training == null &&
+        body == null &&
+        activity == null &&
+        recovery == null &&
+        intake == null) {
       return;
     }
 
@@ -162,6 +189,9 @@ class RollupRepository {
             readiness: changes.readiness,
             hardSets: changes.hardSets,
             volumeKg: changes.volumeKg,
+            intakeKcal: changes.intakeKcal,
+            proteinG: changes.proteinG,
+            tdeeEst: changes.tdeeEst,
             phase: changes.phase,
           ),
         );
@@ -283,8 +313,15 @@ final rollupKeeperProvider = Provider<void>((ref) {
   if (ref.watch(syncStatusProvider).value?.hasSynced != true) return;
 
   final trend = ref.watch(weightTrendProvider);
+  final intake = ref.watch(recentIntakeProvider).value ?? const {};
   ref.watch(recentActivityProvider);
   ref.watch(recentRecoveryProvider);
+
+  // Read rather than watched. The estimate is derived from intake and the
+  // trend, both of which are already watched above, so watching it too would
+  // only add a second rebuild for the same change — and, because it reads meals
+  // that this write does not touch, there is no loop either way.
+  final tdee = ref.read(tdeeProvider).value;
 
   // Days the server has already refused are left alone. Recomputing one would
   // only get it refused again, and PowerSync removes the local row each time,
@@ -298,6 +335,8 @@ final rollupKeeperProvider = Provider<void>((ref) {
   final repository = ref.read(rollupRepositoryProvider);
   repository.recomputeRecent(
     trendByDay: {for (final point in trend) dayKey(point.date): point.trendKg},
+    intakeByDay: intake,
+    tdeeKcal: tdee != null && tdee.kcal > 0 ? tdee.kcal.round() : null,
     skipIds: refused,
   );
 });
