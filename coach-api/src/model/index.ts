@@ -13,21 +13,29 @@ export interface ModelEnv {
   COACH_MODEL?: string;
   GEMINI_API_KEY?: string;
   ANTHROPIC_API_KEY?: string;
+  DEEPSEEK_API_KEY?: string;
   /// Set only where the data is invented. See [dataMayTrainModels].
   COACH_ALLOW_TRAINING_TIER?: string;
 }
 
 /// Providers this build knows how to talk to.
-export const providers = ['gemini', 'anthropic'] as const;
+export const providers = ['gemini', 'anthropic', 'deepseek'] as const;
 export type Provider = (typeof providers)[number];
 
 /// Whether a provider's default terms let the vendor train on what is sent.
 ///
-/// Google's free Gemini tier does; Anthropic's API does not. This is the
-/// difference that actually matters for a coach reading body weight, sleep, HRV
-/// and food logs — more than price, and unlike price it cannot be undone later.
+/// Google's free Gemini tier does, and DeepSeek does by default with an
+/// opt-out; Anthropic's API does not. This is the difference that actually
+/// matters for a coach reading body weight, sleep, HRV and food logs — more
+/// than price, and unlike price it cannot be undone later.
+///
+/// DeepSeek carries a second consideration this flag cannot express: inputs are
+/// stored and processed in China, with no published retention window. That is a
+/// separate question from training, and a lifter who is relaxed about one may
+/// not be about the other, so the README says it plainly rather than hiding it
+/// behind a boolean.
 export function dataMayTrainModels(provider: Provider): boolean {
-  return provider === 'gemini';
+  return provider === 'gemini' || provider === 'deepseek';
 }
 
 /// Builds the client the environment asks for.
@@ -47,7 +55,15 @@ export function modelFrom(env: ModelEnv): ModelClient {
             '`supabase secrets set GEMINI_API_KEY=...`.',
         );
       }
-      return new GeminiClient(key, env.COACH_MODEL ?? 'gemini-2.5-flash');
+      // A model named in the environment is honoured exactly; the default is a
+      // starting point the client may move off when Google retires it.
+      return new GeminiClient(
+        key,
+        env.COACH_MODEL ?? 'gemini-2.5-flash',
+        fetch,
+        'https://generativelanguage.googleapis.com',
+        { pinned: env.COACH_MODEL !== undefined },
+      );
     }
 
     case 'anthropic': {
@@ -59,6 +75,31 @@ export function modelFrom(env: ModelEnv): ModelClient {
         );
       }
       return new AnthropicClient(key, env.COACH_MODEL ?? 'claude-opus-5');
+    }
+
+    case 'deepseek': {
+      const key = env.DEEPSEEK_API_KEY;
+      if (!key) {
+        throw new Error(
+          'DEEPSEEK_API_KEY is not set. Get one at platform.deepseek.com, ' +
+            'then `supabase secrets set DEEPSEEK_API_KEY=...`.',
+        );
+      }
+      // Their Anthropic-format endpoint, not the OpenAI-format one. Their own
+      // docs say the Chat Completions API "does not support inserting tool
+      // calls mid-conversation" — which is exactly what an agent loop does on
+      // every step after the first. This endpoint takes x-api-key, ignores
+      // anthropic-version, and supports tools and streaming, so the existing
+      // adapter drives it unchanged.
+      return new AnthropicClient(
+        key,
+        env.COACH_MODEL ?? 'deepseek-flash',
+        fetch,
+        'https://api.deepseek.com/anthropic',
+        // `output_config.effort` is Anthropic's own field; an unknown field is
+        // a 400 more often than it is ignored.
+        { name: 'DeepSeek', effort: false },
+      );
     }
 
     default:

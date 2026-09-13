@@ -23,47 +23,77 @@ because Node executes these files by *stripping* types rather than checking them
 One environment variable, and nothing else in the codebase names a provider.
 
 ```bash
-supabase secrets set GEMINI_API_KEY=...          # the default
-supabase secrets set COACH_PROVIDER=anthropic    # to switch
-supabase secrets set ANTHROPIC_API_KEY=...
-supabase secrets set COACH_MODEL=gemini-3-pro    # to pin a specific model
+supabase secrets set GEMINI_API_KEY=...           # the default
+supabase secrets set COACH_PROVIDER=deepseek      # to switch
+supabase secrets set DEEPSEEK_API_KEY=...
+supabase secrets set COACH_MODEL=deepseek-v4-pro  # to pin a specific model
 ```
+
+**DeepSeek runs on its Anthropic-format endpoint, not its OpenAI-format one.**
+That is not a preference: their own docs say the Chat Completions API "does not
+support inserting tool calls mid-conversation", which is exactly what an agent
+loop does on every step after the first. The Anthropic-format endpoint takes
+`x-api-key`, ignores `anthropic-version`, and supports tools and streaming — so
+the adapter written for Claude drives it unchanged, which is the abstraction
+paying for itself.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `COACH_PROVIDER` | `gemini` | `gemini` or `anthropic` |
-| `COACH_MODEL` | `gemini-2.5-flash` | Overrides the model name |
+| `COACH_PROVIDER` | `gemini` | `gemini`, `deepseek` or `anthropic` |
+| `COACH_MODEL` | per provider | Overrides the model name, and pins it |
 | `GEMINI_API_KEY` | — | From aistudio.google.com |
+| `DEEPSEEK_API_KEY` | — | From platform.deepseek.com |
 | `ANTHROPIC_API_KEY` | — | From console.anthropic.com |
 | `COACH_ALLOW_TRAINING_TIER` | unset | See below |
 
+### Which one, and what it costs
+
+| | Free? | Roughly | Trains on inputs | Data held |
+|---|---|---|---|---|
+| Gemini Flash | yes, capped | — | yes (free tier) | Google |
+| DeepSeek Flash | no, prepaid | ~$0.0006 a question | yes, opt-out | **China** |
+| Claude Opus | no, postpaid | ~$0.05–0.15 a question | no | Anthropic |
+
+DeepSeek is the pragmatic middle: prepaid means no surprise bill and no daily
+cap, and at $0.15/M in and $0.60/M out a coach question costs well under a
+tenth of a cent. Twenty questions a day is pennies a month.
+
+Its cost is not money. Inputs are stored and processed in China, trained on by
+default with an opt-out, with no published retention window, and subject to
+Chinese law. That is a *different* question from Google's training clause, and
+worth deciding separately — this coach reads body weight, sleep, HRV and
+eventually progress photos.
+
 The default is a **Flash** model, and that is a constraint rather than a
-preference. Gemini's Pro models have no free allowance — a free key asking for
-one gets a 429 reading `limit: 0` — so Pro means a bill. Flash is weaker at
-exactly the work this coach does, reasoning about stalls and trends across
-tool results, which is why the eval suite matters here more than it would
-otherwise: it is the honest way to find out whether Flash is good enough, and
-the switch to a paid model is one variable if it is not.
+preference: Gemini's Pro models have no free allowance at all. A free key asking
+for one gets a 429 reading `limit: 0`.
 
-**Model names go stale faster than this repo will**, in two ways that look
-different and are the same problem:
+### Model churn, and why nothing here is pinned
 
-| Symptom | Meaning |
+Four different failures inside one afternoon, all from the same key:
+
+| What came back | What it means |
 |---|---|
-| `404 … no longer available to new users` | The name was retired |
-| `429 … limit: 0` | The model exists but has no free quota |
+| `404 … no longer available to new users` | the name was retired |
+| `429 … limit: 0` | real model, no free allowance |
+| `429 … free_tier_requests, limit: 20` | today's free requests for **this model** are spent |
+| `503 … experiencing high demand` | this model is swamped right now |
 
-Neither is worth retrying, and both are fixed by naming a different model. So
-the adapter treats them as one case: it asks the API which models the key can
-actually use and puts that list in the error, which reaches the chat rather than
-a log. Then:
+They look different and have one answer: **ask a different model.** So the
+adapter does. On any of the four it lists what the key can use, ranks them and
+retries — Flash over Pro (Pro is not free), stable over preview, newer over
+older, full over lite, and never a model already tried. Nothing is hardcoded,
+because a hardcoded name is the thing that keeps breaking.
 
-```bash
-npx.cmd supabase secrets set COACH_MODEL=<one of the names it listed>
-```
+Quotas are **per model, not per key**: one name answered `limit: 20` while
+another answered 503 in the same minute. So the free tier is not twenty requests
+a day, it is roughly twenty per Flash model — and switching is what makes the
+rest of them reachable. A coach question costs two or more model calls, so budget
+perhaps eight to ten questions per model per day, across the several that exist.
 
-No redeploy. This whole mechanism exists because the first two real questions
-were answered by a retired model and a paid-only one, in that order.
+`COACH_MODEL` **pins** a model: it is then used exactly, never swapped, and a
+failure is reported rather than worked around. That is what the eval suite wants,
+because a moving model makes a moving score. Leave it unset everywhere else.
 
 ### Why Gemini is the default, and the catch
 

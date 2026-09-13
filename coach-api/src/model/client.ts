@@ -41,6 +41,17 @@ export interface ToolCall {
   id: string;
   name: string;
   args: Record<string, unknown>;
+
+  /// Opaque data the provider requires to be handed back with this call.
+  ///
+  /// Written and read only by the adapter that produced it. Gemini 3 refuses a
+  /// replayed tool call whose `thoughtSignature` is missing — "required for
+  /// tools to work correctly" — and that signature means nothing to anything
+  /// else, so it travels here rather than widening the interface with a field
+  /// only one provider has heard of.
+  ///
+  /// Nothing outside `src/model/` may read this or depend on its shape.
+  raw?: Record<string, unknown>;
 }
 
 export interface ToolResult {

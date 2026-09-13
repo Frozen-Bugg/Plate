@@ -430,3 +430,68 @@ test('a stream carrying only a finish reason is a real, empty answer', async () 
   assert.equal(reply.stop, 'refusal');
   assert.equal(reply.text, '');
 });
+
+test('a tool call carries its thought signature back to Gemini 3', async () => {
+  // Gemini 3 answers 400 when a replayed functionCall has no thought_signature:
+  // "required for tools to work correctly". It rides on the part, beside
+  // functionCall rather than inside it, and means nothing to any other
+  // provider — so it travels as opaque data on the call.
+  const signature = 'CosBAVKm9Z7jR1w';
+
+  const reading = await new GeminiClient(
+    'k',
+    'gemini-3.6-flash',
+    sseFetch([
+      {
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  functionCall: { name: 'query_training', args: { window: 'week' } },
+                  thoughtSignature: signature,
+                },
+              ],
+            },
+            finishReason: 'STOP',
+          },
+        ],
+      },
+    ]).impl,
+  ).send(request);
+
+  assert.equal(reading.calls[0].raw?.thoughtSignature, signature);
+
+  // And it goes back out on the next turn, or the turn is refused.
+  const { impl, sent } = sseFetch([
+    { candidates: [{ content: { parts: [{ text: 'done' }] }, finishReason: 'STOP' }] },
+  ]);
+  await new GeminiClient('k', 'gemini-3.6-flash', impl).send({
+    ...request,
+    messages: [
+      { role: 'user', text: 'how is training' },
+      { role: 'assistant', calls: reading.calls },
+      {
+        role: 'tool',
+        results: [{ id: reading.calls[0].id, name: 'query_training', content: {} }],
+      },
+    ],
+  });
+
+  const part = sent[0].body.contents[1].parts[0];
+  assert.equal(part.functionCall.name, 'query_training');
+  assert.equal(part.thoughtSignature, signature, 'the signature was dropped');
+});
+
+test('a call with no signature sends no empty one', async () => {
+  // Gemini 2.x does not issue signatures, and sending `thoughtSignature:
+  // undefined` is not the same as sending nothing.
+  const { impl, sent } = sseFetch([
+    { candidates: [{ content: { parts: [{ text: 'ok' }] }, finishReason: 'STOP' }] },
+  ]);
+  await new GeminiClient('k', 'gemini-2.5-flash', impl).send(request);
+
+  const part = sent[0].body.contents[1].parts.find((p: any) => p.functionCall);
+  assert.ok(part, 'the tool call went missing');
+  assert.ok(!('thoughtSignature' in part), 'sent an empty signature');
+});

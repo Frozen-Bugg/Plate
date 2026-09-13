@@ -20,17 +20,27 @@ export class AnthropicClient implements ModelClient {
   readonly #apiKey: string;
   readonly #fetch: typeof fetch;
   readonly #host: string;
+  readonly #name: string;
+  readonly #effort: boolean;
 
   constructor(
     apiKey: string,
     model = 'claude-opus-5',
     fetchImpl: typeof fetch = fetch,
     host = 'https://api.anthropic.com',
+    options: { name?: string; effort?: boolean } = {},
   ) {
     this.#apiKey = apiKey;
     this.model = model;
     this.#fetch = fetchImpl;
     this.#host = host;
+    // Whose API this is, for error messages. The wire format is Anthropic's;
+    // the service answering it need not be.
+    this.#name = options.name ?? 'Anthropic';
+    // `output_config.effort` is Anthropic's own. An Anthropic-compatible
+    // service will not know the field, and an unknown field is a 400 more
+    // often than it is ignored.
+    this.#effort = options.effort ?? true;
   }
 
   async send(request: ModelRequest, onText?: OnText): Promise<ModelReply> {
@@ -47,7 +57,7 @@ export class AnthropicClient implements ModelClient {
     if (request.tools?.length) {
       body.tools = request.tools.map(toTool);
     }
-    if (request.effort) {
+    if (request.effort && this.#effort) {
       body.output_config = { effort: request.effort };
     }
 
@@ -63,13 +73,13 @@ export class AnthropicClient implements ModelClient {
         body: JSON.stringify(body),
       });
     } catch (cause) {
-      throw new ModelError(`Could not reach Anthropic: ${cause}`, undefined, true);
+      throw new ModelError(`Could not reach ${this.#name}: ${cause}`, undefined, true);
     }
 
     if (!response.ok) {
       const detail = await response.text().catch(() => '');
       throw new ModelError(
-        `Anthropic returned ${response.status}: ${detail.slice(0, 500)}`,
+        `${this.#name} returned ${response.status}: ${detail.slice(0, 500)}`,
         response.status,
         response.status === 429 || response.status >= 500,
       );

@@ -1,5 +1,7 @@
 import { ModelError } from './client.ts';
 import type { ModelClient, ModelReply, ModelRequest, OnText, StopReason, ToolCall, ToolSpec, Turn, Usage } from './client.ts';
+import { nextModel } from './gemini_models.ts';
+import type { ModelInfo } from './gemini_models.ts';
 
 /// Google's Generative Language API.
 ///
@@ -13,10 +15,19 @@ import type { ModelClient, ModelReply, ModelRequest, OnText, StopReason, ToolCal
 /// real lifter's weight, photos and sleep. `COACH_ALLOW_TRAINING_TIER` has to be
 /// set for this adapter to accept real user data — see `index.ts`.
 export class GeminiClient implements ModelClient {
-  readonly model: string;
+  /// The model actually answering. Not readonly: when the configured one turns
+  /// out to be retired or to have no free allowance, this becomes whichever one
+  /// worked, so the rest of the turn — and the token accounting on the message
+  /// row — records what really answered.
+  model: string;
+
   readonly #apiKey: string;
   readonly #fetch: typeof fetch;
   readonly #host: string;
+  readonly #pinned: boolean;
+
+  /// Names already found not to work, so a retry never picks one twice.
+  readonly #dead = new Set<string>();
 
   // Fields written out rather than declared as constructor parameters: Deno
   // accepts parameter properties, Node's type stripping does not, and this file
@@ -26,11 +37,16 @@ export class GeminiClient implements ModelClient {
     model = 'gemini-2.5-flash',
     fetchImpl: typeof fetch = fetch,
     host = 'https://generativelanguage.googleapis.com',
+    options: { pinned?: boolean } = {},
   ) {
     this.#apiKey = apiKey;
     this.model = model;
     this.#fetch = fetchImpl;
     this.#host = host;
+    // A model named deliberately is not second-guessed: someone who set
+    // COACH_MODEL wants that model, and silently answering from another one is
+    // worse than saying the chosen one does not work.
+    this.#pinned = options.pinned ?? false;
   }
 
   async send(request: ModelRequest, onText?: OnText): Promise<ModelReply> {
@@ -77,22 +93,42 @@ export class GeminiClient implements ModelClient {
     if (!response.ok) {
       const detail = await response.text().catch(() => '');
 
-      // Model names move, and the two ways they move both land here: a retired
-      // name answers 404, and a name with no free allowance answers 429 with
-      // "limit: 0". Neither is a rate limit to wait out, and both are fixed by
-      // naming a different model — so the error carries the list of names this
-      // key can actually use. Guessing and redeploying is the alternative, and
-      // it is a bad one.
-      const noQuota = response.status === 429 && /limit: 0/.test(detail);
-      const wrongModel = response.status === 404 || noQuota;
+      // Every way Google says "not from this model, not now". They look
+      // different and have the same answer: ask a different model.
+      //
+      //   404               the name was retired
+      //   429 limit: 0      real model, no free allowance at all
+      //   429 limit: 20     the day's free requests for this model are spent
+      //   503 UNAVAILABLE   this model is swamped
+      //
+      // Quotas are per model, not per key — observed directly: one name
+      // answered 429 "limit: 20" while another answered 503 in the same
+      // minute. So the free tier is not twenty requests a day, it is twenty
+      // per Flash model, and switching is what makes that reachable.
+      const wrongModel =
+        response.status === 404 ||
+        response.status === 429 ||
+        response.status === 503;
+
+      // Finding another model is something this can do for itself rather than
+      // failing and waiting for someone to edit a constant and redeploy.
+      if (wrongModel && !this.#pinned) {
+        const replacement = await this.#findWorkingModel();
+        if (replacement) {
+          this.model = replacement;
+          return this.send(request, onText);
+        }
+      }
 
       throw new ModelError(
-        `Gemini returned ${response.status}: ${detail.slice(0, 400)}` +
+        `Gemini returned ${response.status} for ${this.model}: ` +
+          `${detail.slice(0, 400)}` +
           (wrongModel ? await this.#suggestModels() : ''),
         response.status,
-        // A real rate limit is worth one retry; a model that does not exist,
-        // or has no free allowance, will answer the same way forever.
-        (response.status === 429 && !noQuota) || response.status >= 500,
+        // Reached only when every model has been tried. A 404 will answer the
+        // same way forever; a quota or a demand spike passes, so one retry is
+        // still worth it.
+        response.status === 429 || response.status >= 500,
       );
     }
 
@@ -145,6 +181,25 @@ export class GeminiClient implements ModelClient {
     const reply = collect([chunk]);
     if (reply.text) onText?.(reply.text);
     return reply;
+  }
+
+  /// The next model worth trying after the current one failed.
+  ///
+  /// Ranked rather than hardcoded — see `gemini_models.ts` for what the ranking
+  /// encodes and why. Returns undefined when everything has been tried, which
+  /// the caller reports instead of looping.
+  async #findWorkingModel(): Promise<string | undefined> {
+    this.#dead.add(this.model);
+    try {
+      const response = await this.#fetch(`${this.#host}/v1beta/models`, {
+        headers: { 'x-goog-api-key': this.#apiKey },
+      });
+      if (!response.ok) return undefined;
+      const body = (await response.json()) as { models?: ModelInfo[] };
+      return nextModel(body.models ?? [], this.#dead);
+    } catch {
+      return undefined;
+    }
   }
 
   /// Asks the API which models this key can talk to, for the error message.
@@ -235,8 +290,11 @@ function toContents(messages: Turn[]) {
           role: 'model',
           parts: [
             ...(turn.text ? [{ text: turn.text }] : []),
+            // The thought signature rides alongside functionCall on the part,
+            // not inside it, and Gemini 3 rejects the turn when it is absent.
             ...(turn.calls ?? []).map((call) => ({
               functionCall: { name: call.name, args: call.args },
+              ...(call.raw ?? {}),
             })),
           ],
         };
@@ -299,6 +357,13 @@ function accumulator() {
             id: `call_${calls.length}`,
             name: part.functionCall.name,
             args: part.functionCall.args ?? {},
+            // Gemini 3 requires this back when the call is replayed, and
+            // answers 400 without it. Opaque here on purpose — see ToolCall.
+            // Spread rather than set to undefined: a key holding undefined is
+            // not the same as no key, to a deepEqual or to JSON.stringify.
+            ...(part.thoughtSignature
+              ? { raw: { thoughtSignature: part.thoughtSignature } }
+              : {}),
           });
         }
       }
@@ -414,6 +479,9 @@ interface GeminiChunk {
       parts?: {
         text?: string;
         functionCall?: { name: string; args?: Record<string, unknown> };
+        /// Gemini 3 hands this back with a tool call and requires it on the
+        /// way in. It sits on the part, beside functionCall, not inside it.
+        thoughtSignature?: string;
       }[];
     };
   }[];
