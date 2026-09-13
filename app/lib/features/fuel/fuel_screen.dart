@@ -9,6 +9,7 @@ import 'add_food_sheet.dart';
 import 'foods_repository.dart';
 import 'macro_rings.dart';
 import 'meals_repository.dart';
+import 'prep_screen.dart';
 import 'quick_add_sheet.dart';
 import 'recipes_repository.dart';
 import 'recipes_screen.dart';
@@ -72,6 +73,7 @@ class FuelScreen extends ConsumerWidget {
             const _NoTargetCard(),
           ],
           const SizedBox(height: 16),
+          FridgeCard(day: day),
           for (final slot in mealSlots) _Slot(slot: slot, log: log),
         ],
       ),

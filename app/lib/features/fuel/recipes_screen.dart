@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'add_food_sheet.dart';
 import 'meals_repository.dart';
+import 'prep_screen.dart';
 import 'recipes_repository.dart';
 
 /// Everything cooked more than once.
@@ -230,6 +231,10 @@ class RecipeScreen extends ConsumerWidget {
                         .read(recipesRepositoryProvider)
                         .update(id, name: name);
                   }
+                case 'cooks':
+                  await Navigator.of(context).push(
+                    MaterialPageRoute<void>(builder: (_) => const PrepScreen()),
+                  );
                 case 'delete':
                   final gone = await _confirmDelete(context, ref, recipe.name);
                   if (gone && context.mounted) Navigator.of(context).pop();
@@ -237,17 +242,47 @@ class RecipeScreen extends ConsumerWidget {
             },
             itemBuilder: (_) => const [
               PopupMenuItem(value: 'rename', child: Text('Rename')),
+              PopupMenuItem(value: 'cooks', child: Text('Every cook')),
               PopupMenuItem(value: 'delete', child: Text('Delete')),
             ],
           ),
         ],
       ),
+      // Eating some now and cooking a batch for the week are different
+      // moments, and prep is the one that needs to be the easy one.
       floatingActionButton: recipe.isEmpty
           ? null
-          : FloatingActionButton.extended(
-              onPressed: () => _logPortion(context, ref, recipe),
-              icon: const Icon(Icons.restaurant),
-              label: const Text('Log a portion'),
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                FloatingActionButton.small(
+                  heroTag: 'log-cook',
+                  tooltip: 'Cooked a batch of this',
+                  onPressed: () async {
+                    final id = await showLogCookSheet(
+                      context,
+                      ref,
+                      recipe: recipe,
+                    );
+                    if (id == null || !context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('In the fridge. It is on the day log.'),
+                        duration: Duration(seconds: 3),
+                      ),
+                    );
+                  },
+                  child: const Icon(Icons.kitchen_outlined),
+                ),
+                const SizedBox(height: 10),
+                FloatingActionButton.extended(
+                  heroTag: 'log-portion',
+                  onPressed: () => _logPortion(context, ref, recipe),
+                  icon: const Icon(Icons.restaurant),
+                  label: const Text('Log a portion'),
+                ),
+              ],
             ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
@@ -333,7 +368,14 @@ class RecipeScreen extends ConsumerWidget {
   ) async {
     final result = await showPortionSheet(
       context,
-      recipe: recipe,
+      name: recipe.name,
+      servingWeightG: recipe.servingWeightG,
+      isWeighed: recipe.isWeighed,
+      nutritionFor: recipe.nutritionForGrams,
+      subtitle: recipe.isWeighed
+          ? 'Weighed: ${recipe.weightG.round()} g makes ${recipe.servings}'
+          : 'Not weighed — a serving is assumed to be '
+              '${recipe.servingWeightG.round()} g',
       slot: slot ?? 'dinner',
     );
     if (result == null) return;
@@ -579,9 +621,18 @@ class _IngredientRow extends ConsumerWidget {
 ///
 /// Servings first because that is how a prepped dish is eaten, grams underneath
 /// because nobody portions a pot into four identical tubs.
+///
+/// Takes the numbers rather than the recipe, so a batch out of the fridge uses
+/// the same sheet: the only difference between them is which weight a portion
+/// is measured against, and that is already decided by the time it gets here.
 Future<({double grams, String slot})?> showPortionSheet(
   BuildContext context, {
-  required RecipeDetail recipe,
+  required String name,
+  required double servingWeightG,
+  required bool isWeighed,
+  required Nutrition Function(double grams) nutritionFor,
+  String? subtitle,
+  double? maxGrams,
   String slot = 'dinner',
 }) {
   return showModalBottomSheet<({double grams, String slot})>(
@@ -590,15 +641,39 @@ Future<({double grams, String slot})?> showPortionSheet(
     showDragHandle: true,
     builder: (context) => Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-      child: _PortionSheet(recipe: recipe, slot: slot),
+      child: _PortionSheet(
+        name: name,
+        servingWeightG: servingWeightG,
+        isWeighed: isWeighed,
+        nutritionFor: nutritionFor,
+        subtitle: subtitle,
+        maxGrams: maxGrams,
+        slot: slot,
+      ),
     ),
   );
 }
 
 class _PortionSheet extends StatefulWidget {
-  const _PortionSheet({required this.recipe, required this.slot});
+  const _PortionSheet({
+    required this.name,
+    required this.servingWeightG,
+    required this.isWeighed,
+    required this.nutritionFor,
+    required this.slot,
+    this.subtitle,
+    this.maxGrams,
+  });
 
-  final RecipeDetail recipe;
+  final String name;
+  final double servingWeightG;
+  final bool isWeighed;
+  final Nutrition Function(double grams) nutritionFor;
+  final String? subtitle;
+
+  /// What is actually left, when there is a limit — a tub cannot give up more
+  /// than it holds.
+  final double? maxGrams;
   final String slot;
 
   @override
@@ -607,7 +682,7 @@ class _PortionSheet extends StatefulWidget {
 
 class _PortionSheetState extends State<_PortionSheet> {
   late final _grams = TextEditingController(
-    text: widget.recipe.servingWeightG.round().toString(),
+    text: widget.servingWeightG.round().toString(),
   );
   late String _slot = widget.slot;
 
@@ -619,16 +694,22 @@ class _PortionSheetState extends State<_PortionSheet> {
 
   double get _value => double.tryParse(_grams.text.trim()) ?? 0;
 
+  /// Over what is left is a mis-weighed tub rather than a second helping, so
+  /// it is worth saying before it becomes a portion nobody can account for.
+  bool get _tooMuch =>
+      widget.maxGrams != null && _value > widget.maxGrams! + 1;
+
   void _setServings(double servings) {
-    final grams = widget.recipe.servingWeightG * servings;
+    final grams = widget.servingWeightG * servings;
     setState(() => _grams.text = grams.round().toString());
   }
 
   @override
   Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
-    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
-    final macros = widget.recipe.nutritionForGrams(_value);
+    final theme = Theme.of(context);
+    final text = theme.textTheme;
+    final muted = theme.colorScheme.onSurfaceVariant;
+    final macros = widget.nutritionFor(_value);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
@@ -636,16 +717,11 @@ class _PortionSheetState extends State<_PortionSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(widget.recipe.name, style: text.headlineSmall),
-          const SizedBox(height: 4),
-          Text(
-            widget.recipe.isWeighed
-                ? 'Weighed: ${widget.recipe.weightG.round()} g makes '
-                    '${widget.recipe.servings}'
-                : 'Not weighed — a serving is assumed to be '
-                    '${widget.recipe.servingWeightG.round()} g',
-            style: text.bodySmall?.copyWith(color: muted),
-          ),
+          Text(widget.name, style: text.headlineSmall),
+          if (widget.subtitle case final subtitle?) ...[
+            const SizedBox(height: 4),
+            Text(subtitle, style: text.bodySmall?.copyWith(color: muted)),
+          ],
           const SizedBox(height: 16),
           Wrap(
             spacing: 8,
@@ -657,15 +733,27 @@ class _PortionSheetState extends State<_PortionSheet> {
                       : '$servings servings'.replaceAll('.0', '')),
                   onPressed: () => _setServings(servings),
                 ),
+              if (widget.maxGrams != null && widget.maxGrams! > 0)
+                ActionChip(
+                  label: const Text('All of it'),
+                  onPressed: () => setState(
+                    () => _grams.text = widget.maxGrams!.round().toString(),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 16),
           TextField(
             controller: _grams,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Grams',
-              helperText: 'Weigh the tub if you can — it beats counting',
+              helperText: widget.isWeighed
+                  ? 'Weigh the tub if you can — it beats counting'
+                  : 'Not weighed, so a serving is an estimate',
+              errorText: _tooMuch
+                  ? 'Only ${widget.maxGrams!.round()} g left in it'
+                  : null,
             ),
             onChanged: (_) => setState(() {}),
           ),

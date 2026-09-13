@@ -269,9 +269,28 @@ const schema = Schema([
     Column.real('fat_g'),
     Column.real('fibre_g'),
     Column.text('source'),
+    Column.text('prep_batch_id'),
     ..._timestamps,
   ], indexes: [
     Index('meal', [IndexedColumn('meal_id')]),
+    // Servings remaining is a query over this, run every time a batch is
+    // shown, so it is the one index meal_items needs twice.
+    Index('batch', [IndexedColumn('prep_batch_id')]),
+  ]),
+  // A cook that happened. See docs/MEAL-PLANNING.md §6: cooked_weight_g is on
+  // the batch and not the recipe because it changes, and servings remaining is
+  // derived from the portions logged against it rather than counted down.
+  Table('prep_batches', [
+    Column.text('user_id'),
+    Column.text('recipe_id'),
+    Column.text('cooked_on'),
+    Column.integer('servings_made'),
+    Column.real('cooked_weight_g'),
+    Column.text('use_by'),
+    Column.text('notes'),
+    ..._timestamps,
+  ], indexes: [
+    Index('cooked', [IndexedColumn.descending('cooked_on')]),
   ]),
   Table('nutrition_targets', [
     Column.text('user_id'),

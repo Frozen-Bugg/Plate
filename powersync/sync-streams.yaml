@@ -98,6 +98,12 @@ streams:
     auto_subscribe: true
     query: SELECT * FROM nutrition_targets WHERE user_id = auth.user_id() AND deleted_at IS NULL
 
+  # What is in the fridge. Small and long-lived, so it syncs whole rather than
+  # windowed: a batch cooked on Sunday is still being eaten on Thursday.
+  prep_batches:
+    auto_subscribe: true
+    query: SELECT * FROM prep_batches WHERE user_id = auth.user_id() AND deleted_at IS NULL
+
   # Phase 4 (Coach). The conversation syncs so a thread started on the phone can
   # be read on the web, and so history renders offline. Memories sync too: a
   # coach whose notes you cannot see is one you cannot correct.

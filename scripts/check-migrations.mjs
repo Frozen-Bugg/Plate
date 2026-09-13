@@ -104,7 +104,7 @@ const SYNCED = [
   'body_metrics', 'daily_activity', 'recovery_daily', 'progress_photos',
   'daily_rollup',
   'foods', 'recipes', 'recipe_items', 'meals', 'meal_items',
-  'nutrition_targets',
+  'nutrition_targets', 'prep_batches',
   'coach_threads', 'coach_messages', 'coach_memories', 'ai_proposals',
 ];
 
@@ -632,11 +632,120 @@ await check('meals go with the lifter', async () => {
 
   await db.query(`delete from auth.users where id=$1`, [uid]);
   for (const table of ['foods', 'recipes', 'recipe_items', 'meals',
-    'meal_items', 'nutrition_targets']) {
+    'meal_items', 'nutrition_targets', 'prep_batches']) {
     const left = (await db.query(
       `select 1 from public.${table} where user_id=$1`, [uid])).rows;
     expect(left.length === 0, `${table} survived the account being deleted`);
   }
+});
+
+
+// ---------------------------------------------------------------------------
+// meal prep
+// ---------------------------------------------------------------------------
+
+console.log('\nmeal prep:');
+
+const userWithBatch = async () => {
+  const { uid, food } = await userWithFood();
+  const recipe = (await db.query(
+    `insert into public.recipes (user_id, name, servings) values ($1,'Chilli',4)
+     returning id`, [uid])).rows[0].id;
+  await db.query(
+    `insert into public.recipe_items (user_id, recipe_id, food_id, quantity_g)
+     values ($1,$2,$3,600)`, [uid, recipe, food]);
+  const batch = (await db.query(
+    `insert into public.prep_batches
+       (user_id, recipe_id, cooked_on, servings_made, cooked_weight_g, use_by)
+     values ($1,$2,'2026-09-14',4,1330,'2026-09-18') returning id`,
+    [uid, recipe])).rows[0].id;
+  return { uid, food, recipe, batch };
+};
+
+await check('a batch cannot borrow a recipe belonging to somebody else', async () => {
+  const { uid, recipe } = await userWithBatch();
+  const other = await newUser();
+  expect(
+    await rejects(
+      `insert into public.prep_batches
+         (user_id, recipe_id, cooked_on, servings_made)
+       values ($1,$2,'2026-09-14',4)`, [other, recipe]),
+    'attached a batch to a recipe belonging to somebody else');
+});
+
+await check('a portion points at the batch it came out of', async () => {
+  const { uid, recipe, batch } = await userWithBatch();
+  const meal = (await db.query(
+    `insert into public.meals (user_id, meal_on) values ($1,'2026-09-15')
+     returning id`, [uid])).rows[0].id;
+  await db.query(
+    `insert into public.meal_items
+       (user_id, meal_id, recipe_id, prep_batch_id, quantity_g, kcal, source)
+     values ($1,$2,$3,$4,332,512,'prep')`, [uid, meal, recipe, batch]);
+
+  // Servings remaining is derived, never stored: this is the query that does
+  // it, and the reason no column counts down.
+  const left = (await db.query(
+    `select b.servings_made
+          - coalesce(sum(i.quantity_g) / nullif(b.cooked_weight_g,0)
+                     * b.servings_made, 0) as remaining
+       from public.prep_batches b
+       left join public.meal_items i
+         on i.prep_batch_id = b.id and i.deleted_at is null
+      where b.id = $1
+      group by b.id`, [batch])).rows[0];
+  expect(Number(left.remaining) > 2.9 && Number(left.remaining) < 3.1,
+    `one portion of four should leave three, got ${left.remaining}`);
+});
+
+await check('a portion from a batch has to be a portion of its recipe', async () => {
+  const { uid, food, batch } = await userWithBatch();
+  const meal = (await db.query(
+    `insert into public.meals (user_id, meal_on) values ($1,'2026-09-15')
+     returning id`, [uid])).rows[0].id;
+  // A food and a batch: the item would claim to be prepped chilli and a
+  // weighed lump of chicken at once.
+  expect(
+    await rejects(
+      `insert into public.meal_items
+         (user_id, meal_id, food_id, prep_batch_id, quantity_g, kcal)
+       values ($1,$2,$3,$4,100,379)`, [uid, meal, food, batch]),
+    'accepted a batch portion that was not a recipe portion');
+});
+
+await check("'prep' is an allowed source", async () => {
+  const { uid, recipe, batch } = await userWithBatch();
+  const meal = (await db.query(
+    `insert into public.meals (user_id, meal_on) values ($1,'2026-09-15')
+     returning id`, [uid])).rows[0].id;
+  await db.query(
+    `insert into public.meal_items
+       (user_id, meal_id, recipe_id, prep_batch_id, quantity_g, kcal, source)
+     values ($1,$2,$3,$4,332,512,'prep')`, [uid, meal, recipe, batch]);
+  expect(
+    await rejects(
+      `insert into public.meal_items
+         (user_id, meal_id, recipe_id, quantity_g, kcal, source)
+       values ($1,$2,$3,100,200,'telepathy')`, [uid, meal, recipe]),
+    'the source list stopped being a list');
+});
+
+await check('deleting a recipe takes its batches with it', async () => {
+  const { recipe, batch } = await userWithBatch();
+  await db.query(`delete from public.recipes where id=$1`, [recipe]);
+  const left = (await db.query(
+    `select 1 from public.prep_batches where id=$1`, [batch])).rows;
+  expect(left.length === 0, 'orphan batch left behind');
+});
+
+await check('a batch cannot claim more servings than a pot holds', async () => {
+  const { uid, recipe } = await userWithBatch();
+  expect(
+    await rejects(
+      `insert into public.prep_batches
+         (user_id, recipe_id, cooked_on, servings_made)
+       values ($1,$2,'2026-09-14',0)`, [uid, recipe]),
+    'accepted a cook that made nothing');
 });
 
 

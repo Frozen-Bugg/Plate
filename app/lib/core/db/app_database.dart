@@ -27,6 +27,7 @@ part 'app_database.g.dart';
   Foods,
   Recipes,
   RecipeItems,
+  PrepBatches,
   Meals,
   MealItems,
   NutritionTargets,

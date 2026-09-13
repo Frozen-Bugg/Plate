@@ -13515,6 +13515,669 @@ class RecipeItemsCompanion extends UpdateCompanion<RecipeItem> {
   }
 }
 
+class $PrepBatchesTable extends PrepBatches
+    with TableInfo<$PrepBatchesTable, PrepBatch> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PrepBatchesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    clientDefault: () => uuid.v7(),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    clientDefault: nowUtc,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    clientDefault: nowUtc,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
+  @override
+  late final GeneratedColumn<String> userId = GeneratedColumn<String>(
+    'user_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _recipeIdMeta = const VerificationMeta(
+    'recipeId',
+  );
+  @override
+  late final GeneratedColumn<String> recipeId = GeneratedColumn<String>(
+    'recipe_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _cookedOnMeta = const VerificationMeta(
+    'cookedOn',
+  );
+  @override
+  late final GeneratedColumn<String> cookedOn = GeneratedColumn<String>(
+    'cooked_on',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _servingsMadeMeta = const VerificationMeta(
+    'servingsMade',
+  );
+  @override
+  late final GeneratedColumn<int> servingsMade = GeneratedColumn<int>(
+    'servings_made',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _cookedWeightGMeta = const VerificationMeta(
+    'cookedWeightG',
+  );
+  @override
+  late final GeneratedColumn<double> cookedWeightG = GeneratedColumn<double>(
+    'cooked_weight_g',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _useByMeta = const VerificationMeta('useBy');
+  @override
+  late final GeneratedColumn<String> useBy = GeneratedColumn<String>(
+    'use_by',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _notesMeta = const VerificationMeta('notes');
+  @override
+  late final GeneratedColumn<String> notes = GeneratedColumn<String>(
+    'notes',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    userId,
+    recipeId,
+    cookedOn,
+    servingsMade,
+    cookedWeightG,
+    useBy,
+    notes,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'prep_batches';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PrepBatch> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('user_id')) {
+      context.handle(
+        _userIdMeta,
+        userId.isAcceptableOrUnknown(data['user_id']!, _userIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_userIdMeta);
+    }
+    if (data.containsKey('recipe_id')) {
+      context.handle(
+        _recipeIdMeta,
+        recipeId.isAcceptableOrUnknown(data['recipe_id']!, _recipeIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_recipeIdMeta);
+    }
+    if (data.containsKey('cooked_on')) {
+      context.handle(
+        _cookedOnMeta,
+        cookedOn.isAcceptableOrUnknown(data['cooked_on']!, _cookedOnMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_cookedOnMeta);
+    }
+    if (data.containsKey('servings_made')) {
+      context.handle(
+        _servingsMadeMeta,
+        servingsMade.isAcceptableOrUnknown(
+          data['servings_made']!,
+          _servingsMadeMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_servingsMadeMeta);
+    }
+    if (data.containsKey('cooked_weight_g')) {
+      context.handle(
+        _cookedWeightGMeta,
+        cookedWeightG.isAcceptableOrUnknown(
+          data['cooked_weight_g']!,
+          _cookedWeightGMeta,
+        ),
+      );
+    }
+    if (data.containsKey('use_by')) {
+      context.handle(
+        _useByMeta,
+        useBy.isAcceptableOrUnknown(data['use_by']!, _useByMeta),
+      );
+    }
+    if (data.containsKey('notes')) {
+      context.handle(
+        _notesMeta,
+        notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  PrepBatch map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PrepBatch(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      userId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_id'],
+      )!,
+      recipeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}recipe_id'],
+      )!,
+      cookedOn: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cooked_on'],
+      )!,
+      servingsMade: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}servings_made'],
+      )!,
+      cookedWeightG: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}cooked_weight_g'],
+      ),
+      useBy: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}use_by'],
+      ),
+      notes: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}notes'],
+      ),
+    );
+  }
+
+  @override
+  $PrepBatchesTable createAlias(String alias) {
+    return $PrepBatchesTable(attachedDatabase, alias);
+  }
+}
+
+class PrepBatch extends DataClass implements Insertable<PrepBatch> {
+  final String id;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? deletedAt;
+  final String userId;
+  final String recipeId;
+  final String cookedOn;
+  final int servingsMade;
+  final double? cookedWeightG;
+
+  /// When it stops being food. A batch with servings left and a use-by gone by
+  /// is the one thing worth interrupting someone about.
+  final String? useBy;
+  final String? notes;
+  const PrepBatch({
+    required this.id,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+    required this.userId,
+    required this.recipeId,
+    required this.cookedOn,
+    required this.servingsMade,
+    this.cookedWeightG,
+    this.useBy,
+    this.notes,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    map['user_id'] = Variable<String>(userId);
+    map['recipe_id'] = Variable<String>(recipeId);
+    map['cooked_on'] = Variable<String>(cookedOn);
+    map['servings_made'] = Variable<int>(servingsMade);
+    if (!nullToAbsent || cookedWeightG != null) {
+      map['cooked_weight_g'] = Variable<double>(cookedWeightG);
+    }
+    if (!nullToAbsent || useBy != null) {
+      map['use_by'] = Variable<String>(useBy);
+    }
+    if (!nullToAbsent || notes != null) {
+      map['notes'] = Variable<String>(notes);
+    }
+    return map;
+  }
+
+  PrepBatchesCompanion toCompanion(bool nullToAbsent) {
+    return PrepBatchesCompanion(
+      id: Value(id),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      userId: Value(userId),
+      recipeId: Value(recipeId),
+      cookedOn: Value(cookedOn),
+      servingsMade: Value(servingsMade),
+      cookedWeightG: cookedWeightG == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cookedWeightG),
+      useBy: useBy == null && nullToAbsent
+          ? const Value.absent()
+          : Value(useBy),
+      notes: notes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(notes),
+    );
+  }
+
+  factory PrepBatch.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PrepBatch(
+      id: serializer.fromJson<String>(json['id']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+      userId: serializer.fromJson<String>(json['userId']),
+      recipeId: serializer.fromJson<String>(json['recipeId']),
+      cookedOn: serializer.fromJson<String>(json['cookedOn']),
+      servingsMade: serializer.fromJson<int>(json['servingsMade']),
+      cookedWeightG: serializer.fromJson<double?>(json['cookedWeightG']),
+      useBy: serializer.fromJson<String?>(json['useBy']),
+      notes: serializer.fromJson<String?>(json['notes']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+      'userId': serializer.toJson<String>(userId),
+      'recipeId': serializer.toJson<String>(recipeId),
+      'cookedOn': serializer.toJson<String>(cookedOn),
+      'servingsMade': serializer.toJson<int>(servingsMade),
+      'cookedWeightG': serializer.toJson<double?>(cookedWeightG),
+      'useBy': serializer.toJson<String?>(useBy),
+      'notes': serializer.toJson<String?>(notes),
+    };
+  }
+
+  PrepBatch copyWith({
+    String? id,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+    String? userId,
+    String? recipeId,
+    String? cookedOn,
+    int? servingsMade,
+    Value<double?> cookedWeightG = const Value.absent(),
+    Value<String?> useBy = const Value.absent(),
+    Value<String?> notes = const Value.absent(),
+  }) => PrepBatch(
+    id: id ?? this.id,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    userId: userId ?? this.userId,
+    recipeId: recipeId ?? this.recipeId,
+    cookedOn: cookedOn ?? this.cookedOn,
+    servingsMade: servingsMade ?? this.servingsMade,
+    cookedWeightG: cookedWeightG.present
+        ? cookedWeightG.value
+        : this.cookedWeightG,
+    useBy: useBy.present ? useBy.value : this.useBy,
+    notes: notes.present ? notes.value : this.notes,
+  );
+  PrepBatch copyWithCompanion(PrepBatchesCompanion data) {
+    return PrepBatch(
+      id: data.id.present ? data.id.value : this.id,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      userId: data.userId.present ? data.userId.value : this.userId,
+      recipeId: data.recipeId.present ? data.recipeId.value : this.recipeId,
+      cookedOn: data.cookedOn.present ? data.cookedOn.value : this.cookedOn,
+      servingsMade: data.servingsMade.present
+          ? data.servingsMade.value
+          : this.servingsMade,
+      cookedWeightG: data.cookedWeightG.present
+          ? data.cookedWeightG.value
+          : this.cookedWeightG,
+      useBy: data.useBy.present ? data.useBy.value : this.useBy,
+      notes: data.notes.present ? data.notes.value : this.notes,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PrepBatch(')
+          ..write('id: $id, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('userId: $userId, ')
+          ..write('recipeId: $recipeId, ')
+          ..write('cookedOn: $cookedOn, ')
+          ..write('servingsMade: $servingsMade, ')
+          ..write('cookedWeightG: $cookedWeightG, ')
+          ..write('useBy: $useBy, ')
+          ..write('notes: $notes')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    userId,
+    recipeId,
+    cookedOn,
+    servingsMade,
+    cookedWeightG,
+    useBy,
+    notes,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PrepBatch &&
+          other.id == this.id &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt &&
+          other.userId == this.userId &&
+          other.recipeId == this.recipeId &&
+          other.cookedOn == this.cookedOn &&
+          other.servingsMade == this.servingsMade &&
+          other.cookedWeightG == this.cookedWeightG &&
+          other.useBy == this.useBy &&
+          other.notes == this.notes);
+}
+
+class PrepBatchesCompanion extends UpdateCompanion<PrepBatch> {
+  final Value<String> id;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<String> userId;
+  final Value<String> recipeId;
+  final Value<String> cookedOn;
+  final Value<int> servingsMade;
+  final Value<double?> cookedWeightG;
+  final Value<String?> useBy;
+  final Value<String?> notes;
+  final Value<int> rowid;
+  const PrepBatchesCompanion({
+    this.id = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.userId = const Value.absent(),
+    this.recipeId = const Value.absent(),
+    this.cookedOn = const Value.absent(),
+    this.servingsMade = const Value.absent(),
+    this.cookedWeightG = const Value.absent(),
+    this.useBy = const Value.absent(),
+    this.notes = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PrepBatchesCompanion.insert({
+    this.id = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    required String userId,
+    required String recipeId,
+    required String cookedOn,
+    required int servingsMade,
+    this.cookedWeightG = const Value.absent(),
+    this.useBy = const Value.absent(),
+    this.notes = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : userId = Value(userId),
+       recipeId = Value(recipeId),
+       cookedOn = Value(cookedOn),
+       servingsMade = Value(servingsMade);
+  static Insertable<PrepBatch> custom({
+    Expression<String>? id,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<String>? userId,
+    Expression<String>? recipeId,
+    Expression<String>? cookedOn,
+    Expression<int>? servingsMade,
+    Expression<double>? cookedWeightG,
+    Expression<String>? useBy,
+    Expression<String>? notes,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (userId != null) 'user_id': userId,
+      if (recipeId != null) 'recipe_id': recipeId,
+      if (cookedOn != null) 'cooked_on': cookedOn,
+      if (servingsMade != null) 'servings_made': servingsMade,
+      if (cookedWeightG != null) 'cooked_weight_g': cookedWeightG,
+      if (useBy != null) 'use_by': useBy,
+      if (notes != null) 'notes': notes,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PrepBatchesCompanion copyWith({
+    Value<String>? id,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<String>? userId,
+    Value<String>? recipeId,
+    Value<String>? cookedOn,
+    Value<int>? servingsMade,
+    Value<double?>? cookedWeightG,
+    Value<String?>? useBy,
+    Value<String?>? notes,
+    Value<int>? rowid,
+  }) {
+    return PrepBatchesCompanion(
+      id: id ?? this.id,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      userId: userId ?? this.userId,
+      recipeId: recipeId ?? this.recipeId,
+      cookedOn: cookedOn ?? this.cookedOn,
+      servingsMade: servingsMade ?? this.servingsMade,
+      cookedWeightG: cookedWeightG ?? this.cookedWeightG,
+      useBy: useBy ?? this.useBy,
+      notes: notes ?? this.notes,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (userId.present) {
+      map['user_id'] = Variable<String>(userId.value);
+    }
+    if (recipeId.present) {
+      map['recipe_id'] = Variable<String>(recipeId.value);
+    }
+    if (cookedOn.present) {
+      map['cooked_on'] = Variable<String>(cookedOn.value);
+    }
+    if (servingsMade.present) {
+      map['servings_made'] = Variable<int>(servingsMade.value);
+    }
+    if (cookedWeightG.present) {
+      map['cooked_weight_g'] = Variable<double>(cookedWeightG.value);
+    }
+    if (useBy.present) {
+      map['use_by'] = Variable<String>(useBy.value);
+    }
+    if (notes.present) {
+      map['notes'] = Variable<String>(notes.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PrepBatchesCompanion(')
+          ..write('id: $id, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('userId: $userId, ')
+          ..write('recipeId: $recipeId, ')
+          ..write('cookedOn: $cookedOn, ')
+          ..write('servingsMade: $servingsMade, ')
+          ..write('cookedWeightG: $cookedWeightG, ')
+          ..write('useBy: $useBy, ')
+          ..write('notes: $notes, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $MealsTable extends Meals with TableInfo<$MealsTable, Meal> {
   @override
   final GeneratedDatabase attachedDatabase;
@@ -14192,6 +14855,17 @@ class $MealItemsTable extends MealItems
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _prepBatchIdMeta = const VerificationMeta(
+    'prepBatchId',
+  );
+  @override
+  late final GeneratedColumn<String> prepBatchId = GeneratedColumn<String>(
+    'prep_batch_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _positionMeta = const VerificationMeta(
     'position',
   );
@@ -14285,6 +14959,7 @@ class $MealItemsTable extends MealItems
     mealId,
     foodId,
     recipeId,
+    prepBatchId,
     position,
     quantityG,
     kcal,
@@ -14353,6 +15028,15 @@ class $MealItemsTable extends MealItems
       context.handle(
         _recipeIdMeta,
         recipeId.isAcceptableOrUnknown(data['recipe_id']!, _recipeIdMeta),
+      );
+    }
+    if (data.containsKey('prep_batch_id')) {
+      context.handle(
+        _prepBatchIdMeta,
+        prepBatchId.isAcceptableOrUnknown(
+          data['prep_batch_id']!,
+          _prepBatchIdMeta,
+        ),
       );
     }
     if (data.containsKey('position')) {
@@ -14448,6 +15132,10 @@ class $MealItemsTable extends MealItems
         DriftSqlType.string,
         data['${effectivePrefix}recipe_id'],
       ),
+      prepBatchId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}prep_batch_id'],
+      ),
       position: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}position'],
@@ -14500,6 +15188,13 @@ class MealItem extends DataClass implements Insertable<MealItem> {
   /// Exactly one of these is set.
   final String? foodId;
   final String? recipeId;
+
+  /// Which cook this portion came out of, when it came out of one.
+  ///
+  /// Only ever set alongside [recipeId] — a portion from a batch is a portion
+  /// of its recipe. This is what makes a batch's servings remaining derivable
+  /// instead of a counter two devices could disagree about.
+  final String? prepBatchId;
   final int position;
   final double quantityG;
   final double kcal;
@@ -14520,6 +15215,7 @@ class MealItem extends DataClass implements Insertable<MealItem> {
     required this.mealId,
     this.foodId,
     this.recipeId,
+    this.prepBatchId,
     required this.position,
     required this.quantityG,
     required this.kcal,
@@ -14545,6 +15241,9 @@ class MealItem extends DataClass implements Insertable<MealItem> {
     }
     if (!nullToAbsent || recipeId != null) {
       map['recipe_id'] = Variable<String>(recipeId);
+    }
+    if (!nullToAbsent || prepBatchId != null) {
+      map['prep_batch_id'] = Variable<String>(prepBatchId);
     }
     map['position'] = Variable<int>(position);
     map['quantity_g'] = Variable<double>(quantityG);
@@ -14575,6 +15274,9 @@ class MealItem extends DataClass implements Insertable<MealItem> {
       recipeId: recipeId == null && nullToAbsent
           ? const Value.absent()
           : Value(recipeId),
+      prepBatchId: prepBatchId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(prepBatchId),
       position: Value(position),
       quantityG: Value(quantityG),
       kcal: Value(kcal),
@@ -14602,6 +15304,7 @@ class MealItem extends DataClass implements Insertable<MealItem> {
       mealId: serializer.fromJson<String>(json['mealId']),
       foodId: serializer.fromJson<String?>(json['foodId']),
       recipeId: serializer.fromJson<String?>(json['recipeId']),
+      prepBatchId: serializer.fromJson<String?>(json['prepBatchId']),
       position: serializer.fromJson<int>(json['position']),
       quantityG: serializer.fromJson<double>(json['quantityG']),
       kcal: serializer.fromJson<double>(json['kcal']),
@@ -14624,6 +15327,7 @@ class MealItem extends DataClass implements Insertable<MealItem> {
       'mealId': serializer.toJson<String>(mealId),
       'foodId': serializer.toJson<String?>(foodId),
       'recipeId': serializer.toJson<String?>(recipeId),
+      'prepBatchId': serializer.toJson<String?>(prepBatchId),
       'position': serializer.toJson<int>(position),
       'quantityG': serializer.toJson<double>(quantityG),
       'kcal': serializer.toJson<double>(kcal),
@@ -14644,6 +15348,7 @@ class MealItem extends DataClass implements Insertable<MealItem> {
     String? mealId,
     Value<String?> foodId = const Value.absent(),
     Value<String?> recipeId = const Value.absent(),
+    Value<String?> prepBatchId = const Value.absent(),
     int? position,
     double? quantityG,
     double? kcal,
@@ -14661,6 +15366,7 @@ class MealItem extends DataClass implements Insertable<MealItem> {
     mealId: mealId ?? this.mealId,
     foodId: foodId.present ? foodId.value : this.foodId,
     recipeId: recipeId.present ? recipeId.value : this.recipeId,
+    prepBatchId: prepBatchId.present ? prepBatchId.value : this.prepBatchId,
     position: position ?? this.position,
     quantityG: quantityG ?? this.quantityG,
     kcal: kcal ?? this.kcal,
@@ -14680,6 +15386,9 @@ class MealItem extends DataClass implements Insertable<MealItem> {
       mealId: data.mealId.present ? data.mealId.value : this.mealId,
       foodId: data.foodId.present ? data.foodId.value : this.foodId,
       recipeId: data.recipeId.present ? data.recipeId.value : this.recipeId,
+      prepBatchId: data.prepBatchId.present
+          ? data.prepBatchId.value
+          : this.prepBatchId,
       position: data.position.present ? data.position.value : this.position,
       quantityG: data.quantityG.present ? data.quantityG.value : this.quantityG,
       kcal: data.kcal.present ? data.kcal.value : this.kcal,
@@ -14702,6 +15411,7 @@ class MealItem extends DataClass implements Insertable<MealItem> {
           ..write('mealId: $mealId, ')
           ..write('foodId: $foodId, ')
           ..write('recipeId: $recipeId, ')
+          ..write('prepBatchId: $prepBatchId, ')
           ..write('position: $position, ')
           ..write('quantityG: $quantityG, ')
           ..write('kcal: $kcal, ')
@@ -14724,6 +15434,7 @@ class MealItem extends DataClass implements Insertable<MealItem> {
     mealId,
     foodId,
     recipeId,
+    prepBatchId,
     position,
     quantityG,
     kcal,
@@ -14745,6 +15456,7 @@ class MealItem extends DataClass implements Insertable<MealItem> {
           other.mealId == this.mealId &&
           other.foodId == this.foodId &&
           other.recipeId == this.recipeId &&
+          other.prepBatchId == this.prepBatchId &&
           other.position == this.position &&
           other.quantityG == this.quantityG &&
           other.kcal == this.kcal &&
@@ -14764,6 +15476,7 @@ class MealItemsCompanion extends UpdateCompanion<MealItem> {
   final Value<String> mealId;
   final Value<String?> foodId;
   final Value<String?> recipeId;
+  final Value<String?> prepBatchId;
   final Value<int> position;
   final Value<double> quantityG;
   final Value<double> kcal;
@@ -14782,6 +15495,7 @@ class MealItemsCompanion extends UpdateCompanion<MealItem> {
     this.mealId = const Value.absent(),
     this.foodId = const Value.absent(),
     this.recipeId = const Value.absent(),
+    this.prepBatchId = const Value.absent(),
     this.position = const Value.absent(),
     this.quantityG = const Value.absent(),
     this.kcal = const Value.absent(),
@@ -14801,6 +15515,7 @@ class MealItemsCompanion extends UpdateCompanion<MealItem> {
     required String mealId,
     this.foodId = const Value.absent(),
     this.recipeId = const Value.absent(),
+    this.prepBatchId = const Value.absent(),
     this.position = const Value.absent(),
     required double quantityG,
     required double kcal,
@@ -14823,6 +15538,7 @@ class MealItemsCompanion extends UpdateCompanion<MealItem> {
     Expression<String>? mealId,
     Expression<String>? foodId,
     Expression<String>? recipeId,
+    Expression<String>? prepBatchId,
     Expression<int>? position,
     Expression<double>? quantityG,
     Expression<double>? kcal,
@@ -14842,6 +15558,7 @@ class MealItemsCompanion extends UpdateCompanion<MealItem> {
       if (mealId != null) 'meal_id': mealId,
       if (foodId != null) 'food_id': foodId,
       if (recipeId != null) 'recipe_id': recipeId,
+      if (prepBatchId != null) 'prep_batch_id': prepBatchId,
       if (position != null) 'position': position,
       if (quantityG != null) 'quantity_g': quantityG,
       if (kcal != null) 'kcal': kcal,
@@ -14863,6 +15580,7 @@ class MealItemsCompanion extends UpdateCompanion<MealItem> {
     Value<String>? mealId,
     Value<String?>? foodId,
     Value<String?>? recipeId,
+    Value<String?>? prepBatchId,
     Value<int>? position,
     Value<double>? quantityG,
     Value<double>? kcal,
@@ -14882,6 +15600,7 @@ class MealItemsCompanion extends UpdateCompanion<MealItem> {
       mealId: mealId ?? this.mealId,
       foodId: foodId ?? this.foodId,
       recipeId: recipeId ?? this.recipeId,
+      prepBatchId: prepBatchId ?? this.prepBatchId,
       position: position ?? this.position,
       quantityG: quantityG ?? this.quantityG,
       kcal: kcal ?? this.kcal,
@@ -14920,6 +15639,9 @@ class MealItemsCompanion extends UpdateCompanion<MealItem> {
     }
     if (recipeId.present) {
       map['recipe_id'] = Variable<String>(recipeId.value);
+    }
+    if (prepBatchId.present) {
+      map['prep_batch_id'] = Variable<String>(prepBatchId.value);
     }
     if (position.present) {
       map['position'] = Variable<int>(position.value);
@@ -14962,6 +15684,7 @@ class MealItemsCompanion extends UpdateCompanion<MealItem> {
           ..write('mealId: $mealId, ')
           ..write('foodId: $foodId, ')
           ..write('recipeId: $recipeId, ')
+          ..write('prepBatchId: $prepBatchId, ')
           ..write('position: $position, ')
           ..write('quantityG: $quantityG, ')
           ..write('kcal: $kcal, ')
@@ -19280,6 +20003,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $FoodsTable foods = $FoodsTable(this);
   late final $RecipesTable recipes = $RecipesTable(this);
   late final $RecipeItemsTable recipeItems = $RecipeItemsTable(this);
+  late final $PrepBatchesTable prepBatches = $PrepBatchesTable(this);
   late final $MealsTable meals = $MealsTable(this);
   late final $MealItemsTable mealItems = $MealItemsTable(this);
   late final $NutritionTargetsTable nutritionTargets = $NutritionTargetsTable(
@@ -19313,6 +20037,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     foods,
     recipes,
     recipeItems,
+    prepBatches,
     meals,
     mealItems,
     nutritionTargets,
@@ -25741,6 +26466,321 @@ typedef $$RecipeItemsTableProcessedTableManager =
       RecipeItem,
       PrefetchHooks Function()
     >;
+typedef $$PrepBatchesTableCreateCompanionBuilder =
+    PrepBatchesCompanion Function({
+      Value<String> id,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      required String userId,
+      required String recipeId,
+      required String cookedOn,
+      required int servingsMade,
+      Value<double?> cookedWeightG,
+      Value<String?> useBy,
+      Value<String?> notes,
+      Value<int> rowid,
+    });
+typedef $$PrepBatchesTableUpdateCompanionBuilder =
+    PrepBatchesCompanion Function({
+      Value<String> id,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<String> userId,
+      Value<String> recipeId,
+      Value<String> cookedOn,
+      Value<int> servingsMade,
+      Value<double?> cookedWeightG,
+      Value<String?> useBy,
+      Value<String?> notes,
+      Value<int> rowid,
+    });
+
+class $$PrepBatchesTableFilterComposer
+    extends Composer<_$AppDatabase, $PrepBatchesTable> {
+  $$PrepBatchesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get recipeId => $composableBuilder(
+    column: $table.recipeId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cookedOn => $composableBuilder(
+    column: $table.cookedOn,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get servingsMade => $composableBuilder(
+    column: $table.servingsMade,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get cookedWeightG => $composableBuilder(
+    column: $table.cookedWeightG,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get useBy => $composableBuilder(
+    column: $table.useBy,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$PrepBatchesTableOrderingComposer
+    extends Composer<_$AppDatabase, $PrepBatchesTable> {
+  $$PrepBatchesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get recipeId => $composableBuilder(
+    column: $table.recipeId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get cookedOn => $composableBuilder(
+    column: $table.cookedOn,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get servingsMade => $composableBuilder(
+    column: $table.servingsMade,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get cookedWeightG => $composableBuilder(
+    column: $table.cookedWeightG,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get useBy => $composableBuilder(
+    column: $table.useBy,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$PrepBatchesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PrepBatchesTable> {
+  $$PrepBatchesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get userId =>
+      $composableBuilder(column: $table.userId, builder: (column) => column);
+
+  GeneratedColumn<String> get recipeId =>
+      $composableBuilder(column: $table.recipeId, builder: (column) => column);
+
+  GeneratedColumn<String> get cookedOn =>
+      $composableBuilder(column: $table.cookedOn, builder: (column) => column);
+
+  GeneratedColumn<int> get servingsMade => $composableBuilder(
+    column: $table.servingsMade,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get cookedWeightG => $composableBuilder(
+    column: $table.cookedWeightG,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get useBy =>
+      $composableBuilder(column: $table.useBy, builder: (column) => column);
+
+  GeneratedColumn<String> get notes =>
+      $composableBuilder(column: $table.notes, builder: (column) => column);
+}
+
+class $$PrepBatchesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PrepBatchesTable,
+          PrepBatch,
+          $$PrepBatchesTableFilterComposer,
+          $$PrepBatchesTableOrderingComposer,
+          $$PrepBatchesTableAnnotationComposer,
+          $$PrepBatchesTableCreateCompanionBuilder,
+          $$PrepBatchesTableUpdateCompanionBuilder,
+          (
+            PrepBatch,
+            BaseReferences<_$AppDatabase, $PrepBatchesTable, PrepBatch>,
+          ),
+          PrepBatch,
+          PrefetchHooks Function()
+        > {
+  $$PrepBatchesTableTableManager(_$AppDatabase db, $PrepBatchesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PrepBatchesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PrepBatchesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PrepBatchesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<String> userId = const Value.absent(),
+                Value<String> recipeId = const Value.absent(),
+                Value<String> cookedOn = const Value.absent(),
+                Value<int> servingsMade = const Value.absent(),
+                Value<double?> cookedWeightG = const Value.absent(),
+                Value<String?> useBy = const Value.absent(),
+                Value<String?> notes = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PrepBatchesCompanion(
+                id: id,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                userId: userId,
+                recipeId: recipeId,
+                cookedOn: cookedOn,
+                servingsMade: servingsMade,
+                cookedWeightG: cookedWeightG,
+                useBy: useBy,
+                notes: notes,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                required String userId,
+                required String recipeId,
+                required String cookedOn,
+                required int servingsMade,
+                Value<double?> cookedWeightG = const Value.absent(),
+                Value<String?> useBy = const Value.absent(),
+                Value<String?> notes = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PrepBatchesCompanion.insert(
+                id: id,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                userId: userId,
+                recipeId: recipeId,
+                cookedOn: cookedOn,
+                servingsMade: servingsMade,
+                cookedWeightG: cookedWeightG,
+                useBy: useBy,
+                notes: notes,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$PrepBatchesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PrepBatchesTable,
+      PrepBatch,
+      $$PrepBatchesTableFilterComposer,
+      $$PrepBatchesTableOrderingComposer,
+      $$PrepBatchesTableAnnotationComposer,
+      $$PrepBatchesTableCreateCompanionBuilder,
+      $$PrepBatchesTableUpdateCompanionBuilder,
+      (PrepBatch, BaseReferences<_$AppDatabase, $PrepBatchesTable, PrepBatch>),
+      PrepBatch,
+      PrefetchHooks Function()
+    >;
 typedef $$MealsTableCreateCompanionBuilder =
     MealsCompanion Function({
       Value<String> id,
@@ -26039,6 +27079,7 @@ typedef $$MealItemsTableCreateCompanionBuilder =
       required String mealId,
       Value<String?> foodId,
       Value<String?> recipeId,
+      Value<String?> prepBatchId,
       Value<int> position,
       required double quantityG,
       required double kcal,
@@ -26059,6 +27100,7 @@ typedef $$MealItemsTableUpdateCompanionBuilder =
       Value<String> mealId,
       Value<String?> foodId,
       Value<String?> recipeId,
+      Value<String?> prepBatchId,
       Value<int> position,
       Value<double> quantityG,
       Value<double> kcal,
@@ -26116,6 +27158,11 @@ class $$MealItemsTableFilterComposer
 
   ColumnFilters<String> get recipeId => $composableBuilder(
     column: $table.recipeId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get prepBatchId => $composableBuilder(
+    column: $table.prepBatchId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -26209,6 +27256,11 @@ class $$MealItemsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get prepBatchId => $composableBuilder(
+    column: $table.prepBatchId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get position => $composableBuilder(
     column: $table.position,
     builder: (column) => ColumnOrderings(column),
@@ -26283,6 +27335,11 @@ class $$MealItemsTableAnnotationComposer
   GeneratedColumn<String> get recipeId =>
       $composableBuilder(column: $table.recipeId, builder: (column) => column);
 
+  GeneratedColumn<String> get prepBatchId => $composableBuilder(
+    column: $table.prepBatchId,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<int> get position =>
       $composableBuilder(column: $table.position, builder: (column) => column);
 
@@ -26344,6 +27401,7 @@ class $$MealItemsTableTableManager
                 Value<String> mealId = const Value.absent(),
                 Value<String?> foodId = const Value.absent(),
                 Value<String?> recipeId = const Value.absent(),
+                Value<String?> prepBatchId = const Value.absent(),
                 Value<int> position = const Value.absent(),
                 Value<double> quantityG = const Value.absent(),
                 Value<double> kcal = const Value.absent(),
@@ -26362,6 +27420,7 @@ class $$MealItemsTableTableManager
                 mealId: mealId,
                 foodId: foodId,
                 recipeId: recipeId,
+                prepBatchId: prepBatchId,
                 position: position,
                 quantityG: quantityG,
                 kcal: kcal,
@@ -26382,6 +27441,7 @@ class $$MealItemsTableTableManager
                 required String mealId,
                 Value<String?> foodId = const Value.absent(),
                 Value<String?> recipeId = const Value.absent(),
+                Value<String?> prepBatchId = const Value.absent(),
                 Value<int> position = const Value.absent(),
                 required double quantityG,
                 required double kcal,
@@ -26400,6 +27460,7 @@ class $$MealItemsTableTableManager
                 mealId: mealId,
                 foodId: foodId,
                 recipeId: recipeId,
+                prepBatchId: prepBatchId,
                 position: position,
                 quantityG: quantityG,
                 kcal: kcal,
@@ -28502,6 +29563,8 @@ class $AppDatabaseManager {
       $$RecipesTableTableManager(_db, _db.recipes);
   $$RecipeItemsTableTableManager get recipeItems =>
       $$RecipeItemsTableTableManager(_db, _db.recipeItems);
+  $$PrepBatchesTableTableManager get prepBatches =>
+      $$PrepBatchesTableTableManager(_db, _db.prepBatches);
   $$MealsTableTableManager get meals =>
       $$MealsTableTableManager(_db, _db.meals);
   $$MealItemsTableTableManager get mealItems =>

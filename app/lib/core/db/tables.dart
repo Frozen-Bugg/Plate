@@ -373,6 +373,30 @@ class RecipeItems extends Table with SyncedRow {
   RealColumn get quantityG => real()();
 }
 
+/// A cook that happened: this recipe, this day, this many portions.
+///
+/// [cookedWeightG] is on the batch rather than the recipe because it changes —
+/// the same chilli cooked down twenty minutes longer is a different weight and
+/// the same food. Macros come from the raw ingredients, portions come from the
+/// cooked weight.
+///
+/// Nothing here counts down. Servings remaining is derived from the meal items
+/// pointing at the batch, because two devices decrementing one counter is a bug
+/// that only appears on the second phone.
+@DataClassName('PrepBatch')
+class PrepBatches extends Table with SyncedRow {
+  TextColumn get userId => text()();
+  TextColumn get recipeId => text()();
+  TextColumn get cookedOn => text()();
+  IntColumn get servingsMade => integer()();
+  RealColumn get cookedWeightG => real().nullable()();
+
+  /// When it stops being food. A batch with servings left and a use-by gone by
+  /// is the one thing worth interrupting someone about.
+  TextColumn get useBy => text().nullable()();
+  TextColumn get notes => text().nullable()();
+}
+
 /// A meal on a day. Several per day on purpose — the day's totals live in
 /// `daily_rollup`, not here.
 class Meals extends Table with SyncedRow {
@@ -396,6 +420,13 @@ class MealItems extends Table with SyncedRow {
   /// Exactly one of these is set.
   TextColumn get foodId => text().nullable()();
   TextColumn get recipeId => text().nullable()();
+
+  /// Which cook this portion came out of, when it came out of one.
+  ///
+  /// Only ever set alongside [recipeId] — a portion from a batch is a portion
+  /// of its recipe. This is what makes a batch's servings remaining derivable
+  /// instead of a counter two devices could disagree about.
+  TextColumn get prepBatchId => text().nullable()();
 
   IntColumn get position => integer().withDefault(const Constant(0))();
   RealColumn get quantityG => real()();
