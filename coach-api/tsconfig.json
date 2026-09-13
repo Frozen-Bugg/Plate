@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023", "DOM", "DOM.AsyncIterable"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noUncheckedIndexedAccess": false,
+    "noEmit": true,
+    "skipLibCheck": true,
+
+    // Node runs these files by stripping types, never by compiling them, and
+    // Deno does the same in the Edge Function. Both need the `.ts` extension in
+    // relative imports, and neither will erase an import that turns out to have
+    // been type-only — so the compiler has to enforce `import type` rather than
+    // letting it pass and failing at runtime.
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}

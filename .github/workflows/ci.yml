@@ -68,3 +68,25 @@ jobs:
         working-directory: scripts
       - run: npm run check
         working-directory: scripts
+
+  coach-api:
+    name: Coach API
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Node 24: these files are executed by stripping types rather than being
+      # compiled, and constructor parameter properties are not supported there.
+      # The same constraint applies on Deno in the Edge Function.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install
+        working-directory: coach-api
+      # Stripping types does not check them, so the two are separate steps and
+      # a type error has to fail the build on its own.
+      - run: npm run typecheck
+        working-directory: coach-api
+      # No key and no network: the loop runs against a scripted model and the
+      # adapters against scripted SSE streams.
+      - run: npm test
+        working-directory: coach-api

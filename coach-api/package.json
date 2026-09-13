@@ -1,0 +1,14 @@
+{
+  "name": "overload-coach-api",
+  "private": true,
+  "type": "module",
+  "description": "The Coach API: agent loop, tools and model adapters. Deployed as a Supabase Edge Function; tested here on Node.",
+  "scripts": {
+    "test": "node --test --experimental-strip-types \"test/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^26.5.1",
+    "typescript": "^5.9.2"
+  }
+}
