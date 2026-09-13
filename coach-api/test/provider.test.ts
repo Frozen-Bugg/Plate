@@ -9,7 +9,7 @@ import {
 
 test('defaults to the provider that runs for free', () => {
   const model = modelFrom({ GEMINI_API_KEY: 'k' });
-  assert.equal(model.model, 'gemini-2.5-flash');
+  assert.equal(model.model, 'gemini-2.5-pro');
 });
 
 test('switching provider is one environment variable', () => {

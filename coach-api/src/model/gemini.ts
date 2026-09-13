@@ -23,7 +23,7 @@ export class GeminiClient implements ModelClient {
   // has to run unchanged on both — in an Edge Function and in the tests.
   constructor(
     apiKey: string,
-    model = 'gemini-2.5-flash',
+    model = 'gemini-2.5-pro',
     fetchImpl: typeof fetch = fetch,
     host = 'https://generativelanguage.googleapis.com',
   ) {

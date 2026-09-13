@@ -32,10 +32,17 @@ supabase secrets set COACH_MODEL=gemini-3-pro    # to pin a specific model
 | Variable | Default | Meaning |
 |---|---|---|
 | `COACH_PROVIDER` | `gemini` | `gemini` or `anthropic` |
-| `COACH_MODEL` | per provider | Overrides the model name |
+| `COACH_MODEL` | `gemini-2.5-pro` | Overrides the model name |
 | `GEMINI_API_KEY` | — | From aistudio.google.com |
 | `ANTHROPIC_API_KEY` | — | From console.anthropic.com |
 | `COACH_ALLOW_TRAINING_TIER` | unset | See below |
+
+The default is Gemini's *Pro* model rather than Flash: this coach reads numbers
+out of tools and reasons about stalls and trends, which is the work Flash is
+worst at. Pro's free-tier request limits are much lower than Flash's, so if the
+coach starts answering with rate-limit errors, `COACH_MODEL=gemini-2.5-flash` is
+the fallback — and the eval suite is the honest way to find out what that costs
+in quality.
 
 ### Why Gemini is the default, and the catch
 
@@ -53,6 +60,30 @@ suite passes `synthetic: true` and is unaffected, because nobody in it is real.
 
 It is a hard failure rather than a warning on purpose. A warning in a log nobody
 reads is how health data ends up somewhere it should not be.
+
+## How little is sent
+
+`src/privacy.ts` holds the rules, and they are enforced on the way out rather
+than assumed on the way in.
+
+- **No identifiers ever leave this server** — not row ids, not the user id, not
+  the email. The coach works in names and numbers: "Bench Press", 82.5 kg, 2400
+  kcal. When a proposal has to point at a row, the server resolves the name back
+  to an id on the way in. A uuid in a prompt is a join key for whoever ends up
+  holding the logs.
+- **Aggregates before rows.** The snapshot is built from `daily_rollup`, which is
+  already one row per day. Individual sets are a tool call away, for the exercise
+  and window the question is actually about.
+- **Everything is capped** — 6 KB for the snapshot, 16 KB per tool result. A
+  result bigger than that is a haystack, not an answer.
+
+`assertMinimal` throws rather than redacting: a redaction silently changes what
+the coach sees, turning a leak into a subtly wrong answer, whereas a failed tool
+call is visible and gets fixed.
+
+A full fortnight of context — profile, injuries, trend weight and rate, steps,
+sleep, readiness, targets, intake, TDEE, recent sessions and every next target —
+renders in about **180 tokens**. docs/PLAN.md budgets 1,500.
 
 ## Adding a provider
 
