@@ -21,6 +21,7 @@ import { runAgent } from '../../../coach-api/src/agent.ts';
 import { SupabaseData } from '../../../coach-api/src/data.ts';
 import { guardTrainingTier, modelFrom } from '../../../coach-api/src/model/index.ts';
 import { systemFor } from '../../../coach-api/src/prompt.ts';
+import { ParseError, parseMeal } from '../../../coach-api/src/tools/parse.ts';
 import { buildSnapshot } from '../../../coach-api/src/snapshot.ts';
 import { readTools } from '../../../coach-api/src/tools/read.ts';
 import type { Turn } from '../../../coach-api/src/model/client.ts';
@@ -54,11 +55,18 @@ Deno.serve(async (request) => {
   const jwt = request.headers.get('Authorization')?.replace(/^Bearer /i, '');
   if (!jwt) return fail(401, 'No credentials.');
 
-  let body: AskBody;
+  let body: AskBody & { text?: string; slot?: string };
   try {
     body = await request.json();
   } catch {
     return fail(400, 'Body was not JSON.');
+  }
+
+  // Two routes, one function. Parsing a meal is not a conversation — one model
+  // call, no tools, no history — so it gets its own path rather than being
+  // bolted onto the chat as a tool the chat would then want to discuss.
+  if (new URL(request.url).pathname.endsWith('/parse-food')) {
+    return parseFood(body, jwt);
   }
 
   const message = (body.message ?? '').trim();
@@ -147,6 +155,32 @@ Deno.serve(async (request) => {
     },
   });
 });
+
+/// "4 eggs and 2 high protein sandwiches" → itemised numbers, for confirmation.
+///
+/// Returns a proposal and writes nothing. docs/PLAN.md §11: an estimate is
+/// shown itemised and editable, and is never logged on the model's say-so.
+/// Plain JSON rather than SSE — there is nothing to stream, and a parse that
+/// half-arrives is no use.
+async function parseFood(
+  body: { text?: string; slot?: string },
+  _jwt: string,
+): Promise<Response> {
+  const env = Deno.env.toObject();
+
+  try {
+    guardTrainingTier(env, { synthetic: false });
+    const meal = await parseMeal(modelFrom(env), body.text ?? '', {
+      slot: body.slot,
+    });
+    return new Response(JSON.stringify(meal), {
+      headers: { ...cors, 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    // A parse that failed is the lifter's to see and retry, in their own words.
+    return fail(error instanceof ParseError ? 422 : 503, message_of(error));
+  }
+}
 
 function fail(status: number, message: string): Response {
   return new Response(JSON.stringify({ error: message }), {

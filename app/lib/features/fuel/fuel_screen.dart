@@ -9,6 +9,7 @@ import 'add_food_sheet.dart';
 import 'foods_repository.dart';
 import 'macro_rings.dart';
 import 'meals_repository.dart';
+import 'quick_add_sheet.dart';
 import 'targets_repository.dart';
 import 'targets_screen.dart';
 
@@ -26,7 +27,7 @@ class FuelScreen extends ConsumerWidget {
     return TabScaffold(
       title: 'Fuel',
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 148),
         children: [
           const _DayBar(),
           const SizedBox(height: 16),
@@ -61,10 +62,27 @@ class FuelScreen extends ConsumerWidget {
           for (final slot in mealSlots) _Slot(slot: slot, log: log),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => showAddFoodSheet(context, day: day),
-        icon: const Icon(Icons.add),
-        label: const Text('Log food'),
+      // Two ways in, because they suit different moments. Search is exact and
+      // works offline; saying it is faster when you have just eaten four
+      // things and do not want to look up any of them.
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          FloatingActionButton.small(
+            heroTag: 'quick-add',
+            tooltip: 'Say or type a whole meal',
+            onPressed: () => showQuickAddSheet(context, day: day),
+            child: const Icon(Icons.mic_none),
+          ),
+          const SizedBox(height: 10),
+          FloatingActionButton.extended(
+            heroTag: 'log-food',
+            onPressed: () => showAddFoodSheet(context, day: day),
+            icon: const Icon(Icons.add),
+            label: const Text('Log food'),
+          ),
+        ],
       ),
     );
   }

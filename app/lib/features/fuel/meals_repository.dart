@@ -64,32 +64,52 @@ class MealsRepository {
   final AppDatabase _db;
   final String _userId;
 
-  Stream<List<Meal>> watchDay(String day) {
-    return (_db.select(_db.meals)
-          ..where((m) => m.userId.equals(_userId))
-          ..where((m) => m.deletedAt.isNull())
-          ..where((m) => m.mealOn.equals(day))
-          ..orderBy([(m) => OrderingTerm.asc(m.loggedAt)]))
-        .watch();
-  }
-
   /// Every item eaten on [day], across all its meals.
   ///
   /// Joined in SQL rather than fetched per meal: a day has four or five meals
   /// and a query each would mean five round trips on every keystroke elsewhere.
-  Stream<List<MealItem>> watchItems(String day) {
-    final items = _db.mealItems;
+  /// A whole day — its slots and everything in them — from one query.
+  ///
+  /// One watched join rather than two streams combined. Drift re-emits a joined
+  /// query when *either* table changes, so the slots and the items can never
+  /// disagree. They used to: the day was built with `asyncExpand`, which waits
+  /// for the inner stream to finish before handling the next outer event, and a
+  /// `.watch()` never finishes. The meals list froze on its first emission while
+  /// the items kept updating, so a newly created slot held food that the totals
+  /// counted and the screen did not show.
+  ///
+  /// A left join keeps an empty slot, which matters because an empty lunch is
+  /// information.
+  Stream<DayLog> watchDayLog(String day) {
     final meals = _db.meals;
-    return (_db.select(items).join([
-      innerJoin(meals, meals.id.equalsExp(items.mealId)),
+    final items = _db.mealItems;
+
+    final query = _db.select(meals).join([
+      leftOuterJoin(
+        items,
+        items.mealId.equalsExp(meals.id) & items.deletedAt.isNull(),
+      ),
     ])
-          ..where(items.userId.equals(_userId) &
-              items.deletedAt.isNull() &
-              meals.deletedAt.isNull() &
-              meals.mealOn.equals(day))
-          ..orderBy([OrderingTerm.asc(items.position)]))
-        .watch()
-        .map((rows) => rows.map((r) => r.readTable(items)).toList());
+      ..where(meals.userId.equals(_userId) &
+          meals.deletedAt.isNull() &
+          meals.mealOn.equals(day))
+      ..orderBy([
+        OrderingTerm.asc(meals.loggedAt),
+        OrderingTerm.asc(items.position),
+      ]);
+
+    return query.watch().map((rows) {
+      final slots = <String, Meal>{};
+      final logged = <MealItem>[];
+
+      for (final row in rows) {
+        final meal = row.readTable(meals);
+        slots.putIfAbsent(meal.id, () => meal);
+        if (row.readTableOrNull(items) case final item?) logged.add(item);
+      }
+
+      return DayLog(day: day, meals: slots.values.toList(), items: logged);
+    });
   }
 
   /// Totals per day since [from], updating as food is logged.
@@ -327,11 +347,7 @@ final dayLogProvider = StreamProvider.family<DayLog, String>((ref, day) {
   final repository = ref.watch(mealsRepositoryProvider);
   // Both streams, combined: meals give the day its shape, items give it its
   // numbers, and the screen needs them together.
-  return repository.watchDay(day).asyncExpand(
-        (meals) => repository.watchItems(day).map(
-              (items) => DayLog(day: day, meals: meals, items: items),
-            ),
-      );
+  return repository.watchDayLog(day);
 });
 
 /// Intake per day over the last fortnight, which is the window the rollup

@@ -16,6 +16,13 @@
     <uses-permission android:name="android.permission.health.READ_RESTING_HEART_RATE"/>
     <uses-permission android:name="android.permission.health.READ_WEIGHT"/>
 
+    <!-- Reading a barcode off a packet, and dictating a meal. Both are asked
+         for at the moment they are used, never at launch: a camera prompt on
+         first open is how an app gets denied the permission it actually needs
+         later. Neither feature is required — typing works without either. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+
     <application
         android:label="Overload"
         android:name="${applicationName}"

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/db/app_database.dart';
+import 'barcode_scanner.dart';
 import 'food_search_service.dart';
 import 'foods_repository.dart';
 import 'meals_repository.dart';
@@ -64,6 +65,11 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet> {
             Row(
               children: [
                 Expanded(child: Text('Log food', style: text.headlineSmall)),
+                IconButton(
+                  tooltip: 'Scan a barcode',
+                  onPressed: _scan,
+                  icon: const Icon(Icons.qr_code_scanner),
+                ),
                 TextButton.icon(
                   onPressed: _newFood,
                   icon: const Icon(Icons.add, size: 18),
@@ -244,7 +250,46 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet> {
     );
   }
 
-  Future<void> _newFood() async {
+  /// Scan a packet, look the code up, log what it says.
+  ///
+  /// Checks the lifter's own foods before the internet: a barcode scanned twice
+  /// is the same food both times, it works on aeroplane mode, and it keeps
+  /// whatever they corrected about it last time.
+  Future<void> _scan() async {
+    final code = await scanBarcode(context);
+    if (code == null || !mounted) return;
+
+    final foods = ref.read(foodsRepositoryProvider);
+    if (await foods.byBarcode(code) case final known?) {
+      if (mounted) await _pickQuantity(known);
+      return;
+    }
+
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final facts = await ref.read(foodSearchServiceProvider).byBarcode(code);
+    if (!mounted) return;
+
+    if (facts == null) {
+      // Open Food Facts is crowd-sourced and has gaps. The label is in their
+      // hand, so typing it is a real option rather than a dead end — and once
+      // typed with the barcode attached, the next scan finds it.
+      messenger.showSnackBar(
+        SnackBar(
+          content: const Text('That barcode is not in Open Food Facts.'),
+          action: SnackBarAction(
+            label: 'Add it',
+            onPressed: () => _newFood(barcode: code),
+          ),
+        ),
+      );
+      return;
+    }
+
+    await _logFromFacts(facts);
+  }
+
+  Future<void> _newFood({String? barcode}) async {
     final facts = await showModalBottomSheet<FoodFacts>(
       context: context,
       isScrollControlled: true,
@@ -252,7 +297,10 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet> {
       builder: (context) => Padding(
         padding:
             EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-        child: _NewFoodSheet(initialName: _search.text.trim()),
+        child: _NewFoodSheet(
+          initialName: _search.text.trim(),
+          barcode: barcode,
+        ),
       ),
     );
     if (facts == null || !mounted) return;
@@ -501,9 +549,13 @@ class _Nudge extends StatelessWidget {
 /// A food typed off a label. The minimum a nutrition panel always carries:
 /// a name, calories, and the three macros per 100.
 class _NewFoodSheet extends StatefulWidget {
-  const _NewFoodSheet({required this.initialName});
+  const _NewFoodSheet({required this.initialName, this.barcode});
 
   final String initialName;
+
+  /// Carried through from a scan that found nothing, so the food the lifter
+  /// types is findable by scanning the same packet again.
+  final String? barcode;
 
   @override
   State<_NewFoodSheet> createState() => _NewFoodSheetState();
@@ -605,6 +657,8 @@ class _NewFoodSheetState extends State<_NewFoodSheet> {
     Navigator.of(context).pop(
       FoodFacts(
         name: _name.text.trim(),
+        barcode: widget.barcode,
+        source: widget.barcode == null ? 'custom' : 'label',
         brand: _brand.text.trim().isEmpty ? null : _brand.text.trim(),
         kcalPer100: _value(_kcal),
         proteinPer100: _value(_protein),
