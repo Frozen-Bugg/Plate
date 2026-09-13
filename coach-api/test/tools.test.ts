@@ -20,6 +20,8 @@ function fake(overrides: Partial<CoachData> = {}): CoachData {
     exerciseNames: async () => [],
     volumeByMuscle: async () => [],
     foodNames: async () => [],
+    recipes: async () => [],
+    prepOnHand: async () => [],
     memories: async () => [],
     ...overrides,
   };
@@ -242,4 +244,140 @@ test('every tool answers with a summary the chips can show', async () => {
     assert.equal(typeof result.summary, 'string', `${tool.name} has no summary`);
     assert.ok(result.summary.length > 0, `${tool.name} summarised as empty`);
   }
+});
+
+// ---------------------------------------------------------------------------
+// What is left today, what is in the fridge (docs/MEAL-PLANNING.md §5)
+// ---------------------------------------------------------------------------
+
+const meal = (over: Partial<{
+  kcal: number; proteinG: number; carbG: number; fatG: number;
+}> = {}) => ({
+  day: today,
+  slot: 'lunch',
+  food: 'Chicken',
+  quantityG: 200,
+  kcal: 330,
+  proteinG: 62,
+  carbG: 0,
+  fatG: 7,
+  ...over,
+});
+
+const target = {
+  from: today,
+  kcal: 2180,
+  proteinG: 174,
+  carbG: 200,
+  fatG: 65,
+  source: 'engine',
+};
+
+test('the remaining budget is subtraction, done here', async () => {
+  // Never a model's job: the log knows, and a coach that is right about this
+  // 99 times out of 100 is one nobody can rely on.
+  const tools = toolsOf(fake({
+    targetOn: async () => target,
+    meals: async () => [meal(), meal({ kcal: 400, proteinG: 20, carbG: 60 })],
+  }));
+
+  const result = await tools('get_remaining_today').run({}) as {
+    left: { kcal: number; proteinG: number };
+    logged: { kcal: number };
+    summary: string;
+  };
+
+  assert.equal(result.logged.kcal, 730);
+  assert.equal(result.left.kcal, 2180 - 730);
+  assert.equal(result.left.proteinG, 174 - 82);
+  assert.match(result.summary, /1450 kcal and 92g protein left/);
+});
+
+test('a whole day untouched says so rather than reciting zeroes', async () => {
+  const tools = toolsOf(fake({ targetOn: async () => target }));
+  const result = await tools('get_remaining_today').run({}) as {
+    summary: string;
+    left: { kcal: number };
+  };
+
+  assert.match(result.summary, /Nothing logged today/);
+  assert.equal(result.left.kcal, 2180);
+});
+
+test('no target means nothing is left, not that everything is', async () => {
+  const tools = toolsOf(fake({ meals: async () => [meal()] }));
+  const result = await tools('get_remaining_today').run({}) as {
+    summary: string;
+    left?: unknown;
+  };
+
+  assert.equal(result.left, undefined);
+  assert.match(result.summary, /No calorie target is set/);
+  assert.match(result.summary, /330 kcal logged/);
+});
+
+test('an empty fridge does not claim the cupboards are bare', async () => {
+  // The app only knows about food that was logged as a cook. Saying there is
+  // nothing to eat would be a claim it cannot make.
+  const tools = toolsOf(fake());
+  const result = await tools('get_prep_on_hand').run({}) as { summary: string };
+
+  assert.match(result.summary, /Nothing cooked and waiting/);
+  assert.match(result.summary, /says nothing about what is in the cupboard/);
+});
+
+test('the fridge leads with what is about to go off', async () => {
+  const tools = toolsOf(fake({
+    prepOnHand: async () => [
+      {
+        name: 'Beef chilli',
+        cookedOn: '2026-09-12',
+        servingsLeft: 2,
+        perServing: { kcal: 584, proteinG: 41, carbG: 38, fatG: 26 },
+        daysLeft: 1,
+      },
+      {
+        name: 'Chicken rice bowl',
+        cookedOn: '2026-09-13',
+        servingsLeft: 3,
+        perServing: { kcal: 612, proteinG: 52, carbG: 64, fatG: 15 },
+        daysLeft: 4,
+      },
+    ],
+  }));
+
+  const result = await tools('get_prep_on_hand').run({}) as {
+    summary: string;
+    batches: { name: string }[];
+  };
+
+  assert.equal(result.batches[0]?.name, 'Beef chilli');
+  assert.match(result.summary, /2 batches in the fridge, 1 needing eating/);
+});
+
+test('searching recipes filters by name and says what was searched', async () => {
+  const tools = toolsOf(fake({
+    recipes: async () => [
+      { name: 'Chicken rice bowl', servings: 4, perServing: { kcal: 612, proteinG: 52, carbG: 64, fatG: 15 } },
+      { name: 'Beef chilli', servings: 4, perServing: { kcal: 584, proteinG: 41, carbG: 38, fatG: 26 } },
+    ],
+  }));
+
+  const found = await tools('search_recipes').run({ match: 'chicken' }) as {
+    recipes: { name: string }[];
+    summary: string;
+  };
+  assert.equal(found.recipes.length, 1);
+  assert.match(found.summary, /1 of 2 saved recipes/);
+
+  const missed = await tools('search_recipes').run({ match: 'lasagne' }) as {
+    summary: string;
+  };
+  assert.match(missed.summary, /None of the 2 saved recipes match "lasagne"/);
+});
+
+test('no saved recipes is not a reason to refuse a suggestion', async () => {
+  const tools = toolsOf(fake());
+  const result = await tools('search_recipes').run({}) as { summary: string };
+  assert.match(result.summary, /Suggesting one is still fine/);
 });

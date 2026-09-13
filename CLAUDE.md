@@ -17,7 +17,7 @@ TDEE and calorie targets, and intake written back into `daily_rollup`. Barcode s
 Phase 4's logging work; recipes and the USDA source are not built yet. Phase 2's and Phase 3's exit tests — real steps and readiness on
 the dashboard, and a fortnight of food logs producing a believable TDEE — are still running.
 
-Phase 4 (Coach v1) is built: the schema, the agent harness, nine read tools, streaming chat, food
+Phase 4 (Coach v1) is built: the schema, the agent harness, twelve read tools, streaming chat, food
 logging by sentence, photo and label reading, set logging by voice, pre-workout briefs and
 post-workout debriefs, and an eval suite whose pass mark *is* the phase's exit test. Its exit test —
 ≥90% of scenarios answered correctly, citing data — **passes**, at 93–100% depending on the run

@@ -215,6 +215,152 @@ export function readTools(context: ToolContext): Tool[] {
     },
 
     {
+      name: 'get_remaining_today',
+      description:
+        "What is left of today's calorie and macro targets: the target, what " +
+        'has been logged so far, and the difference. Use this before ' +
+        'suggesting anything to eat.',
+      parameters: { type: 'object', properties: {} },
+      async run() {
+        // No new query and no model arithmetic: the target and the day's meals
+        // are already readable, and the subtraction belongs on this side of
+        // the wire. A coach that is right about the remaining calories 99
+        // times out of 100 is one nobody can rely on.
+        const [target, meals] = await Promise.all([
+          context.data.targetOn(context.today),
+          context.data.meals(context.today),
+        ]);
+
+        const eaten = meals.reduce(
+          (sum, meal) => ({
+            kcal: sum.kcal + meal.kcal,
+            proteinG: sum.proteinG + meal.proteinG,
+            carbG: sum.carbG + meal.carbG,
+            fatG: sum.fatG + meal.fatG,
+          }),
+          { kcal: 0, proteinG: 0, carbG: 0, fatG: 0 },
+        );
+
+        const round = (n: number) => Math.round(n);
+        const logged = {
+          kcal: round(eaten.kcal),
+          proteinG: round(eaten.proteinG),
+          carbG: round(eaten.carbG),
+          fatG: round(eaten.fatG),
+        };
+
+        if (!target) {
+          return assertMinimal(
+            {
+              today: context.today,
+              logged,
+              meals: meals.length,
+              summary:
+                'No calorie target is set, so there is nothing left to be ' +
+                `left of. ${logged.kcal} kcal logged today.`,
+            },
+            'get_remaining_today',
+          );
+        }
+
+        const left = {
+          kcal: round(target.kcal - eaten.kcal),
+          proteinG: round(target.proteinG - eaten.proteinG),
+          carbG: round(target.carbG - eaten.carbG),
+          fatG: round(target.fatG - eaten.fatG),
+        };
+
+        return assertMinimal(
+          {
+            today: context.today,
+            target: {
+              kcal: target.kcal,
+              proteinG: round(target.proteinG),
+              carbG: round(target.carbG),
+              fatG: round(target.fatG),
+            },
+            logged,
+            left,
+            meals: meals.length,
+            summary: meals.length === 0
+              ? `Nothing logged today. The whole ${target.kcal} kcal is still ` +
+                `there, with ${round(target.proteinG)}g of protein.`
+              : `${left.kcal} kcal and ${left.proteinG}g protein left of ` +
+                `${target.kcal} and ${round(target.proteinG)}g.`,
+          },
+          'get_remaining_today',
+        );
+      },
+    },
+
+    {
+      name: 'get_prep_on_hand',
+      description:
+        'Batches of food already cooked and still in the fridge, with ' +
+        'servings left, what a serving contains, and how long they keep. ' +
+        'Check this before suggesting something to cook.',
+      parameters: { type: 'object', properties: {} },
+      async run() {
+        const batches = await context.data.prepOnHand(context.today);
+
+        // Sorted by what needs eating first on the way out of the data layer,
+        // so the first row is the answer to "what should I eat".
+        const urgent = batches.filter((b) => (b.daysLeft ?? 99) <= 1);
+
+        return assertMinimal(
+          {
+            batches: capped(batches, 20).rows,
+            summary: batches.length === 0
+              ? 'Nothing cooked and waiting. This says nothing about what is ' +
+                'in the cupboard — only what has been logged as a cook.'
+              : urgent.length > 0
+                ? `${batches.length} batches in the fridge, ${urgent.length} ` +
+                  'needing eating today or tomorrow.'
+                : `${batches.length} batches in the fridge.`,
+          },
+          'get_prep_on_hand',
+        );
+      },
+    },
+
+    {
+      name: 'search_recipes',
+      description:
+        'The recipes this lifter has saved, costed per serving. Use it to ' +
+        'suggest something they already know how to make.',
+      parameters: {
+        type: 'object',
+        properties: {
+          match: {
+            type: 'string',
+            description: 'Optional name filter, e.g. "chicken".',
+          },
+        },
+      },
+      async run(args) {
+        const all = await context.data.recipes();
+        const needle =
+          typeof args.match === 'string' ? args.match.trim().toLowerCase() : '';
+        const found = needle
+          ? all.filter((r) => r.name.toLowerCase().includes(needle))
+          : all;
+
+        return assertMinimal(
+          {
+            recipes: capped(found, 40).rows,
+            summary: all.length === 0
+              ? 'No saved recipes. Suggesting one is still fine — it just ' +
+                'will not be something they have made before.'
+              : found.length === 0
+                ? `None of the ${all.length} saved recipes match "${needle}".`
+                : `${found.length} of ${all.length} saved recipes.`,
+          },
+          'search_recipes',
+        );
+      },
+    },
+
+    {
       name: 'query_body',
       description:
         'Weight, trend weight, steps, sleep and readiness by day. One row per ' +

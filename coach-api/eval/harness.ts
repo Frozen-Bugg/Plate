@@ -96,6 +96,31 @@ export function isGrounded(value: number, available: number[]): boolean {
   return false;
 }
 
+/// Which of [stated] cannot be traced back to [given].
+///
+/// Run to a fixed point rather than once, because a coach reasons in steps and
+/// each step is grounded in the last. "Two servings is 1168 kcal; with the
+/// chicken bowl that is 1196; which leaves 980 of the 2180" is three sentences
+/// of honest arithmetic, and only the first is a direct derivation of the
+/// figures it was handed.
+///
+/// The alternative — allowing any sum of three given numbers — searches a far
+/// larger space and would start passing genuine inventions by coincidence.
+/// Here the set only ever grows by numbers the coach actually wrote down *and*
+/// that were already traceable, so an invented figure has nothing to stand on.
+export function ungrounded(stated: number[], given: number[]): number[] {
+  let available = [...given];
+  let rest = [...stated];
+
+  for (let pass = 0; pass < 4; pass++) {
+    const grounded = rest.filter((n) => isGrounded(n, available));
+    if (grounded.length === 0) break;
+    rest = rest.filter((n) => !isGrounded(n, available));
+    available = [...available, ...grounded];
+  }
+  return rest;
+}
+
 /// Every number the coach was given — the snapshot it started from and every
 /// tool result it received.
 export function availableNumbers(system: string, result: AgentResult): number[] {
@@ -152,13 +177,10 @@ export function runChecks(
         };
 
       case 'grounded': {
-        const available = [
+        const invented = ungrounded(numbersIn(result.text), [
           ...availableNumbers(system, result),
           ...(check.also ?? []),
-        ];
-        const invented = numbersIn(result.text).filter(
-          (n) => !isGrounded(n, available),
-        );
+        ]);
         return {
           passed: invented.length === 0,
           why: check.why,

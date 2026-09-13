@@ -7,6 +7,7 @@ import {
   numbersIn,
   runChecks,
   scoreOf,
+  ungrounded,
 } from '../eval/harness.ts';
 import { scenarios } from '../eval/scenarios.ts';
 
@@ -221,4 +222,18 @@ test('a thousands separator is punctuation, not two numbers', () => {
   assert.ok(isGrounded(9100, [9100]), 'the real figure is now the one compared');
   // A date-like 12/09 is still not a number, and a decimal is untouched.
   assert.deepEqual(numbersIn('82.5kg on 12/09'), [82.5]);
+});
+
+test('a chain of honest arithmetic stays grounded; an invention does not', () => {
+  // "Two servings is 1168; with the bowl that is 1196; leaving 980 of 2180"
+  // — three sentences, and only the first derives straight from the data.
+  const given = [2180, 584, 612, 174];
+  assert.deepEqual(ungrounded([1168, 1196, 980], given), []);
+
+  // The set only grows by numbers the coach both wrote down and could already
+  // justify, so an invention has nothing to stand on.
+  assert.deepEqual(ungrounded([1457], given), [1457]);
+  // And it cannot bootstrap itself: 1457 is not grounded, so 2914 is not
+  // grounded by doubling it.
+  assert.deepEqual(ungrounded([1457, 2914], given), [1457, 2914]);
 });

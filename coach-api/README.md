@@ -242,7 +242,7 @@ back. A check tuned until it goes green measures nothing.
 
 | Path | What it does | Streams |
 |---|---|---|
-| `/coach` | The conversation. Snapshot, nine read tools, up to 12 steps | yes |
+| `/coach` | The conversation. Snapshot, twelve read tools, up to 12 steps | yes |
 | `/coach/parse-food` | "4 eggs and 2 sandwiches" → itemised food | no |
 | `/coach/parse-photo` | A plate or a label → itemised food | no |
 | `/coach/parse-sets` | "three by eight at eighty" → sets | no |

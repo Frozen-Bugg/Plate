@@ -84,6 +84,34 @@ export interface SetRow {
 }
 
 /// What was eaten on a day, by meal.
+/// What a portion contains. Always computed from the raw ingredients.
+export interface Macros {
+  kcal: number;
+  proteinG: number;
+  carbG: number;
+  fatG: number;
+}
+
+/// One of the lifter's saved recipes, costed per serving.
+export interface RecipeRow {
+  name: string;
+  servings: number;
+  perServing: Macros;
+}
+
+/// A batch in the fridge, with what is left of it.
+///
+/// Servings left is derived from the portions logged against the batch, never
+/// stored — the same arithmetic the app does, for the same reason.
+export interface PrepRow {
+  name: string;
+  cookedOn: string;
+  servingsLeft: number;
+  perServing: Macros;
+  /// Days until the use-by. Absent when none was set.
+  daysLeft?: number;
+}
+
 export interface MealRow {
   day: string;
   slot: string;
@@ -124,6 +152,10 @@ export interface CoachData {
   exerciseNames(): Promise<string[]>;
   volumeByMuscle(since: string): Promise<MuscleVolume[]>;
   foodNames(match: string): Promise<string[]>;
+  /// Saved recipes, costed per serving.
+  recipes(): Promise<RecipeRow[]>;
+  /// Batches with food still in them, soonest use-by first.
+  prepOnHand(today: string): Promise<PrepRow[]>;
   memories(): Promise<Memory[]>;
 }
 
@@ -374,6 +406,76 @@ export class SupabaseData implements CoachData {
     );
   }
 
+  async recipes(): Promise<RecipeRow[]> {
+    const rows = await this.#get<Record<string, any>>(
+      'recipes?select=name,servings,total_weight_g,' +
+        `recipe_items(quantity_g,${foodMacroColumns})` +
+        '&deleted_at=is.null&order=last_used_at.desc.nullslast&limit=40',
+    );
+
+    return rows.map((row) => {
+      const servings = num(row.servings) ?? 1;
+      const total = sumIngredients(row.recipe_items);
+      return {
+        name: str(row.name) ?? 'Recipe',
+        servings,
+        perServing: scale(total, servings > 0 ? 1 / servings : 1),
+      };
+    });
+  }
+
+  async prepOnHand(today: string): Promise<PrepRow[]> {
+    const rows = await this.#get<Record<string, any>>(
+      'prep_batches?select=cooked_on,servings_made,cooked_weight_g,use_by,' +
+        `recipes!inner(name,total_weight_g,recipe_items(quantity_g,${foodMacroColumns})),` +
+        'meal_items(quantity_g)' +
+        '&deleted_at=is.null&order=cooked_on.desc&limit=20',
+    );
+
+    const onHand: PrepRow[] = [];
+    for (const row of rows) {
+      const recipe = row.recipes;
+      if (!recipe) continue;
+
+      const made = num(row.servings_made) ?? 1;
+      const total = sumIngredients(recipe.recipe_items);
+      // The batch's own weight first: the recipe's yield is what seeded it,
+      // but this is the pot in the fridge.
+      const rawWeight = sumWeights(recipe.recipe_items);
+      const weight =
+        num(row.cooked_weight_g) ?? num(recipe.total_weight_g) ?? rawWeight;
+      if (weight <= 0) continue;
+
+      const eaten = (row.meal_items ?? []).reduce(
+        (sum: number, item: Record<string, unknown>) =>
+          sum + (num(item.quantity_g) ?? 0),
+        0,
+      );
+      const left = Math.max(weight - eaten, 0);
+      const servingWeight = made > 0 ? weight / made : weight;
+      const servingsLeft = servingWeight > 0 ? left / servingWeight : 0;
+      // A scraping is not a meal, and offering one as lunch is worse than
+      // saying the batch is finished.
+      if (servingsLeft < 0.1) continue;
+
+      const useBy = str(row.use_by);
+      const daysLeft = useBy === undefined ? undefined : daysBetween(today, useBy);
+      if (daysLeft !== undefined && daysLeft < 0) continue;
+
+      onHand.push({
+        name: str(recipe.name) ?? 'Recipe',
+        cookedOn: String(row.cooked_on ?? ''),
+        servingsLeft: Math.round(servingsLeft * 10) / 10,
+        perServing: scale(total, servingWeight / weight),
+        ...(daysLeft === undefined ? {} : { daysLeft }),
+      });
+    }
+
+    // What needs eating first, which is the order the coach should read it in.
+    onHand.sort((a, b) => (a.daysLeft ?? 999) - (b.daysLeft ?? 999));
+    return onHand;
+  }
+
   async memories(): Promise<Memory[]> {
     const rows = await this.#get<Record<string, unknown>>(
       'coach_memories?select=content,kind,weight&deleted_at=is.null' +
@@ -385,6 +487,55 @@ export class SupabaseData implements CoachData {
       weight: num(row.weight) ?? 1,
     }));
   }
+}
+
+/// The columns a portion's macros are computed from.
+///
+/// Nutrition is stored per 100 g, so every portion is a multiplication — and
+/// it is always over the ingredients. Nothing here asks a model for a number.
+const foodMacroColumns =
+  'foods(kcal_per_100,protein_per_100,carb_per_100,fat_per_100)';
+
+type IngredientRow = {
+  quantity_g?: unknown;
+  foods?: Record<string, unknown> | null;
+};
+
+const noMacros: Macros = { kcal: 0, proteinG: 0, carbG: 0, fatG: 0 };
+
+function sumIngredients(items: IngredientRow[] | null | undefined): Macros {
+  let out = { ...noMacros };
+  for (const item of items ?? []) {
+    const food = item.foods;
+    if (!food) continue;
+    const factor = (num(item.quantity_g) ?? 0) / 100;
+    out = {
+      kcal: out.kcal + (num(food.kcal_per_100) ?? 0) * factor,
+      proteinG: out.proteinG + (num(food.protein_per_100) ?? 0) * factor,
+      carbG: out.carbG + (num(food.carb_per_100) ?? 0) * factor,
+      fatG: out.fatG + (num(food.fat_per_100) ?? 0) * factor,
+    };
+  }
+  return out;
+}
+
+function sumWeights(items: IngredientRow[] | null | undefined): number {
+  return (items ?? []).reduce((sum, i) => sum + (num(i.quantity_g) ?? 0), 0);
+}
+
+function scale(macros: Macros, factor: number): Macros {
+  return {
+    kcal: Math.round(macros.kcal * factor),
+    proteinG: Math.round(macros.proteinG * factor),
+    carbG: Math.round(macros.carbG * factor),
+    fatG: Math.round(macros.fatG * factor),
+  };
+}
+
+/// Whole days from [from] to [to], both ISO dates. Negative once [to] is past.
+function daysBetween(from: string, to: string): number {
+  const ms = Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`);
+  return Math.round(ms / 86_400_000);
 }
 
 function num(value: unknown): number | undefined {

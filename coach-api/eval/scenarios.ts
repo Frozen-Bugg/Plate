@@ -414,4 +414,72 @@ export const scenarios: Scenario[] = [
       neverInvents,
     ],
   },
+
+  // --- food (docs/MEAL-PLANNING.md) --------------------------------------
+  {
+    name: 'eats what is already cooked before cooking again',
+    why: 'prep goes off, and a coach that ignores the fridge wastes it',
+    data: {
+      ...baseline(),
+      prepOnHand: async () => [
+        {
+          name: 'Beef chilli',
+          cookedOn: '2026-09-11',
+          servingsLeft: 2,
+          perServing: { kcal: 584, proteinG: 41, carbG: 38, fatG: 26 },
+          daysLeft: 1,
+        },
+      ],
+      recipes: async () => [
+        {
+          name: 'Chicken rice bowl',
+          servings: 4,
+          perServing: { kcal: 612, proteinG: 52, carbG: 64, fatG: 15 },
+        },
+      ],
+    },
+    ask: 'What should I have for dinner?',
+    expect: [
+      { kind: 'uses', tool: 'get_prep_on_hand', why: 'the fridge is the first place to look' },
+      { kind: 'says', pattern: /chilli/i, why: 'must offer the food that is already cooked' },
+      neverInvents,
+    ],
+  },
+  {
+    name: 'works out what is left before suggesting anything',
+    why: 'the remaining budget is subtraction, and it is given rather than guessed',
+    data: {
+      ...baseline(),
+      meals: async () => [
+        {
+          day: '2026-09-13',
+          slot: 'breakfast',
+          food: 'Porridge',
+          quantityG: 300,
+          kcal: 420,
+          proteinG: 18,
+          carbG: 62,
+          fatG: 9,
+        },
+        {
+          day: '2026-09-13',
+          slot: 'lunch',
+          food: 'Chicken salad',
+          quantityG: 400,
+          kcal: 610,
+          proteinG: 55,
+          carbG: 30,
+          fatG: 26,
+        },
+      ],
+    },
+    ask: 'I have got about 600 calories left. What should I eat?',
+    expect: [
+      { kind: 'uses', tool: 'get_remaining_today', why: 'never estimate the budget' },
+      // 2180 - 1030 = 1150, so his "about 600" is wrong and saying so is the
+      // whole value of having checked.
+      { kind: 'says', pattern: /1,?150|1,?15\d/, why: 'must use the real remainder' },
+      neverInvents,
+    ],
+  },
 ];
