@@ -121,7 +121,21 @@ function toMessages(messages: Turn[]) {
   return messages.map((turn) => {
     switch (turn.role) {
       case 'user':
-        return { role: 'user', content: [{ type: 'text', text: turn.text }] };
+        return {
+          role: 'user',
+          content: [
+            // Before the text, which is how both providers read it best.
+            ...(turn.images ?? []).map((image) => ({
+              type: 'image',
+              source: {
+                type: 'base64',
+                media_type: image.mediaType,
+                data: image.data,
+              },
+            })),
+            { type: 'text', text: turn.text },
+          ],
+        };
       case 'assistant':
         return {
           role: 'assistant',

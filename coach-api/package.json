@@ -5,7 +5,8 @@
   "description": "The Coach API: agent loop, tools and model adapters. Deployed as a Supabase Edge Function; tested here on Node.",
   "scripts": {
     "test": "node --test --experimental-strip-types \"test/**/*.test.ts\"",
-    "typecheck": "tsc --noEmit && tsc -p tsconfig.functions.json --noEmit"
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.functions.json --noEmit",
+    "eval": "node --env-file-if-exists=.env --experimental-strip-types eval/run.ts"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",

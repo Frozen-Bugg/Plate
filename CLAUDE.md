@@ -17,10 +17,14 @@ TDEE and calorie targets, and intake written back into `daily_rollup`. Barcode s
 the USDA source are not built yet. Phase 2's and Phase 3's exit tests — real steps and readiness on
 the dashboard, and a fortnight of food logs producing a believable TDEE — are still running.
 
-Phase 4 (Coach v1) is in progress. The schema, the agent harness, nine read tools and a streaming
-chat screen are built, and the coach answers from real data. The write tools, the `propose_*` family
-and the eval suite are not built; without them nothing the coach says can change anything, which is
-the intended order.
+Phase 4 (Coach v1) is built: the schema, the agent harness, nine read tools, streaming chat, food
+logging by sentence, photo and label reading, set logging by voice, pre-workout briefs and
+post-workout debriefs, and an eval suite whose pass mark *is* the phase's exit test. Its exit test —
+≥90% of scenarios answered correctly, citing data — has not been run yet: `npm run eval` needs a key
+in `coach-api/.env`.
+
+The `propose_*` family and the proposals inbox are Phase 5, so nothing the coach says can change
+anything yet, which is the intended order.
 
 ## Layout
 

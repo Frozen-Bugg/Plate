@@ -98,6 +98,189 @@ export async function parseMeal(
   return assertMinimal(validate(parseJson(reply.text), slot), 'parse_food');
 }
 
+// ---------------------------------------------------------------------------
+// Photos
+// ---------------------------------------------------------------------------
+
+const photoPrompt = `
+You read a photograph of food, or of a nutrition label, and turn it into
+itemised, loggable numbers. You do not chat or describe the picture.
+
+Reply with the same JSON as before, and nothing else:
+
+{"slot":"lunch","items":[{"name":"Grilled chicken breast","quantity":1,"unit":"serving","grams":180,"kcal":300,"proteinG":56,"carbG":0,"fatG":7,"note":"assumed no oil, plate about 26 cm"}]}
+
+Reading a plate:
+
+- One entry per distinct food you can see. Do not merge a meal into one entry.
+- Judge portions against something in the frame whose size you know — the
+  plate, a fork, a hand, a standard tin. Say what you used in "note".
+- Say what you could not tell in "note": whether it was fried, whether there is
+  dressing or oil, what the sauce is. Those are the numbers most likely wrong.
+- Do not guess at something you cannot identify. Leave it out rather than
+  inventing a food.
+
+Reading a label:
+
+- Use the printed numbers. Do not estimate what is written down.
+- Labels are usually per 100 g and sometimes per serving as well. "grams" is
+  the amount actually eaten; if you cannot tell, use one serving and say so.
+
+If the picture has no food in it, reply {"slot":"snack","items":[]}.
+
+Everything you return is shown to the lifter to correct before it is saved. Be
+complete and say what you assumed.
+`.trim();
+
+/// Reads a photo of a meal or a label into items, for confirmation.
+///
+/// Same shape and the same rails as [parseMeal] — the numbers are no more
+/// trustworthy for having come from a picture, and docs/PLAN.md §11 says a
+/// photo estimate is "always itemised + editable, never auto-logged".
+export async function parsePhoto(
+  model: ModelClient,
+  image: { mediaType: string; data: string },
+  options: { slot?: string; note?: string } = {},
+): Promise<ParsedMeal> {
+  if (!image.data) throw new ParseError('No picture to read.');
+  if (!/^image\/(jpeg|png|webp)$/.test(image.mediaType)) {
+    throw new ParseError('That is not a picture the coach can read.');
+  }
+  // Base64 runs about 4/3 the size of the bytes. Anything past this is a photo
+  // that should have been resized on the device, and sending it would be slow
+  // and expensive for no extra accuracy.
+  if (image.data.length > 8_000_000) {
+    throw new ParseError('That picture is too large. Try again.');
+  }
+
+  const slot = slots.includes(options.slot ?? '') ? options.slot! : 'snack';
+  const said = (options.note ?? '').trim().slice(0, 300);
+
+  const reply = await model.send({
+    system: photoPrompt,
+    messages: [
+      {
+        role: 'user',
+        text: [
+          `Slot if unstated: ${slot}`,
+          said ? `The lifter says: ${said}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n'),
+        images: [image],
+      },
+    ],
+    maxOutputTokens: 2048,
+    effort: 'low',
+  });
+
+  return assertMinimal(validate(parseJson(reply.text), slot), 'parse_photo');
+}
+
+// ---------------------------------------------------------------------------
+// Sets
+// ---------------------------------------------------------------------------
+
+/// One set heard out of a sentence.
+export interface ParsedSet {
+  /// As said. Matched against the exercise library on the device, which is
+  /// where the names actually live.
+  exercise: string;
+  weightKg: number;
+  reps: number;
+  /// Reps in reserve, if it was said. RPE is converted: RPE 8 is 2 RIR.
+  rir?: number;
+  /// How many identical sets. "Three by eight at eighty" is three sets.
+  sets: number;
+}
+
+const setsPrompt = `
+You turn a sentence about lifting into logged sets. You do not chat or explain.
+
+Reply with JSON only. No prose, no markdown fence.
+
+{"sets":[{"exercise":"Bench Press","weightKg":80,"reps":8,"rir":2,"sets":3}]}
+
+Rules:
+
+- "3 by 8 at 80" means sets 3, reps 8, weightKg 80. "80 for 8" is one set.
+- Weight is kilograms. Convert pounds if they say lbs or pounds.
+- RPE converts to RIR: RIR = 10 − RPE. RPE 8 is 2 RIR, RPE 10 is 0. If they
+  say RIR, use it as given. Leave it out when neither was said.
+- Name the exercise the way a gym does — "Bench Press", "Romanian Deadlift".
+  Expand what you are confident about: "RDL" is Romanian Deadlift, "OHP" is
+  Overhead Press. Do not expand what you are not.
+- One entry per distinct exercise and load. Two different loads of the same
+  lift are two entries.
+- Bodyweight movements have weightKg 0 unless a load was said.
+- If no lifting was described, reply {"sets":[]}.
+
+These are logged after the lifter confirms them, so being complete about what
+they said matters more than being clever about what they meant.
+`.trim();
+
+/// Parses a sentence into sets. Throws when the answer cannot be trusted.
+export async function parseSets(
+  model: ModelClient,
+  text: string,
+): Promise<ParsedSet[]> {
+  const said = text.trim();
+  if (!said) throw new ParseError('Nothing to log.');
+  if (said.length > 1000) throw new ParseError('That is too long to log at once.');
+
+  const reply = await model.send({
+    system: setsPrompt,
+    messages: [{ role: 'user', text: said }],
+    maxOutputTokens: 1024,
+    effort: 'low',
+  });
+
+  const raw = parseJson(reply.text);
+  if (typeof raw !== 'object' || raw === null) {
+    throw new ParseError('Could not read that as sets.');
+  }
+  const list = Array.isArray((raw as Record<string, unknown>).sets)
+    ? ((raw as Record<string, unknown>).sets as unknown[])
+    : [];
+
+  if (list.length > 30) throw new ParseError('That is too many sets at once.');
+
+  const sets: ParsedSet[] = [];
+  for (const entry of list) {
+    const set = asSet(entry);
+    if (set) sets.push(set);
+  }
+  return assertMinimal(sets, 'parse_sets');
+}
+
+function asSet(raw: unknown): ParsedSet | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const set = raw as Record<string, unknown>;
+
+  const exercise = String(set.exercise ?? '').trim().slice(0, 80);
+  if (!exercise) return null;
+
+  const reps = number(set.reps);
+  const weightKg = number(set.weightKg);
+
+  // A set with no reps is not a set. Zero weight is legitimate — a pull-up is
+  // zero — but a negative one is nonsense, and 600 kg is a misheard number.
+  if (reps === null || reps < 1 || reps > 100) return null;
+  if (weightKg === null || weightKg < 0 || weightKg > 600) return null;
+
+  const rir = number(set.rir);
+  const count = number(set.sets);
+
+  return {
+    exercise,
+    weightKg: Math.round(weightKg * 100) / 100,
+    reps: Math.round(reps),
+    // RIR above 10 is someone who stopped ten reps early, which nobody logs.
+    rir: rir !== null && rir >= 0 && rir <= 10 ? rir : undefined,
+    sets: count !== null && count >= 1 && count <= 20 ? Math.round(count) : 1,
+  };
+}
+
 export class ParseError extends Error {
   constructor(message: string) {
     super(message);

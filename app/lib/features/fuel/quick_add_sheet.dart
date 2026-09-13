@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
 import 'foods_repository.dart';
@@ -110,6 +111,80 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
     );
   }
 
+  /// Photograph a plate or a label and let the coach read it.
+  ///
+  /// Resized before it leaves the phone. A modern camera produces a 4 MB
+  /// picture, which is slow to upload, expensive to send and no more accurate
+  /// than a 1024 px one — the coach is judging portions, not reading serial
+  /// numbers. The exception is a nutrition label, which is why it is not
+  /// shrunk further.
+  Future<void> _photograph(ImageSource source) async {
+    final picked = await ImagePicker().pickImage(
+      source: source,
+      maxWidth: 1024,
+      maxHeight: 1024,
+      imageQuality: 80,
+    );
+    if (picked == null || !mounted) return;
+
+    setState(() {
+      _busy = true;
+      _error = null;
+      _parsed = null;
+    });
+
+    try {
+      final bytes = await picked.readAsBytes();
+      final meal = await ref.read(quickAddServiceProvider).parsePhoto(
+            bytes: bytes,
+            // pickImage gives JPEG for a camera shot and keeps the original
+            // format for a gallery pick.
+            mediaType: picked.path.toLowerCase().endsWith('.png')
+                ? 'image/png'
+                : 'image/jpeg',
+            slot: _slot,
+            note: _text.text,
+          );
+      if (!mounted) return;
+      setState(() {
+        _parsed = meal;
+        _slot = meal.slot;
+        _error = meal.items.isEmpty
+            ? 'No food found in that picture. Try a clearer shot, or type it.'
+            : null;
+      });
+    } on QuickAddError catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _pickPhotoSource() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Take a photo'),
+              subtitle: const Text('A plate, or the nutrition label'),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Choose one'),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source != null && mounted) await _photograph(source);
+  }
+
   Future<void> _parse() async {
     final said = _text.text.trim();
     if (said.isEmpty || _busy) return;
@@ -208,7 +283,7 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Say what you ate', style: text.headlineSmall),
+              Text('Say, type or photograph it', style: text.headlineSmall),
               const SizedBox(height: 4),
               Text(
                 'Everything below is an estimate. Check it before it is saved.',
@@ -243,6 +318,9 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
                 enabled: !_busy,
                 decoration: InputDecoration(
                   hintText: '4 eggs and 2 high protein sandwiches',
+                  helperText: 'Or photograph it — a note here helps with '
+                      'anything the camera cannot judge.',
+                  helperMaxLines: 2,
                   border: const OutlineInputBorder(),
                   suffixIcon: IconButton(
                     tooltip: _listening ? 'Stop' : 'Dictate',
@@ -268,9 +346,22 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
                 ),
 
               const SizedBox(height: 10),
-              FilledButton(
-                onPressed: _busy ? null : _parse,
-                child: Text(_busy ? 'Reading…' : 'Read it'),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: _busy ? null : _parse,
+                      child: Text(_busy ? 'Reading…' : 'Read it'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton.filledTonal(
+                    tooltip: 'Photograph a plate or a label',
+                    onPressed: _busy ? null : _pickPhotoSource,
+                    icon: const Icon(Icons.photo_camera_outlined),
+                    constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                  ),
+                ],
               ),
 
               if (_error case final message?) ...[

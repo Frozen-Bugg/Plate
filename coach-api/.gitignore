@@ -1,1 +1,5 @@
 node_modules/
+
+# Keys for running the eval suite locally. Never committed — the deployed
+# function reads its own from `supabase secrets`.
+.env

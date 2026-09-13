@@ -5,8 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme.dart';
 import '../../app/widgets/tab_scaffold.dart';
+import '../../core/day.dart';
 import '../../core/db/app_database.dart';
 import '../../core/format.dart';
+import 'brief_card.dart';
 import 'exercises_repository.dart';
 import 'live_session.dart';
 import 'logging_repository.dart';
@@ -51,7 +53,10 @@ class TrainScreen extends ConsumerWidget {
                 icon: const Icon(Icons.list_alt, size: 20),
                 label: const Text('Templates'),
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 20),
+              // Nothing at all when there is nothing worth saying.
+              if (active == null) BriefCard(day: dayKey()),
+              const SizedBox(height: 8),
               Text('History', style: text.titleLarge),
               const SizedBox(height: 8),
               if (value.every((s) => s.endedAt == null))
@@ -123,17 +128,33 @@ class ActiveSessionCard extends ConsumerWidget {
   /// engine re-reads every exercise trained and writes the next target. Doing
   /// it here rather than on the next screen means the answer is already
   /// waiting, offline included.
-  Future<void> _finish(WidgetRef ref) async {
-    final trained = await ref
-        .read(loggingRepositoryProvider)
-        .watchExercises(session.id)
-        .first;
+  Future<void> _finish(BuildContext context, WidgetRef ref) async {
+    // Read before finishing, so the debrief describes what was actually done
+    // rather than an empty session.
+    final logged = await ref.read(sessionDetailProvider(session.id).future);
+    final trained = logged.map((e) => e.exercise).toList();
+
     await ref.read(sessionsRepositoryProvider).finish(session.id);
 
     final progression = ref.read(progressionRepositoryProvider);
     for (final exerciseId in trained.map((e) => e.exerciseId).toSet()) {
       await progression.recompute(exerciseId);
     }
+
+    // The engine's verdict first, the coach's note second — and the note never
+    // blocks. A model that is slow, broke or offline must not stand between a
+    // lifter and a finished workout.
+    if (!context.mounted || logged.isEmpty) return;
+    final names = ref.read(exercisesByIdProvider);
+    await showDebrief(
+      context,
+      ref,
+      justDid: [
+        for (final entry in logged)
+          '${names[entry.exercise.exerciseId]?.name ?? 'Exercise'}: '
+              '${entry.sets.map((s) => '${s.weightKg ?? 0}kg x ${s.reps ?? 0}').join(', ')}',
+      ].join('\n'),
+    );
   }
 
   @override
@@ -174,7 +195,7 @@ class ActiveSessionCard extends ConsumerWidget {
             LiveSessionExercises(sessionId: session.id),
             const SizedBox(height: 16),
             FilledButton(
-              onPressed: () => _finish(ref),
+              onPressed: () => _finish(context, ref),
               child: const Text('Finish workout'),
             ),
             const SizedBox(height: 4),

@@ -182,3 +182,48 @@ It does two things worth knowing:
   the platform validates the token, and the token is then forwarded to PostgREST
   so RLS decides what can be read. Nothing in the function filters by user id,
   because nothing in it should be trusted to.
+
+## The eval suite
+
+docs/PLAN.md's Phase 4 exit test: **≥90% of scenarios answered correctly,
+citing data**. A scenario passes only when every one of its checks does — no
+partial credit, because averaging would let the suite look healthy while the
+safety checks quietly fail.
+
+```bash
+cp .env.example .env      # add a key; .env is gitignored
+npm run eval              # every scenario
+npm run eval -- stall     # only ones whose name matches
+```
+
+It needs a key, because the thing being measured is judgement and a scripted
+model has none. It passes `synthetic: true` to the training-tier guard —
+everybody in the fixtures is invented, so a free tier that trains on its inputs
+is exactly the right place to run forty scenarios repeatedly.
+
+### The check nobody writes by hand
+
+`says` / `avoids` / `uses` are the obvious ones. `grounded` is the one that
+matters: it pulls every number out of the answer and asserts each appears in
+the snapshot or a tool result. Roundings pass, and so do sums and differences
+of two given numbers — "up 2.5 kg" from 87.5 and 85 is arithmetic, not
+invention. Anything else is a figure that came from nowhere.
+
+That is the failure a human reader is least likely to catch, because the
+sentence reads perfectly either way.
+
+## Routes
+
+| Path | What it does | Streams |
+|---|---|---|
+| `/coach` | The conversation. Snapshot, nine read tools, up to 12 steps | yes |
+| `/coach/parse-food` | "4 eggs and 2 sandwiches" → itemised food | no |
+| `/coach/parse-photo` | A plate or a label → itemised food | no |
+| `/coach/parse-sets` | "three by eight at eighty" → sets | no |
+| `/coach/brief` | The note before a session, or after one | no |
+
+Only the chat is a conversation. The rest are one model call with one right
+answer — no tools, no history, low effort — so each has its own path rather
+than being a tool the conversation would want to discuss. **None of them
+writes.** Every one returns a proposal the device shows, the lifter corrects,
+and the device saves.

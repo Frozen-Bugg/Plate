@@ -21,7 +21,8 @@ import { runAgent } from '../../../coach-api/src/agent.ts';
 import { SupabaseData } from '../../../coach-api/src/data.ts';
 import { guardTrainingTier, modelFrom } from '../../../coach-api/src/model/index.ts';
 import { systemFor } from '../../../coach-api/src/prompt.ts';
-import { ParseError, parseMeal } from '../../../coach-api/src/tools/parse.ts';
+import { writeBrief } from '../../../coach-api/src/tools/briefs.ts';
+import { ParseError, parseMeal, parsePhoto, parseSets } from '../../../coach-api/src/tools/parse.ts';
 import { buildSnapshot } from '../../../coach-api/src/snapshot.ts';
 import { readTools } from '../../../coach-api/src/tools/read.ts';
 import type { Turn } from '../../../coach-api/src/model/client.ts';
@@ -55,19 +56,43 @@ Deno.serve(async (request) => {
   const jwt = request.headers.get('Authorization')?.replace(/^Bearer /i, '');
   if (!jwt) return fail(401, 'No credentials.');
 
-  let body: AskBody & { text?: string; slot?: string };
+  let body: AskBody & {
+    text?: string;
+    slot?: string;
+    image?: string;
+    mediaType?: string;
+    kind?: string;
+    justDid?: string;
+  };
   try {
     body = await request.json();
   } catch {
     return fail(400, 'Body was not JSON.');
   }
 
-  // Two routes, one function. Parsing a meal is not a conversation — one model
-  // call, no tools, no history — so it gets its own path rather than being
-  // bolted onto the chat as a tool the chat would then want to discuss.
-  if (new URL(request.url).pathname.endsWith('/parse-food')) {
-    return parseFood(body, jwt);
+  // Several routes, one function. Everything but the chat is a single model
+  // call with one right answer — no tools, no history, low effort — so each
+  // gets its own path rather than being bolted onto the conversation as a tool
+  // the conversation would then want to discuss.
+  const path = new URL(request.url).pathname;
+  const chosen = () => modelFrom(Deno.env.toObject());
+
+  if (path.endsWith('/parse-food')) {
+    return oneShot(() => parseMeal(chosen(), body.text ?? '', { slot: body.slot }));
   }
+  if (path.endsWith('/parse-sets')) {
+    return oneShot(() => parseSets(chosen(), body.text ?? ''));
+  }
+  if (path.endsWith('/parse-photo')) {
+    return oneShot(() =>
+      parsePhoto(
+        chosen(),
+        { mediaType: body.mediaType ?? '', data: body.image ?? '' },
+        { slot: body.slot, note: body.text },
+      )
+    );
+  }
+  if (path.endsWith('/brief')) return brief(body, jwt);
 
   const message = (body.message ?? '').trim();
   if (!message) return fail(400, 'Nothing to answer.');
@@ -156,29 +181,55 @@ Deno.serve(async (request) => {
   });
 });
 
-/// "4 eggs and 2 high protein sandwiches" → itemised numbers, for confirmation.
+/// One model call, one JSON answer.
 ///
-/// Returns a proposal and writes nothing. docs/PLAN.md §11: an estimate is
-/// shown itemised and editable, and is never logged on the model's say-so.
-/// Plain JSON rather than SSE — there is nothing to stream, and a parse that
-/// half-arrives is no use.
-async function parseFood(
-  body: { text?: string; slot?: string },
-  _jwt: string,
+/// Every parse route has the same shape: check the training-tier guard, run
+/// the parse, hand back a proposal. Nothing here writes — docs/PLAN.md §11
+/// requires an estimate to be shown itemised and editable and never logged on
+/// the model's say-so, so the device confirms and the device saves.
+///
+/// Plain JSON rather than SSE: there is nothing to stream, and a parse that
+/// half-arrives is no use to anyone.
+async function oneShot(parse: () => Promise<unknown>): Promise<Response> {
+  try {
+    guardTrainingTier(Deno.env.toObject(), { synthetic: false });
+    return new Response(JSON.stringify(await parse()), {
+      headers: { ...cors, 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    // 422 is the parser saying the input was not what it needed, and its
+    // message is written for the lifter to act on. Anything else is ours.
+    return fail(error instanceof ParseError ? 422 : 503, message_of(error));
+  }
+}
+
+/// The note before a session, or after one.
+///
+/// Reads the lifter's own data, so unlike the parses it needs their token.
+async function brief(
+  body: { kind?: string; today?: string; justDid?: string },
+  jwt: string,
 ): Promise<Response> {
   const env = Deno.env.toObject();
 
   try {
     guardTrainingTier(env, { synthetic: false });
-    const meal = await parseMeal(modelFrom(env), body.text ?? '', {
-      slot: body.slot,
+    const data = new SupabaseData(env.SUPABASE_URL!, env.SUPABASE_ANON_KEY!, jwt);
+    const text = await writeBrief(modelFrom(env), {
+      data,
+      today: /^\d{4}-\d{2}-\d{2}$/.test(body.today ?? '')
+        ? body.today!
+        : new Date().toISOString().slice(0, 10),
+      kind: body.kind === 'debrief' ? 'debrief' : 'brief',
+      justDid: body.justDid,
     });
-    return new Response(JSON.stringify(meal), {
+    return new Response(JSON.stringify({ text }), {
       headers: { ...cors, 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    // A parse that failed is the lifter's to see and retry, in their own words.
-    return fail(error instanceof ParseError ? 422 : 503, message_of(error));
+    // A brief that cannot be written is not worth blocking a workout over, so
+    // the device treats any failure here as "no note today".
+    return fail(503, message_of(error));
   }
 }
 

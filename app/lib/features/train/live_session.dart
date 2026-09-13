@@ -12,6 +12,7 @@ import 'logging_repository.dart';
 import 'progression_repository.dart';
 import 'rest_timer.dart';
 import 'templates_repository.dart';
+import 'voice_sets_sheet.dart';
 
 /// The exercises in the running session, each with its logged sets and a row
 /// for adding the next one.
@@ -41,10 +42,25 @@ class LiveSessionExercises extends ConsumerWidget {
             child: _ExerciseBlock(sessionExercise: e),
           ),
         ),
-        OutlinedButton.icon(
-          onPressed: () => _pickExercise(context, ref),
-          icon: const Icon(Icons.add, size: 20),
-          label: const Text('Add exercise'),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => _pickExercise(context, ref),
+                icon: const Icon(Icons.add, size: 20),
+                label: const Text('Add exercise'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            // For the sets already done before the phone came out — "three by
+            // eight at eighty on bench" is faster than four taps per set.
+            IconButton.filledTonal(
+              tooltip: 'Say your sets',
+              onPressed: () => showVoiceSetsSheet(context, sessionId: sessionId),
+              icon: const Icon(Icons.mic_none),
+              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+            ),
+          ],
         ),
       ],
     );

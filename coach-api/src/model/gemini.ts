@@ -284,7 +284,17 @@ function toContents(messages: Turn[]) {
   return messages.map((turn) => {
     switch (turn.role) {
       case 'user':
-        return { role: 'user', parts: [{ text: turn.text }] };
+        return {
+          role: 'user',
+          parts: [
+            // The picture first: both providers read a prompt that follows an
+            // image better than one that precedes it.
+            ...(turn.images ?? []).map((image) => ({
+              inlineData: { mimeType: image.mediaType, data: image.data },
+            })),
+            { text: turn.text },
+          ],
+        };
       case 'assistant':
         return {
           role: 'model',

@@ -63,8 +63,20 @@ export interface ToolResult {
   isError?: boolean;
 }
 
+/// A picture the lifter took, base64 encoded.
+///
+/// Only ever sent on a turn the lifter started by opening the camera. Photos
+/// are the largest thing this API sends and the most personal, so they travel
+/// on the one request that needs them and are never replayed in history.
+export interface Image {
+  /// 'image/jpeg' or 'image/png'.
+  mediaType: string;
+  /// Base64, without a data: prefix.
+  data: string;
+}
+
 export type Turn =
-  | { role: 'user'; text: string }
+  | { role: 'user'; text: string; images?: Image[] }
   | { role: 'assistant'; text?: string; calls?: ToolCall[] }
   | { role: 'tool'; results: ToolResult[] };
 
