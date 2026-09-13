@@ -13,8 +13,8 @@ Phase 2 (Body & Move) is built: trend weight, measurements, the morning check-in
 Health Connect import, progress photos, `daily_rollup`, Progress v1.
 
 Phase 3 (Fuel) is built: the foods list, Open Food Facts search, the day log, macro rings, adaptive
-TDEE and calorie targets, and intake written back into `daily_rollup`. Barcode scanning, recipes and
-the USDA source are not built yet. Phase 2's and Phase 3's exit tests — real steps and readiness on
+TDEE and calorie targets, and intake written back into `daily_rollup`. Barcode scanning arrived with
+Phase 4's logging work; recipes and the USDA source are not built yet. Phase 2's and Phase 3's exit tests — real steps and readiness on
 the dashboard, and a fortnight of food logs producing a believable TDEE — are still running.
 
 Phase 4 (Coach v1) is built: the schema, the agent harness, nine read tools, streaming chat, food
