@@ -98,7 +98,7 @@ not given. That is already enforced by the eval suite's `grounded` check.
 
 ## 4. The cards
 
-Three, all rendered inline in the chat, all editable before anything is written.
+Five, all rendered inline in the chat, all editable before anything is written.
 
 **Suggestion card** — the answer to "what should I eat?"
 
@@ -140,6 +140,26 @@ into a recipe card. `[Accept]` saves the recipes and the plan; it does **not**
 log the food. You log what you actually ate, which is the only thing adaptive
 TDEE can trust.
 
+**Prep card** — the answer to "sort my week out"
+
+```
+Sunday cook · 2 batches · covers 6 lunches
+┌────────────────────────────────────────────────┐
+│ Chicken rice bowl        × 4 servings   612 ea │  Mon–Wed
+│ Beef chilli              × 3 servings   584 ea │  Thu–Sat
+└────────────────────────────────────────────────┘
+2 portions of chilli already in the fridge, use by Thu — Monday is covered.
+                          [Save cooks]  [Build grocery list]
+```
+
+The last line is the whole reason `get_prep_on_hand` exists: the plan is
+*reduced* by what is already cooked, rather than cheerfully telling you to make
+food you have.
+
+**Grocery card** — ingredients summed across the plan, in shopping units, with
+`[Add to list]`. From there it is the grocery screen's problem, because ticking
+things off happens in a shop and not in a chat.
+
 ---
 
 ## 5. New tools
@@ -150,16 +170,24 @@ Read tools, added to the nine in `coach-api/src/tools/read.ts`:
 |---|---|
 | `get_remaining_today` | target, logged so far, and what is left — kcal and each macro, from the engine |
 | `search_recipes` | his own saved recipes, with per-serving macros |
+| `get_prep_on_hand` | batches with servings left, their per-serving macros, and how long they keep |
 
 `search_foods`, `query_nutrition` and the rest already exist and cover the
 remainder.
+
+`get_prep_on_hand` earns its place by being the only one of these the coach
+should reach for *first*. The best answer to "what should I eat" is usually
+already cooked, and a coach that suggests a recipe while two portions of chilli
+go off in the fridge is worse than no coach.
 
 Draft tools, which return a proposal and write nothing:
 
 | Tool | Returns |
 |---|---|
 | `draft_recipe` | named ingredients + grams → server resolves and costs them → a recipe card |
-| `draft_day_plan` | meals for a day against the target → a day plan card |
+| `draft_day_plan` | meals for a day against the target, built around existing prep → a day plan card |
+| `draft_prep_plan` | a week as two or three cooks → batches to make, scaled to the servings the week needs |
+| `draft_grocery_list` | a plan → ingredients summed by food, in shopping units |
 
 `draft_*` rather than `propose_*` on purpose. PLAN.md's `propose_*` family goes
 through `ai_proposals` and the inbox, which is Phase 5; these follow the path
@@ -169,23 +197,128 @@ inbox is not pulled forward. When Phase 5 lands, these cards graduate into it.
 
 ---
 
-## 6. Ingredients available
+## 6. Meal prep
 
-"What can I make with what I have" needs to know what he has, and there are two
-ways to know.
+Cook once, eat four times. It is how the week actually gets eaten, and it
+changes the shape of everything above: a week is not 21 decisions, it is two or
+three cooks and a lot of reheating.
 
-**Now: he says so.** "I've got chicken, rice, eggs and some spinach" in the
-message. Zero schema, zero maintenance, and it is how anyone actually asks.
+### A batch is a thing that exists
 
-**Later, only if he asks twice:** a `pantry` table. A pantry is a second
-inventory to keep current, and an out-of-date one is worse than none — it makes
-the coach confidently suggest a meal around something that ran out on Tuesday.
-PLAN.md §11 lists scope creep with "thin before deep" as the guardrail; this is
-exactly that case.
+`recipes` describes how to make it. **`prep_batches` records that you did**, on
+a day, in a quantity, and how much is left.
+
+```
+prep_batches
+  recipe_id          what was cooked
+  cooked_on          when
+  servings_made      how many portions
+  cooked_weight_g    what it actually weighed out of the pan
+  use_by             cooked_on + keeps_days, or set by hand
+```
+
+`meal_items` gains a nullable `prep_batch_id`. Servings remaining is then
+**derived** — made, minus the portions logged against it — rather than a counter
+to keep in step. PLAN.md's sync rules are append-only-and-recompute for exactly
+this reason: two devices decrementing the same counter is a bug, two devices
+inserting meal items is not.
+
+### Raw ingredients, cooked portions
+
+The detail that makes prep macros wrong everywhere else, and the reason
+`cooked_weight_g` is on the batch rather than the recipe:
+
+> **Macros come from the raw ingredients. Portions come from the cooked
+> weight.**
+
+300 g of dry rice is 300 g of rice macros whether or not it absorbed 600 g of
+water. But the portion you eat is measured out of a pan holding 1,330 g of
+finished food. So the batch's macros are the sum of its `recipe_items`, and a
+portion is `cooked_weight_g / servings_made` — or, if you weigh the tub,
+whatever grams you actually took.
+
+Cooked weight is per *batch*, not per recipe, because it changes: the same chilli
+cooked down twenty minutes longer is a different weight and the same macros.
+`recipes.total_weight_g` stays as the expected yield, which is what seeds the
+field when you log a cook.
+
+### What this does to the rest
+
+- **Logging gets much cheaper.** Lunch is two taps — the batch, and one
+  serving — with the macros already exact because they came from the raw
+  ingredients you weighed on Sunday.
+- **The coach knows what is in the fridge.** Not from a pantry: from batches
+  with servings left and a `use_by`. "You have two portions of chilli that need
+  eating by Thursday, and they fit tonight's remaining 620 kcal" is a better
+  answer than anything it could invent, and it costs no extra data entry.
+- **Aging food gets named.** A batch approaching `use_by` with servings left is
+  a fact worth surfacing in Today and in the suggestion card. Wasted prep is the
+  main reason people stop prepping.
+
+### Why this is not the pantry I argued against
+
+A pantry is a second inventory of everything you own, maintained by hand, and it
+goes stale the first time you eat something without telling the app — after
+which the coach confidently suggests a meal around a chicken breast that is not
+there.
+
+A prep batch cannot go stale that way. **The app is the only thing that creates
+or consumes it**: it exists because you logged a cook, and it depletes because
+you logged a portion. The inventory is a side effect of logging you were doing
+anyway.
+
+Loose ingredients stay conversational — "I've got chicken, rice and spinach" in
+the message, for the turn that needs it. Zero schema, and it is how anyone
+actually asks.
 
 ---
 
-## 7. Build order
+## 7. Groceries
+
+The list is the other half of a plan: a plan you cannot shop for is a wish.
+
+**It is derived, then edited.** Take the week's plan, expand every recipe and
+every prep batch into ingredients, sum by food, and convert to shopping units —
+`600 g chicken breast`, not four rows of `150 g`. Then it is yours: tick, add,
+remove, and the ticks persist, because the list is read in a shop on a phone
+with one hand.
+
+```
+grocery_items
+  list_id, food_id, name     what to buy (name survives a deleted food)
+  quantity_g                 summed across the plan
+  from_plan                  true if derived, false if you added it
+  checked                    ticked in the aisle
+```
+
+Three things that make it worth using rather than a toy:
+
+- **Aggregated by food, not by meal.** The chicken in three different meals is
+  one line on the list.
+- **Sane units.** 1,340 g of chicken reads as `1.4 kg`; eggs read as `12`, not
+  `720 g`. A shopping list in grams is a list written for a database.
+- **What you already have comes off it.** Not via a pantry — by ticking. The
+  first pass down the list is "have it, have it, need it", which is the same
+  work a pantry would demand, done once, at the moment it is actually true.
+
+Generated from the day plan card and from the Fuel week view, so the path is
+plan → prep → shop → cook → log, and each step hands the next one its input.
+
+### Schema
+
+Three tables and one column, which by CLAUDE.md's rule means four edits each:
+migration with `user_id` and RLS, a stream in `sync-streams.yaml`, a table in
+`powersync_schema.dart`, and a Drift table in `tables.dart`.
+
+| Change | Why |
+|---|---|
+| `prep_batches` | a cook that happened |
+| `meal_items.prep_batch_id` | which portions came out of it |
+| `grocery_lists` / `grocery_items` | what to buy, tickable |
+
+---
+
+## 8. Build order
 
 Each step is usable on its own, and each is useful even if the next is never
 built.
@@ -196,31 +329,44 @@ built.
 2. **Save a logged meal as a recipe.** One button on a day's meal. Cheapest
    real value in the whole document: the recipes he wants are the meals he has
    already eaten.
-3. **`get_remaining_today` + the suggestion card.** The 6 pm question, which is
-   the one that gets asked daily.
-4. **`draft_recipe` + the recipe card**, reusing the recipe UI to render it.
-5. **`draft_day_plan` + the day plan card.**
-6. **The Fuel door** into the coach, once there is something worth asking.
+3. **Prep batches.** Log a cook, portions derive, logging a prepped lunch is two
+   taps, and `use_by` warns before food is wasted. Also with no AI in it.
+4. **`get_remaining_today` + the suggestion card**, which reads prep batches
+   first — the best answer to "what should I eat" is usually already cooked.
+5. **`draft_recipe` + the recipe card**, reusing the recipe UI to render it.
+6. **`draft_day_plan` + the day plan card**, planned around prep cooks rather
+   than 21 separate meals.
+7. **Groceries**, derived from the plan and the batches it implies.
+8. **The Fuel door** into the coach, once there is something worth asking.
 
-Steps 1–2 are the Phase 3 gap. Steps 3–5 are Coach v2 work arriving early,
-which is fine because none of it writes without approval.
+Steps 1–3 are the Phase 3 gap plus prep, none of it needing a model. Steps 4–7
+are Coach v2 work arriving early, which is fine because none of it writes
+without approval.
+
+The ordering has one deliberate consequence: **prep lands before planning.** A
+day plan that does not know what is already in the fridge plans meals you do not
+need to cook, and a grocery list built from it sends you to buy them.
 
 ---
 
-## 8. What this deliberately does not do
+## 9. What this deliberately does not do
 
-- **No grocery list.** PLAN.md has it under meal plans; it is a list of
-  ingredients minus a pantry that does not exist. It becomes real with a pantry.
-- **No automatic logging, ever.** Every card is a proposal. Adaptive TDEE is
-  built on what was actually eaten, and a plan silently logged as food is how
-  the TDEE estimate quietly rots.
+- **No pantry.** See §6: prep batches are inventory the app maintains for free,
+  a pantry is inventory you maintain by hand, and a stale one is worse than
+  none. Loose ingredients stay conversational.
+- **No automatic logging, ever.** Every card is a proposal, and a plan is not a
+  log. Adaptive TDEE is built on what was actually eaten; a plan silently
+  logged as food is how the TDEE estimate quietly rots. Prep is the one place
+  this will be tempting — the food is cooked, the macros are known, it *feels*
+  logged — and it still is not, because a batch in the fridge is not a meal in
+  you.
 - **No second chat implementation.** One thread, two entry points.
 - **No model call for anything the device can compute.** Editing a gram value in
   a recipe card recomputes locally.
 
 ---
 
-## 9. Cost
+## 10. Cost
 
 A suggestion turn is two or three model calls with small results. On DeepSeek
 Flash at $0.15/M in and $0.60/M out that is well under a tenth of a cent, so a
