@@ -148,7 +148,10 @@ test('a DeepSeek failure says DeepSeek, not Anthropic', async () => {
     .send({ system: 's', messages: [{ role: 'user', text: 'hi' }] })
     .catch((e) => e);
 
-  assert.match(failed.message, /DeepSeek returned 402/);
+  assert.match(failed.message, /DeepSeek has no balance left/);
+  assert.match(failed.message, /stops rather than running up a bill/);
+  // Retrying does not add money.
+  assert.equal(failed.retryable, false);
 });
 
 test('DeepSeek is built from one environment variable like the others', () => {

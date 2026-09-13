@@ -78,6 +78,19 @@ export class AnthropicClient implements ModelClient {
 
     if (!response.ok) {
       const detail = await response.text().catch(() => '');
+
+      // The one failure a prepaid account actually meets. It is not a bug, it
+      // is an empty wallet, and saying so beats showing the lifter a JSON
+      // error object. Never retried: retrying does not add money.
+      if (response.status === 402) {
+        throw new ModelError(
+          `${this.#name} has no balance left. The coach stops rather than ` +
+            'running up a bill — top up and it works again.',
+          402,
+          false,
+        );
+      }
+
       throw new ModelError(
         `${this.#name} returned ${response.status}: ${detail.slice(0, 500)}`,
         response.status,
