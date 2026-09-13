@@ -22,7 +22,7 @@ import { SupabaseData } from '../../../coach-api/src/data.ts';
 import { guardTrainingTier, modelFrom } from '../../../coach-api/src/model/index.ts';
 import { systemFor } from '../../../coach-api/src/prompt.ts';
 import { writeBrief } from '../../../coach-api/src/tools/briefs.ts';
-import { draftRecipe } from '../../../coach-api/src/tools/draft.ts';
+import { draftPrepPlan, draftRecipe } from '../../../coach-api/src/tools/draft.ts';
 import { suggestMeals } from '../../../coach-api/src/tools/suggest.ts';
 import { ParseError, parseMeal, parsePhoto, parseSets } from '../../../coach-api/src/tools/parse.ts';
 import { buildSnapshot } from '../../../coach-api/src/snapshot.ts';
@@ -99,6 +99,7 @@ Deno.serve(async (request) => {
   if (path.endsWith('/draft-recipe')) {
     return oneShot(() => draftRecipe(chosen(), body.text ?? ''));
   }
+  if (path.endsWith('/draft-plan')) return plan(body, jwt);
 
   const message = (body.message ?? '').trim();
   if (!message) return fail(400, 'Nothing to answer.');
@@ -231,6 +232,56 @@ async function suggest(
       today: /^d{4}-d{2}-d{2}$/.test(body.today ?? '')
         ? body.today!
         : new Date().toISOString().slice(0, 10),
+      note: body.note,
+    });
+    return new Response(JSON.stringify(result), {
+      headers: { ...cors, 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    return fail(503, message_of(error));
+  }
+}
+
+/// A week of cooking, drafted around what is already in the fridge.
+///
+/// Reads, so it needs the JWT and the training tier guard. The fridge and the
+/// recipe names are gathered here rather than asked of the model, which is
+/// told only what exists and asked only what to do about it.
+async function plan(
+  body: { today?: string; note?: string },
+  jwt: string,
+): Promise<Response> {
+  const env = Deno.env.toObject();
+
+  try {
+    guardTrainingTier(env, { synthetic: false });
+    const data = new SupabaseData(env.SUPABASE_URL!, env.SUPABASE_ANON_KEY!, jwt);
+    const today = /^d{4}-d{2}-d{2}$/.test(body.today ?? '')
+      ? body.today!
+      : new Date().toISOString().slice(0, 10);
+
+    const [prep, recipes] = await Promise.all([
+      data.prepOnHand(today),
+      data.recipes(),
+    ]);
+
+    const onHand = prep.length === 0
+      ? ''
+      : `In the fridge:
+${prep
+        .map((batch) =>
+          `- ${batch.name}: ${batch.servingsLeft} servings left` +
+          (batch.daysLeft === undefined
+            ? ''
+            : batch.daysLeft <= 1
+            ? ', must be eaten now'
+            : `, keeps ${batch.daysLeft} more days`)
+        )
+        .join('\n')}`;
+
+    const result = await draftPrepPlan(modelFrom(env), {
+      onHand,
+      recipes: recipes.map((recipe) => recipe.name),
       note: body.note,
     });
     return new Response(JSON.stringify(result), {

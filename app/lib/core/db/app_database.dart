@@ -27,6 +27,8 @@ part 'app_database.g.dart';
   Foods,
   Recipes,
   RecipeItems,
+  GroceryLists,
+  GroceryItems,
   PrepBatches,
   Meals,
   MealItems,

@@ -128,3 +128,139 @@ function validate(value: unknown): DraftRecipe {
       : {}),
   };
 }
+
+// ---------------------------------------------------------------------------
+// A week of cooking
+// ---------------------------------------------------------------------------
+
+/// One cook in a week's plan.
+///
+/// Either a recipe already saved — named exactly, so the device can look it up
+/// and cost it — or a new one drafted here, in the same shape as [DraftRecipe].
+export interface PlannedCook {
+  name: string;
+  servings: number;
+  /// True when [name] is one of the saved recipes it was given.
+  saved: boolean;
+  /// Only for a new recipe. Empty for a saved one, which already has its own.
+  ingredients: DraftIngredient[];
+  /// Which meals this batch is meant to cover — "Mon–Wed lunches".
+  covers?: string;
+}
+
+export interface PrepPlan {
+  cooks: PlannedCook[];
+  /// One line on the shape of the week, or what it leaves out.
+  note?: string;
+}
+
+const planPrompt = `
+You plan a week of cooking: two or three batches that cover the meals asked
+for. You do not chat or greet.
+
+Reply with JSON only. No prose, no markdown fence.
+
+{"cooks":[{"name":"Chicken rice bowl","servings":4,"saved":true,"ingredients":[],"covers":"Mon-Wed lunches"},{"name":"Beef chilli","servings":3,"saved":false,"ingredients":[{"name":"Beef mince","grams":500,"note":"5% fat"},{"name":"Kidney beans","grams":400}],"covers":"Thu-Sat lunches"}],"note":"Sunday is left free."}
+
+Rules:
+
+- **Never state calories or macros.** They are computed from a food database
+  once the ingredients are matched up. A number from you would only be wrong.
+- Two or three cooks. A week is not twenty-one decisions, and a plan with a
+  different dish every day is one nobody follows.
+- **Subtract what is already cooked.** You are told what is in the fridge and
+  how many servings are left. Those meals are covered; do not plan a batch to
+  replace food that exists.
+- Prefer the recipes they have saved. Set "saved" to true and name it exactly as
+  given, with an empty "ingredients" — the app has them already.
+- For a new dish set "saved" to false and list ingredients in grams for the
+  whole batch, the same way a recipe is written. Include oil, butter and sauces.
+- "servings" is how many portions that batch makes.
+- "covers" is which meals it is for, short. "Mon-Wed lunches".
+- "note" is at most one sentence, and only if there is something worth saying.
+
+If there is nothing to plan, reply {"cooks":[]}.
+`.trim();
+
+/// Drafts a week of cooking around what is already in the fridge.
+export async function draftPrepPlan(
+  model: ModelClient,
+  input: { onHand: string; recipes: string[]; note?: string },
+): Promise<PrepPlan> {
+  const context = [
+    input.onHand.trim() || 'Nothing cooked in the fridge.',
+    input.recipes.length === 0
+      ? 'No saved recipes.'
+      : `Saved recipes: ${input.recipes.join(', ')}.`,
+    input.note?.trim() ? `They said: ${input.note.trim()}` : undefined,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+
+  const reply = await model.send({
+    system: planPrompt,
+    messages: [{ role: 'user', text: context }],
+    maxOutputTokens: 2048,
+    effort: 'low',
+  });
+
+  return assertMinimal(validatePlan(parseJson(reply.text)), 'draft_prep_plan');
+}
+
+function validatePlan(value: unknown): PrepPlan {
+  if (typeof value !== 'object' || value === null) {
+    throw new ParseError('The coach did not answer with a plan.');
+  }
+  const raw = value as Record<string, unknown>;
+  const rows = Array.isArray(raw.cooks) ? raw.cooks : [];
+
+  const cooks: PlannedCook[] = [];
+  for (const entry of rows.slice(0, 6)) {
+    if (typeof entry !== 'object' || entry === null) continue;
+    const row = entry as Record<string, unknown>;
+    const name = typeof row.name === 'string' ? row.name.trim() : '';
+    if (!name) continue;
+
+    const servings = Number(row.servings);
+    const saved = row.saved === true;
+    const ingredients: DraftIngredient[] = [];
+    for (const item of Array.isArray(row.ingredients) ? row.ingredients : []) {
+      if (typeof item !== 'object' || item === null) continue;
+      const line = item as Record<string, unknown>;
+      const ingredient = typeof line.name === 'string' ? line.name.trim() : '';
+      const grams = Number(line.grams);
+      if (!ingredient || !Number.isFinite(grams) || grams <= 0) continue;
+      ingredients.push({
+        name: ingredient,
+        grams: Math.round(grams),
+        ...(typeof line.note === 'string' && line.note.trim()
+          ? { note: line.note.trim() }
+          : {}),
+      });
+    }
+
+    // A new dish with nothing in it cannot be shopped for or cooked, and
+    // showing it would promise a meal that does not exist.
+    if (!saved && ingredients.length === 0) continue;
+
+    cooks.push({
+      name,
+      servings:
+        Number.isFinite(servings) && servings >= 1 && servings <= 100
+          ? Math.round(servings)
+          : 1,
+      saved,
+      ingredients,
+      ...(typeof row.covers === 'string' && row.covers.trim()
+        ? { covers: row.covers.trim() }
+        : {}),
+    });
+  }
+
+  return {
+    cooks,
+    ...(typeof raw.note === 'string' && raw.note.trim()
+      ? { note: raw.note.trim() }
+      : {}),
+  };
+}

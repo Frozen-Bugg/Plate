@@ -104,7 +104,7 @@ const SYNCED = [
   'body_metrics', 'daily_activity', 'recovery_daily', 'progress_photos',
   'daily_rollup',
   'foods', 'recipes', 'recipe_items', 'meals', 'meal_items',
-  'nutrition_targets', 'prep_batches',
+  'nutrition_targets', 'prep_batches', 'grocery_lists', 'grocery_items',
   'coach_threads', 'coach_messages', 'coach_memories', 'ai_proposals',
 ];
 
@@ -746,6 +746,87 @@ await check('a batch cannot claim more servings than a pot holds', async () => {
          (user_id, recipe_id, cooked_on, servings_made)
        values ($1,$2,'2026-09-14',0)`, [uid, recipe]),
     'accepted a cook that made nothing');
+});
+
+
+// ---------------------------------------------------------------------------
+// groceries
+// ---------------------------------------------------------------------------
+
+console.log('\ngroceries:');
+
+const userWithList = async () => {
+  const { uid, food } = await userWithFood();
+  const list = (await db.query(
+    `insert into public.grocery_lists (user_id, name, for_week)
+     values ($1,'This week','2026-09-14') returning id`, [uid])).rows[0].id;
+  return { uid, food, list };
+};
+
+await check('a line keeps its name when the food is tidied away', async () => {
+  // "600 g of something deleted" is not a line anyone can shop from.
+  const { uid, food, list } = await userWithList();
+  await db.query(
+    `insert into public.grocery_items (user_id, list_id, name, food_id, quantity_g)
+     values ($1,$2,'Chicken breast',$3,600)`, [uid, list, food]);
+  await db.query(
+    `update public.foods set deleted_at = now() where id=$1`, [food]);
+
+  const row = (await db.query(
+    `select name, quantity_g from public.grocery_items where list_id=$1`,
+    [list])).rows[0];
+  expect(row.name === 'Chicken breast', 'the line lost its name');
+});
+
+await check('a line can be added by hand with no food behind it', async () => {
+  // Bin bags are not a food, and a shopping list that cannot hold one is a
+  // shopping list nobody uses.
+  const { uid, list } = await userWithList();
+  await db.query(
+    `insert into public.grocery_items (user_id, list_id, name, from_plan)
+     values ($1,$2,'Bin bags',false)`, [uid, list]);
+  const row = (await db.query(
+    `select from_plan, checked from public.grocery_items where list_id=$1`,
+    [list])).rows[0];
+  expect(row.from_plan === false, 'from_plan did not stick');
+  expect(row.checked === false, 'a new line started ticked');
+});
+
+await check('a list cannot borrow a food belonging to somebody else', async () => {
+  const { food } = await userWithList();
+  const other = await newUser();
+  const theirs = (await db.query(
+    `insert into public.grocery_lists (user_id) values ($1) returning id`,
+    [other])).rows[0].id;
+  expect(
+    await rejects(
+      `insert into public.grocery_items (user_id, list_id, name, food_id, quantity_g)
+       values ($1,$2,'Chicken',$3,600)`, [other, theirs, food]),
+    'put a food belonging to somebody else on a list');
+});
+
+await check('deleting a list takes its lines with it', async () => {
+  const { uid, list } = await userWithList();
+  await db.query(
+    `insert into public.grocery_items (user_id, list_id, name, quantity_g)
+     values ($1,$2,'Rice',1000)`, [uid, list]);
+  await db.query(`delete from public.grocery_lists where id=$1`, [list]);
+  const left = (await db.query(
+    `select 1 from public.grocery_items where list_id=$1`, [list])).rows;
+  expect(left.length === 0, 'orphan grocery lines left behind');
+});
+
+await check('groceries go with the lifter', async () => {
+  const { uid, list } = await userWithList();
+  await db.query(
+    `insert into public.grocery_items (user_id, list_id, name) values ($1,$2,'Oats')`,
+    [uid, list]);
+  await db.query(`delete from auth.users where id=$1`, [uid]);
+  for (const table of ['grocery_lists', 'grocery_items']) {
+    const left = (await db.query(
+      `select 1 from public.${table} where user_id=$1`, [uid])).rows;
+    expect(left.length === 0, `${table} survived the account being deleted`);
+  }
 });
 
 

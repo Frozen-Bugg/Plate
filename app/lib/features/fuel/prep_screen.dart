@@ -5,6 +5,7 @@ import '../../core/day.dart';
 import 'prep_repository.dart';
 import 'recipes_repository.dart';
 import 'recipes_screen.dart';
+import 'week_plan_sheet.dart';
 
 /// What is in the fridge, on the day log.
 ///
@@ -311,13 +312,19 @@ class PrepScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Cooks')),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => showWeekPlanSheet(context),
+        icon: const Icon(Icons.auto_awesome_outlined),
+        label: const Text('Plan the week'),
+      ),
       body: batches.isEmpty
           ? Center(
               child: Padding(
                 padding: const EdgeInsets.all(32),
                 child: Text(
                   'Nothing cooked yet. Open a recipe and log a cook when you '
-                  'have made a batch of it.',
+                  'have made a batch of it — or plan a week and let the coach '
+                  'work out what to make.',
                   textAlign: TextAlign.center,
                   style: text.bodyMedium?.copyWith(color: muted),
                 ),

@@ -373,6 +373,39 @@ class RecipeItems extends Table with SyncedRow {
   RealColumn get quantityG => real()();
 }
 
+/// One shop.
+///
+/// Derived from a week's cooks and then edited. There is no plan table behind
+/// it on purpose: a week's plan is a decision made once, and the two things
+/// that outlive it are the list you shop from and the batches you log when you
+/// actually cook.
+@DataClassName('GroceryListRow')
+class GroceryLists extends Table with SyncedRow {
+  TextColumn get userId => text()();
+  TextColumn get name => text().withDefault(const Constant('Shopping'))();
+
+  /// The week it was built for, as an ISO date.
+  TextColumn get forWeek => text().nullable()();
+}
+
+/// One line of a shopping list.
+///
+/// [name] is stored rather than only referenced, because a list has to survive
+/// the food being renamed or tidied away — and because half the things on a
+/// shopping list are not foods at all.
+class GroceryItems extends Table with SyncedRow {
+  TextColumn get userId => text()();
+  TextColumn get listId => text()();
+  TextColumn get name => text()();
+  TextColumn get foodId => text().nullable()();
+  RealColumn get quantityG => real().nullable()();
+
+  /// False for a line added by hand, so rebuilding a list can leave it alone.
+  BoolColumn get fromPlan => boolean().withDefault(const Constant(true))();
+  BoolColumn get checked => boolean().withDefault(const Constant(false))();
+  IntColumn get position => integer().withDefault(const Constant(0))();
+}
+
 /// A cook that happened: this recipe, this day, this many portions.
 ///
 /// [cookedWeightG] is on the batch rather than the recipe because it changes —

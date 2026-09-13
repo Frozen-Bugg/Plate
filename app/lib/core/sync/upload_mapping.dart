@@ -16,6 +16,7 @@ const boolColumns = <String, Set<String>>{
   'sets': {'is_pr'},
   'foods': {'favourite'},
   'recipes': {'favourite'},
+  'grocery_items': {'from_plan', 'checked'},
   'ai_proposals': {'validated'},
 };
 

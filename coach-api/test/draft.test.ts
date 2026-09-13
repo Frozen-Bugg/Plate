@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { StubClient } from '../src/model/stub.ts';
-import { draftRecipe } from '../src/tools/draft.ts';
+import { draftPrepPlan, draftRecipe } from '../src/tools/draft.ts';
 
 const bowl = JSON.stringify({
   name: 'Chicken rice bowl',
@@ -133,4 +133,103 @@ test('refuses to put an identifier in a recipe', async () => {
       ),
     /uuid/,
   );
+});
+
+// ---------------------------------------------------------------------------
+// A week of cooking
+// ---------------------------------------------------------------------------
+
+const weekPlan = JSON.stringify({
+  cooks: [
+    { name: 'Chicken rice bowl', servings: 4, saved: true, ingredients: [], covers: 'Mon-Wed lunches' },
+    {
+      name: 'Beef chilli',
+      servings: 3,
+      saved: false,
+      ingredients: [
+        { name: 'Beef mince', grams: 500, note: '5% fat' },
+        { name: 'Kidney beans', grams: 400 },
+      ],
+      covers: 'Thu-Sat lunches',
+    },
+  ],
+  note: 'Sunday is left free.',
+});
+
+test('a saved recipe is named rather than re-invented', async () => {
+  const plan = await draftPrepPlan(new StubClient([{ text: weekPlan }]), {
+    onHand: '',
+    recipes: ['Chicken rice bowl'],
+  });
+
+  const saved = plan.cooks[0]!;
+  assert.equal(saved.saved, true);
+  assert.equal(saved.name, 'Chicken rice bowl');
+  // The device has the ingredients already, and a second copy would drift.
+  assert.deepEqual(saved.ingredients, []);
+  assert.equal(saved.covers, 'Mon-Wed lunches');
+});
+
+test('a new dish carries its ingredients and still no macros', async () => {
+  const plan = await draftPrepPlan(new StubClient([{ text: weekPlan }]), {
+    onHand: '',
+    recipes: [],
+  });
+
+  const fresh = plan.cooks[1]!;
+  assert.equal(fresh.saved, false);
+  assert.equal(fresh.ingredients.length, 2);
+  assert.deepEqual(Object.keys(fresh.ingredients[1]!), ['name', 'grams']);
+});
+
+test('the fridge is put in front of it, with the deadlines', async () => {
+  const model = new StubClient([{ text: weekPlan }]);
+  await draftPrepPlan(model, {
+    onHand: 'In the fridge:\n- Beef chilli: 2 servings left, must be eaten now',
+    recipes: ['Chicken rice bowl'],
+    note: 'six lunches',
+  });
+
+  const sent = (model.lastMessages[0] as { text: string }).text;
+  assert.match(sent, /Beef chilli: 2 servings left/);
+  assert.match(sent, /Saved recipes: Chicken rice bowl/);
+  assert.match(sent, /They said: six lunches/);
+  assert.match(model.lastRequest.system, /Subtract what is already cooked/);
+});
+
+test('an empty fridge says so rather than being left out', async () => {
+  const model = new StubClient([{ text: weekPlan }]);
+  await draftPrepPlan(model, { onHand: '', recipes: [] });
+  const sent = (model.lastMessages[0] as { text: string }).text;
+  assert.match(sent, /Nothing cooked in the fridge/);
+  assert.match(sent, /No saved recipes/);
+});
+
+test('a new dish with nothing in it is dropped', async () => {
+  // It cannot be shopped for or cooked, and showing it would promise a meal
+  // that does not exist.
+  const plan = await draftPrepPlan(
+    new StubClient([{
+      text: JSON.stringify({
+        cooks: [
+          { name: 'Something', servings: 4, saved: false, ingredients: [] },
+          { name: 'Porridge', servings: 4, saved: true, ingredients: [] },
+        ],
+      }),
+    }]),
+    { onHand: '', recipes: ['Porridge'] },
+  );
+
+  assert.equal(plan.cooks.length, 1);
+  assert.equal(plan.cooks[0]?.name, 'Porridge');
+});
+
+test('a week with nothing to plan is not an error', async () => {
+  // Everything covered by the fridge is a real answer, and throwing would make
+  // the good outcome look like a failure.
+  const plan = await draftPrepPlan(
+    new StubClient([{ text: '{"cooks":[]}' }]),
+    { onHand: 'loads', recipes: [] },
+  );
+  assert.deepEqual(plan.cooks, []);
 });

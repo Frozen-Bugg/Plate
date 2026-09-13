@@ -280,6 +280,28 @@ const schema = Schema([
   // A cook that happened. See docs/MEAL-PLANNING.md §6: cooked_weight_g is on
   // the batch and not the recipe because it changes, and servings remaining is
   // derived from the portions logged against it rather than counted down.
+  // The shopping list. Read one-handed in a shop, which is often a place
+  // without a signal, so it syncs like everything else rather than being
+  // fetched when opened.
+  Table('grocery_lists', [
+    Column.text('user_id'),
+    Column.text('name'),
+    Column.text('for_week'),
+    ..._timestamps,
+  ]),
+  Table('grocery_items', [
+    Column.text('user_id'),
+    Column.text('list_id'),
+    Column.text('name'),
+    Column.text('food_id'),
+    Column.real('quantity_g'),
+    Column.integer('from_plan'),
+    Column.integer('checked'),
+    Column.integer('position'),
+    ..._timestamps,
+  ], indexes: [
+    Index('list', [IndexedColumn('list_id')]),
+  ]),
   Table('prep_batches', [
     Column.text('user_id'),
     Column.text('recipe_id'),

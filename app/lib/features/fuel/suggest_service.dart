@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/day.dart';
 import 'quick_add_service.dart';
 
 /// One thing worth eating next.
@@ -160,8 +161,63 @@ class DraftService {
     final json = await _quickAdd.post('draft-recipe', {'text': description});
     return DraftedRecipe.fromJson((json as Map).cast<String, dynamic>());
   }
+
+  /// A week of cooking, worked out around what is already in the fridge.
+  Future<PrepPlan> draftPlan({String? note}) async {
+    final json = await _quickAdd.post('draft-plan', {
+      'today': dayKey(),
+      if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+    });
+    return PrepPlan.fromJson((json as Map).cast<String, dynamic>());
+  }
 }
 
 final draftServiceProvider = Provider<DraftService>(
   (ref) => DraftService(ref.watch(quickAddServiceProvider)),
 );
+
+/// One batch in a week's plan.
+class PlannedCook {
+  const PlannedCook({
+    required this.name,
+    required this.servings,
+    required this.saved,
+    required this.ingredients,
+    this.covers,
+  });
+
+  factory PlannedCook.fromJson(Map<String, dynamic> json) => PlannedCook(
+        name: json['name'] as String? ?? 'Cook',
+        servings: (json['servings'] as num?)?.round() ?? 1,
+        saved: json['saved'] == true,
+        covers: json['covers'] as String?,
+        ingredients: [
+          for (final row in (json['ingredients'] as List<dynamic>? ?? const []))
+            DraftIngredient.fromJson((row as Map).cast<String, dynamic>()),
+        ],
+      );
+
+  final String name;
+  final int servings;
+
+  /// Whether this names a recipe already saved, whose ingredients the device
+  /// has and the server did not send back.
+  final bool saved;
+  final String? covers;
+  final List<DraftIngredient> ingredients;
+}
+
+class PrepPlan {
+  const PrepPlan({required this.cooks, this.note});
+
+  factory PrepPlan.fromJson(Map<String, dynamic> json) => PrepPlan(
+        note: json['note'] as String?,
+        cooks: [
+          for (final row in (json['cooks'] as List<dynamic>? ?? const []))
+            PlannedCook.fromJson((row as Map).cast<String, dynamic>()),
+        ],
+      );
+
+  final List<PlannedCook> cooks;
+  final String? note;
+}

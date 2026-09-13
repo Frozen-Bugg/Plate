@@ -9,6 +9,8 @@ import 'add_food_sheet.dart';
 import 'foods_repository.dart';
 import 'macro_rings.dart';
 import 'meals_repository.dart';
+import 'groceries_repository.dart';
+import 'groceries_screen.dart';
 import 'prep_screen.dart';
 import 'quick_add_sheet.dart';
 import 'recipes_repository.dart';
@@ -31,6 +33,7 @@ class FuelScreen extends ConsumerWidget {
     return TabScaffold(
       title: 'Fuel',
       actions: [
+        const _ShoppingButton(),
         IconButton(
           tooltip: 'Recipes',
           icon: const Icon(Icons.menu_book_outlined),
@@ -114,6 +117,32 @@ class FuelScreen extends ConsumerWidget {
             label: const Text('Log food'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The shopping list, with what is left to pick up on it.
+///
+/// Only shown once there is a list. A basket icon that always leads to an
+/// empty screen is one nobody presses twice.
+class _ShoppingButton extends ConsumerWidget {
+  const _ShoppingButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final list = ref.watch(currentGroceryListProvider);
+    if (list == null) return const SizedBox.shrink();
+
+    return IconButton(
+      tooltip: 'Shopping',
+      icon: Badge(
+        isLabelVisible: list.left > 0,
+        label: Text('${list.left}'),
+        child: const Icon(Icons.shopping_basket_outlined),
+      ),
+      onPressed: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => const GroceriesScreen()),
       ),
     );
   }

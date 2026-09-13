@@ -104,6 +104,16 @@ streams:
     auto_subscribe: true
     query: SELECT * FROM prep_batches WHERE user_id = auth.user_id() AND deleted_at IS NULL
 
+  # The shopping list, which is read one-handed in a shop and so must be there
+  # whether or not the shop has a signal.
+  grocery_lists:
+    auto_subscribe: true
+    query: SELECT * FROM grocery_lists WHERE user_id = auth.user_id() AND deleted_at IS NULL
+
+  grocery_items:
+    auto_subscribe: true
+    query: SELECT * FROM grocery_items WHERE user_id = auth.user_id() AND deleted_at IS NULL
+
   # Phase 4 (Coach). The conversation syncs so a thread started on the phone can
   # be read on the web, and so history renders offline. Memories sync too: a
   # coach whose notes you cannot see is one you cannot correct.

@@ -13515,6 +13515,1150 @@ class RecipeItemsCompanion extends UpdateCompanion<RecipeItem> {
   }
 }
 
+class $GroceryListsTable extends GroceryLists
+    with TableInfo<$GroceryListsTable, GroceryListRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $GroceryListsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    clientDefault: () => uuid.v7(),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    clientDefault: nowUtc,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    clientDefault: nowUtc,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
+  @override
+  late final GeneratedColumn<String> userId = GeneratedColumn<String>(
+    'user_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('Shopping'),
+  );
+  static const VerificationMeta _forWeekMeta = const VerificationMeta(
+    'forWeek',
+  );
+  @override
+  late final GeneratedColumn<String> forWeek = GeneratedColumn<String>(
+    'for_week',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    userId,
+    name,
+    forWeek,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'grocery_lists';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<GroceryListRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('user_id')) {
+      context.handle(
+        _userIdMeta,
+        userId.isAcceptableOrUnknown(data['user_id']!, _userIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_userIdMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    }
+    if (data.containsKey('for_week')) {
+      context.handle(
+        _forWeekMeta,
+        forWeek.isAcceptableOrUnknown(data['for_week']!, _forWeekMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  GroceryListRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return GroceryListRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      userId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      forWeek: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}for_week'],
+      ),
+    );
+  }
+
+  @override
+  $GroceryListsTable createAlias(String alias) {
+    return $GroceryListsTable(attachedDatabase, alias);
+  }
+}
+
+class GroceryListRow extends DataClass implements Insertable<GroceryListRow> {
+  final String id;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? deletedAt;
+  final String userId;
+  final String name;
+
+  /// The week it was built for, as an ISO date.
+  final String? forWeek;
+  const GroceryListRow({
+    required this.id,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+    required this.userId,
+    required this.name,
+    this.forWeek,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    map['user_id'] = Variable<String>(userId);
+    map['name'] = Variable<String>(name);
+    if (!nullToAbsent || forWeek != null) {
+      map['for_week'] = Variable<String>(forWeek);
+    }
+    return map;
+  }
+
+  GroceryListsCompanion toCompanion(bool nullToAbsent) {
+    return GroceryListsCompanion(
+      id: Value(id),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      userId: Value(userId),
+      name: Value(name),
+      forWeek: forWeek == null && nullToAbsent
+          ? const Value.absent()
+          : Value(forWeek),
+    );
+  }
+
+  factory GroceryListRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return GroceryListRow(
+      id: serializer.fromJson<String>(json['id']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+      userId: serializer.fromJson<String>(json['userId']),
+      name: serializer.fromJson<String>(json['name']),
+      forWeek: serializer.fromJson<String?>(json['forWeek']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+      'userId': serializer.toJson<String>(userId),
+      'name': serializer.toJson<String>(name),
+      'forWeek': serializer.toJson<String?>(forWeek),
+    };
+  }
+
+  GroceryListRow copyWith({
+    String? id,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+    String? userId,
+    String? name,
+    Value<String?> forWeek = const Value.absent(),
+  }) => GroceryListRow(
+    id: id ?? this.id,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    userId: userId ?? this.userId,
+    name: name ?? this.name,
+    forWeek: forWeek.present ? forWeek.value : this.forWeek,
+  );
+  GroceryListRow copyWithCompanion(GroceryListsCompanion data) {
+    return GroceryListRow(
+      id: data.id.present ? data.id.value : this.id,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      userId: data.userId.present ? data.userId.value : this.userId,
+      name: data.name.present ? data.name.value : this.name,
+      forWeek: data.forWeek.present ? data.forWeek.value : this.forWeek,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GroceryListRow(')
+          ..write('id: $id, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('userId: $userId, ')
+          ..write('name: $name, ')
+          ..write('forWeek: $forWeek')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, createdAt, updatedAt, deletedAt, userId, name, forWeek);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is GroceryListRow &&
+          other.id == this.id &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt &&
+          other.userId == this.userId &&
+          other.name == this.name &&
+          other.forWeek == this.forWeek);
+}
+
+class GroceryListsCompanion extends UpdateCompanion<GroceryListRow> {
+  final Value<String> id;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<String> userId;
+  final Value<String> name;
+  final Value<String?> forWeek;
+  final Value<int> rowid;
+  const GroceryListsCompanion({
+    this.id = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.userId = const Value.absent(),
+    this.name = const Value.absent(),
+    this.forWeek = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  GroceryListsCompanion.insert({
+    this.id = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    required String userId,
+    this.name = const Value.absent(),
+    this.forWeek = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : userId = Value(userId);
+  static Insertable<GroceryListRow> custom({
+    Expression<String>? id,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<String>? userId,
+    Expression<String>? name,
+    Expression<String>? forWeek,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (userId != null) 'user_id': userId,
+      if (name != null) 'name': name,
+      if (forWeek != null) 'for_week': forWeek,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  GroceryListsCompanion copyWith({
+    Value<String>? id,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<String>? userId,
+    Value<String>? name,
+    Value<String?>? forWeek,
+    Value<int>? rowid,
+  }) {
+    return GroceryListsCompanion(
+      id: id ?? this.id,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      userId: userId ?? this.userId,
+      name: name ?? this.name,
+      forWeek: forWeek ?? this.forWeek,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (userId.present) {
+      map['user_id'] = Variable<String>(userId.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (forWeek.present) {
+      map['for_week'] = Variable<String>(forWeek.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GroceryListsCompanion(')
+          ..write('id: $id, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('userId: $userId, ')
+          ..write('name: $name, ')
+          ..write('forWeek: $forWeek, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $GroceryItemsTable extends GroceryItems
+    with TableInfo<$GroceryItemsTable, GroceryItem> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $GroceryItemsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    clientDefault: () => uuid.v7(),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    clientDefault: nowUtc,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    clientDefault: nowUtc,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
+  @override
+  late final GeneratedColumn<String> userId = GeneratedColumn<String>(
+    'user_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _listIdMeta = const VerificationMeta('listId');
+  @override
+  late final GeneratedColumn<String> listId = GeneratedColumn<String>(
+    'list_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _foodIdMeta = const VerificationMeta('foodId');
+  @override
+  late final GeneratedColumn<String> foodId = GeneratedColumn<String>(
+    'food_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _quantityGMeta = const VerificationMeta(
+    'quantityG',
+  );
+  @override
+  late final GeneratedColumn<double> quantityG = GeneratedColumn<double>(
+    'quantity_g',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _fromPlanMeta = const VerificationMeta(
+    'fromPlan',
+  );
+  @override
+  late final GeneratedColumn<bool> fromPlan = GeneratedColumn<bool>(
+    'from_plan',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("from_plan" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _checkedMeta = const VerificationMeta(
+    'checked',
+  );
+  @override
+  late final GeneratedColumn<bool> checked = GeneratedColumn<bool>(
+    'checked',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("checked" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _positionMeta = const VerificationMeta(
+    'position',
+  );
+  @override
+  late final GeneratedColumn<int> position = GeneratedColumn<int>(
+    'position',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    userId,
+    listId,
+    name,
+    foodId,
+    quantityG,
+    fromPlan,
+    checked,
+    position,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'grocery_items';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<GroceryItem> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('user_id')) {
+      context.handle(
+        _userIdMeta,
+        userId.isAcceptableOrUnknown(data['user_id']!, _userIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_userIdMeta);
+    }
+    if (data.containsKey('list_id')) {
+      context.handle(
+        _listIdMeta,
+        listId.isAcceptableOrUnknown(data['list_id']!, _listIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_listIdMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('food_id')) {
+      context.handle(
+        _foodIdMeta,
+        foodId.isAcceptableOrUnknown(data['food_id']!, _foodIdMeta),
+      );
+    }
+    if (data.containsKey('quantity_g')) {
+      context.handle(
+        _quantityGMeta,
+        quantityG.isAcceptableOrUnknown(data['quantity_g']!, _quantityGMeta),
+      );
+    }
+    if (data.containsKey('from_plan')) {
+      context.handle(
+        _fromPlanMeta,
+        fromPlan.isAcceptableOrUnknown(data['from_plan']!, _fromPlanMeta),
+      );
+    }
+    if (data.containsKey('checked')) {
+      context.handle(
+        _checkedMeta,
+        checked.isAcceptableOrUnknown(data['checked']!, _checkedMeta),
+      );
+    }
+    if (data.containsKey('position')) {
+      context.handle(
+        _positionMeta,
+        position.isAcceptableOrUnknown(data['position']!, _positionMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  GroceryItem map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return GroceryItem(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      userId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_id'],
+      )!,
+      listId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}list_id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      foodId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}food_id'],
+      ),
+      quantityG: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}quantity_g'],
+      ),
+      fromPlan: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}from_plan'],
+      )!,
+      checked: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}checked'],
+      )!,
+      position: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}position'],
+      )!,
+    );
+  }
+
+  @override
+  $GroceryItemsTable createAlias(String alias) {
+    return $GroceryItemsTable(attachedDatabase, alias);
+  }
+}
+
+class GroceryItem extends DataClass implements Insertable<GroceryItem> {
+  final String id;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? deletedAt;
+  final String userId;
+  final String listId;
+  final String name;
+  final String? foodId;
+  final double? quantityG;
+
+  /// False for a line added by hand, so rebuilding a list can leave it alone.
+  final bool fromPlan;
+  final bool checked;
+  final int position;
+  const GroceryItem({
+    required this.id,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+    required this.userId,
+    required this.listId,
+    required this.name,
+    this.foodId,
+    this.quantityG,
+    required this.fromPlan,
+    required this.checked,
+    required this.position,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    map['user_id'] = Variable<String>(userId);
+    map['list_id'] = Variable<String>(listId);
+    map['name'] = Variable<String>(name);
+    if (!nullToAbsent || foodId != null) {
+      map['food_id'] = Variable<String>(foodId);
+    }
+    if (!nullToAbsent || quantityG != null) {
+      map['quantity_g'] = Variable<double>(quantityG);
+    }
+    map['from_plan'] = Variable<bool>(fromPlan);
+    map['checked'] = Variable<bool>(checked);
+    map['position'] = Variable<int>(position);
+    return map;
+  }
+
+  GroceryItemsCompanion toCompanion(bool nullToAbsent) {
+    return GroceryItemsCompanion(
+      id: Value(id),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      userId: Value(userId),
+      listId: Value(listId),
+      name: Value(name),
+      foodId: foodId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(foodId),
+      quantityG: quantityG == null && nullToAbsent
+          ? const Value.absent()
+          : Value(quantityG),
+      fromPlan: Value(fromPlan),
+      checked: Value(checked),
+      position: Value(position),
+    );
+  }
+
+  factory GroceryItem.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return GroceryItem(
+      id: serializer.fromJson<String>(json['id']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+      userId: serializer.fromJson<String>(json['userId']),
+      listId: serializer.fromJson<String>(json['listId']),
+      name: serializer.fromJson<String>(json['name']),
+      foodId: serializer.fromJson<String?>(json['foodId']),
+      quantityG: serializer.fromJson<double?>(json['quantityG']),
+      fromPlan: serializer.fromJson<bool>(json['fromPlan']),
+      checked: serializer.fromJson<bool>(json['checked']),
+      position: serializer.fromJson<int>(json['position']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+      'userId': serializer.toJson<String>(userId),
+      'listId': serializer.toJson<String>(listId),
+      'name': serializer.toJson<String>(name),
+      'foodId': serializer.toJson<String?>(foodId),
+      'quantityG': serializer.toJson<double?>(quantityG),
+      'fromPlan': serializer.toJson<bool>(fromPlan),
+      'checked': serializer.toJson<bool>(checked),
+      'position': serializer.toJson<int>(position),
+    };
+  }
+
+  GroceryItem copyWith({
+    String? id,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+    String? userId,
+    String? listId,
+    String? name,
+    Value<String?> foodId = const Value.absent(),
+    Value<double?> quantityG = const Value.absent(),
+    bool? fromPlan,
+    bool? checked,
+    int? position,
+  }) => GroceryItem(
+    id: id ?? this.id,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    userId: userId ?? this.userId,
+    listId: listId ?? this.listId,
+    name: name ?? this.name,
+    foodId: foodId.present ? foodId.value : this.foodId,
+    quantityG: quantityG.present ? quantityG.value : this.quantityG,
+    fromPlan: fromPlan ?? this.fromPlan,
+    checked: checked ?? this.checked,
+    position: position ?? this.position,
+  );
+  GroceryItem copyWithCompanion(GroceryItemsCompanion data) {
+    return GroceryItem(
+      id: data.id.present ? data.id.value : this.id,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      userId: data.userId.present ? data.userId.value : this.userId,
+      listId: data.listId.present ? data.listId.value : this.listId,
+      name: data.name.present ? data.name.value : this.name,
+      foodId: data.foodId.present ? data.foodId.value : this.foodId,
+      quantityG: data.quantityG.present ? data.quantityG.value : this.quantityG,
+      fromPlan: data.fromPlan.present ? data.fromPlan.value : this.fromPlan,
+      checked: data.checked.present ? data.checked.value : this.checked,
+      position: data.position.present ? data.position.value : this.position,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GroceryItem(')
+          ..write('id: $id, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('userId: $userId, ')
+          ..write('listId: $listId, ')
+          ..write('name: $name, ')
+          ..write('foodId: $foodId, ')
+          ..write('quantityG: $quantityG, ')
+          ..write('fromPlan: $fromPlan, ')
+          ..write('checked: $checked, ')
+          ..write('position: $position')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    userId,
+    listId,
+    name,
+    foodId,
+    quantityG,
+    fromPlan,
+    checked,
+    position,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is GroceryItem &&
+          other.id == this.id &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt &&
+          other.userId == this.userId &&
+          other.listId == this.listId &&
+          other.name == this.name &&
+          other.foodId == this.foodId &&
+          other.quantityG == this.quantityG &&
+          other.fromPlan == this.fromPlan &&
+          other.checked == this.checked &&
+          other.position == this.position);
+}
+
+class GroceryItemsCompanion extends UpdateCompanion<GroceryItem> {
+  final Value<String> id;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<String> userId;
+  final Value<String> listId;
+  final Value<String> name;
+  final Value<String?> foodId;
+  final Value<double?> quantityG;
+  final Value<bool> fromPlan;
+  final Value<bool> checked;
+  final Value<int> position;
+  final Value<int> rowid;
+  const GroceryItemsCompanion({
+    this.id = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.userId = const Value.absent(),
+    this.listId = const Value.absent(),
+    this.name = const Value.absent(),
+    this.foodId = const Value.absent(),
+    this.quantityG = const Value.absent(),
+    this.fromPlan = const Value.absent(),
+    this.checked = const Value.absent(),
+    this.position = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  GroceryItemsCompanion.insert({
+    this.id = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    required String userId,
+    required String listId,
+    required String name,
+    this.foodId = const Value.absent(),
+    this.quantityG = const Value.absent(),
+    this.fromPlan = const Value.absent(),
+    this.checked = const Value.absent(),
+    this.position = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : userId = Value(userId),
+       listId = Value(listId),
+       name = Value(name);
+  static Insertable<GroceryItem> custom({
+    Expression<String>? id,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<String>? userId,
+    Expression<String>? listId,
+    Expression<String>? name,
+    Expression<String>? foodId,
+    Expression<double>? quantityG,
+    Expression<bool>? fromPlan,
+    Expression<bool>? checked,
+    Expression<int>? position,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (userId != null) 'user_id': userId,
+      if (listId != null) 'list_id': listId,
+      if (name != null) 'name': name,
+      if (foodId != null) 'food_id': foodId,
+      if (quantityG != null) 'quantity_g': quantityG,
+      if (fromPlan != null) 'from_plan': fromPlan,
+      if (checked != null) 'checked': checked,
+      if (position != null) 'position': position,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  GroceryItemsCompanion copyWith({
+    Value<String>? id,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<String>? userId,
+    Value<String>? listId,
+    Value<String>? name,
+    Value<String?>? foodId,
+    Value<double?>? quantityG,
+    Value<bool>? fromPlan,
+    Value<bool>? checked,
+    Value<int>? position,
+    Value<int>? rowid,
+  }) {
+    return GroceryItemsCompanion(
+      id: id ?? this.id,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      userId: userId ?? this.userId,
+      listId: listId ?? this.listId,
+      name: name ?? this.name,
+      foodId: foodId ?? this.foodId,
+      quantityG: quantityG ?? this.quantityG,
+      fromPlan: fromPlan ?? this.fromPlan,
+      checked: checked ?? this.checked,
+      position: position ?? this.position,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (userId.present) {
+      map['user_id'] = Variable<String>(userId.value);
+    }
+    if (listId.present) {
+      map['list_id'] = Variable<String>(listId.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (foodId.present) {
+      map['food_id'] = Variable<String>(foodId.value);
+    }
+    if (quantityG.present) {
+      map['quantity_g'] = Variable<double>(quantityG.value);
+    }
+    if (fromPlan.present) {
+      map['from_plan'] = Variable<bool>(fromPlan.value);
+    }
+    if (checked.present) {
+      map['checked'] = Variable<bool>(checked.value);
+    }
+    if (position.present) {
+      map['position'] = Variable<int>(position.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GroceryItemsCompanion(')
+          ..write('id: $id, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('userId: $userId, ')
+          ..write('listId: $listId, ')
+          ..write('name: $name, ')
+          ..write('foodId: $foodId, ')
+          ..write('quantityG: $quantityG, ')
+          ..write('fromPlan: $fromPlan, ')
+          ..write('checked: $checked, ')
+          ..write('position: $position, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $PrepBatchesTable extends PrepBatches
     with TableInfo<$PrepBatchesTable, PrepBatch> {
   @override
@@ -20003,6 +21147,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $FoodsTable foods = $FoodsTable(this);
   late final $RecipesTable recipes = $RecipesTable(this);
   late final $RecipeItemsTable recipeItems = $RecipeItemsTable(this);
+  late final $GroceryListsTable groceryLists = $GroceryListsTable(this);
+  late final $GroceryItemsTable groceryItems = $GroceryItemsTable(this);
   late final $PrepBatchesTable prepBatches = $PrepBatchesTable(this);
   late final $MealsTable meals = $MealsTable(this);
   late final $MealItemsTable mealItems = $MealItemsTable(this);
@@ -20037,6 +21183,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     foods,
     recipes,
     recipeItems,
+    groceryLists,
+    groceryItems,
     prepBatches,
     meals,
     mealItems,
@@ -26466,6 +27614,577 @@ typedef $$RecipeItemsTableProcessedTableManager =
       RecipeItem,
       PrefetchHooks Function()
     >;
+typedef $$GroceryListsTableCreateCompanionBuilder =
+    GroceryListsCompanion Function({
+      Value<String> id,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      required String userId,
+      Value<String> name,
+      Value<String?> forWeek,
+      Value<int> rowid,
+    });
+typedef $$GroceryListsTableUpdateCompanionBuilder =
+    GroceryListsCompanion Function({
+      Value<String> id,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<String> userId,
+      Value<String> name,
+      Value<String?> forWeek,
+      Value<int> rowid,
+    });
+
+class $$GroceryListsTableFilterComposer
+    extends Composer<_$AppDatabase, $GroceryListsTable> {
+  $$GroceryListsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get forWeek => $composableBuilder(
+    column: $table.forWeek,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$GroceryListsTableOrderingComposer
+    extends Composer<_$AppDatabase, $GroceryListsTable> {
+  $$GroceryListsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get forWeek => $composableBuilder(
+    column: $table.forWeek,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$GroceryListsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $GroceryListsTable> {
+  $$GroceryListsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get userId =>
+      $composableBuilder(column: $table.userId, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get forWeek =>
+      $composableBuilder(column: $table.forWeek, builder: (column) => column);
+}
+
+class $$GroceryListsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $GroceryListsTable,
+          GroceryListRow,
+          $$GroceryListsTableFilterComposer,
+          $$GroceryListsTableOrderingComposer,
+          $$GroceryListsTableAnnotationComposer,
+          $$GroceryListsTableCreateCompanionBuilder,
+          $$GroceryListsTableUpdateCompanionBuilder,
+          (
+            GroceryListRow,
+            BaseReferences<_$AppDatabase, $GroceryListsTable, GroceryListRow>,
+          ),
+          GroceryListRow,
+          PrefetchHooks Function()
+        > {
+  $$GroceryListsTableTableManager(_$AppDatabase db, $GroceryListsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$GroceryListsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$GroceryListsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$GroceryListsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<String> userId = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String?> forWeek = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => GroceryListsCompanion(
+                id: id,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                userId: userId,
+                name: name,
+                forWeek: forWeek,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                required String userId,
+                Value<String> name = const Value.absent(),
+                Value<String?> forWeek = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => GroceryListsCompanion.insert(
+                id: id,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                userId: userId,
+                name: name,
+                forWeek: forWeek,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$GroceryListsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $GroceryListsTable,
+      GroceryListRow,
+      $$GroceryListsTableFilterComposer,
+      $$GroceryListsTableOrderingComposer,
+      $$GroceryListsTableAnnotationComposer,
+      $$GroceryListsTableCreateCompanionBuilder,
+      $$GroceryListsTableUpdateCompanionBuilder,
+      (
+        GroceryListRow,
+        BaseReferences<_$AppDatabase, $GroceryListsTable, GroceryListRow>,
+      ),
+      GroceryListRow,
+      PrefetchHooks Function()
+    >;
+typedef $$GroceryItemsTableCreateCompanionBuilder =
+    GroceryItemsCompanion Function({
+      Value<String> id,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      required String userId,
+      required String listId,
+      required String name,
+      Value<String?> foodId,
+      Value<double?> quantityG,
+      Value<bool> fromPlan,
+      Value<bool> checked,
+      Value<int> position,
+      Value<int> rowid,
+    });
+typedef $$GroceryItemsTableUpdateCompanionBuilder =
+    GroceryItemsCompanion Function({
+      Value<String> id,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<String> userId,
+      Value<String> listId,
+      Value<String> name,
+      Value<String?> foodId,
+      Value<double?> quantityG,
+      Value<bool> fromPlan,
+      Value<bool> checked,
+      Value<int> position,
+      Value<int> rowid,
+    });
+
+class $$GroceryItemsTableFilterComposer
+    extends Composer<_$AppDatabase, $GroceryItemsTable> {
+  $$GroceryItemsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get listId => $composableBuilder(
+    column: $table.listId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get foodId => $composableBuilder(
+    column: $table.foodId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get quantityG => $composableBuilder(
+    column: $table.quantityG,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get fromPlan => $composableBuilder(
+    column: $table.fromPlan,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get checked => $composableBuilder(
+    column: $table.checked,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$GroceryItemsTableOrderingComposer
+    extends Composer<_$AppDatabase, $GroceryItemsTable> {
+  $$GroceryItemsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get listId => $composableBuilder(
+    column: $table.listId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get foodId => $composableBuilder(
+    column: $table.foodId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get quantityG => $composableBuilder(
+    column: $table.quantityG,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get fromPlan => $composableBuilder(
+    column: $table.fromPlan,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get checked => $composableBuilder(
+    column: $table.checked,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$GroceryItemsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $GroceryItemsTable> {
+  $$GroceryItemsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get userId =>
+      $composableBuilder(column: $table.userId, builder: (column) => column);
+
+  GeneratedColumn<String> get listId =>
+      $composableBuilder(column: $table.listId, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get foodId =>
+      $composableBuilder(column: $table.foodId, builder: (column) => column);
+
+  GeneratedColumn<double> get quantityG =>
+      $composableBuilder(column: $table.quantityG, builder: (column) => column);
+
+  GeneratedColumn<bool> get fromPlan =>
+      $composableBuilder(column: $table.fromPlan, builder: (column) => column);
+
+  GeneratedColumn<bool> get checked =>
+      $composableBuilder(column: $table.checked, builder: (column) => column);
+
+  GeneratedColumn<int> get position =>
+      $composableBuilder(column: $table.position, builder: (column) => column);
+}
+
+class $$GroceryItemsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $GroceryItemsTable,
+          GroceryItem,
+          $$GroceryItemsTableFilterComposer,
+          $$GroceryItemsTableOrderingComposer,
+          $$GroceryItemsTableAnnotationComposer,
+          $$GroceryItemsTableCreateCompanionBuilder,
+          $$GroceryItemsTableUpdateCompanionBuilder,
+          (
+            GroceryItem,
+            BaseReferences<_$AppDatabase, $GroceryItemsTable, GroceryItem>,
+          ),
+          GroceryItem,
+          PrefetchHooks Function()
+        > {
+  $$GroceryItemsTableTableManager(_$AppDatabase db, $GroceryItemsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$GroceryItemsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$GroceryItemsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$GroceryItemsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<String> userId = const Value.absent(),
+                Value<String> listId = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String?> foodId = const Value.absent(),
+                Value<double?> quantityG = const Value.absent(),
+                Value<bool> fromPlan = const Value.absent(),
+                Value<bool> checked = const Value.absent(),
+                Value<int> position = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => GroceryItemsCompanion(
+                id: id,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                userId: userId,
+                listId: listId,
+                name: name,
+                foodId: foodId,
+                quantityG: quantityG,
+                fromPlan: fromPlan,
+                checked: checked,
+                position: position,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                required String userId,
+                required String listId,
+                required String name,
+                Value<String?> foodId = const Value.absent(),
+                Value<double?> quantityG = const Value.absent(),
+                Value<bool> fromPlan = const Value.absent(),
+                Value<bool> checked = const Value.absent(),
+                Value<int> position = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => GroceryItemsCompanion.insert(
+                id: id,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                userId: userId,
+                listId: listId,
+                name: name,
+                foodId: foodId,
+                quantityG: quantityG,
+                fromPlan: fromPlan,
+                checked: checked,
+                position: position,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$GroceryItemsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $GroceryItemsTable,
+      GroceryItem,
+      $$GroceryItemsTableFilterComposer,
+      $$GroceryItemsTableOrderingComposer,
+      $$GroceryItemsTableAnnotationComposer,
+      $$GroceryItemsTableCreateCompanionBuilder,
+      $$GroceryItemsTableUpdateCompanionBuilder,
+      (
+        GroceryItem,
+        BaseReferences<_$AppDatabase, $GroceryItemsTable, GroceryItem>,
+      ),
+      GroceryItem,
+      PrefetchHooks Function()
+    >;
 typedef $$PrepBatchesTableCreateCompanionBuilder =
     PrepBatchesCompanion Function({
       Value<String> id,
@@ -29563,6 +31282,10 @@ class $AppDatabaseManager {
       $$RecipesTableTableManager(_db, _db.recipes);
   $$RecipeItemsTableTableManager get recipeItems =>
       $$RecipeItemsTableTableManager(_db, _db.recipeItems);
+  $$GroceryListsTableTableManager get groceryLists =>
+      $$GroceryListsTableTableManager(_db, _db.groceryLists);
+  $$GroceryItemsTableTableManager get groceryItems =>
+      $$GroceryItemsTableTableManager(_db, _db.groceryItems);
   $$PrepBatchesTableTableManager get prepBatches =>
       $$PrepBatchesTableTableManager(_db, _db.prepBatches);
   $$MealsTableTableManager get meals =>
