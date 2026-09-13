@@ -47,7 +47,7 @@ export function modelFrom(env: ModelEnv): ModelClient {
             '`supabase secrets set GEMINI_API_KEY=...`.',
         );
       }
-      return new GeminiClient(key, env.COACH_MODEL ?? 'gemini-2.5-pro');
+      return new GeminiClient(key, env.COACH_MODEL ?? 'gemini-2.5-flash');
     }
 
     case 'anthropic': {

@@ -17,6 +17,11 @@ TDEE and calorie targets, and intake written back into `daily_rollup`. Barcode s
 the USDA source are not built yet. Phase 2's and Phase 3's exit tests — real steps and readiness on
 the dashboard, and a fortnight of food logs producing a believable TDEE — are still running.
 
+Phase 4 (Coach v1) is in progress. The schema, the agent harness, nine read tools and a streaming
+chat screen are built, and the coach answers from real data. The write tools, the `propose_*` family
+and the eval suite are not built; without them nothing the coach says can change anything, which is
+the intended order.
+
 ## Layout
 
 - `app/` — Flutter. Riverpod 3 (plain providers, no codegen), go_router, PowerSync + Drift, supabase_flutter.
@@ -24,6 +29,8 @@ the dashboard, and a fortnight of food logs producing a believable TDEE — are 
   - `lib/core/sync/` — Supabase connector and upload mapping
   - `lib/features/<pillar>/` — screens and repositories
 - `packages/engine/` — pure-Dart growth engine (Phase 1). No Flutter imports, test-first.
+- `coach-api/` — the Coach API: agent loop, read tools, model adapters (Phase 4). Runs on
+  Deno as `supabase/functions/coach`, tested on Node. See its README before changing it.
 - `supabase/migrations/` — schema + RLS. Never edit an applied migration; add a new timestamped one.
 - `powersync/sync-streams.yaml` — what each device downloads.
 

@@ -56,7 +56,10 @@ export interface Progression {
   nextReps?: number;
   stallCount?: number;
   bestE1rmKg?: number;
-  lastTrainedOn?: string;
+  /// When the engine last rewrote this verdict — it does so when a session
+  /// finishes, so it doubles as "last trained". There is no column that says so
+  /// outright.
+  reconsideredOn?: string;
 }
 
 /// One finished session, summarised.
@@ -229,7 +232,7 @@ export class SupabaseData implements CoachData {
   async progression(): Promise<Progression[]> {
     const rows = await this.#get<Record<string, any>>(
       'progression_state?select=next_load_kg,next_reps,stall_count,best_e1rm_kg,' +
-        'last_trained_on,exercises(name)&deleted_at=is.null',
+        'updated_at,exercises(name)&deleted_at=is.null',
     );
     return rows
       .map((row) => ({
@@ -238,7 +241,7 @@ export class SupabaseData implements CoachData {
         nextReps: num(row.next_reps),
         stallCount: num(row.stall_count),
         bestE1rmKg: num(row.best_e1rm_kg),
-        lastTrainedOn: str(row.last_trained_on),
+        reconsideredOn: str(row.updated_at)?.slice(0, 10),
       }))
       .filter((row) => row.exercise !== '');
   }
@@ -284,13 +287,13 @@ export class SupabaseData implements CoachData {
 
   async setsFor(exercise: string, since: string): Promise<SetRow[]> {
     const rows = await this.#get<Record<string, any>>(
-      'sets?select=weight_kg,reps,rir,e1rm_kg,is_pr,created_at,' +
+      'sets?select=weight_kg,reps,rir,e1rm_kg,is_pr,logged_at,' +
         'session_exercises!inner(exercises!inner(name))' +
         `&session_exercises.exercises.name=ilike.${encodeURIComponent(exercise)}` +
-        `&created_at=gte.${since}&deleted_at=is.null&order=created_at.asc`,
+        `&logged_at=gte.${since}&deleted_at=is.null&order=logged_at.asc`,
     );
     return rows.map((row) => ({
-      day: String(row.created_at).slice(0, 10),
+      day: String(row.logged_at).slice(0, 10),
       exercise: str(row.session_exercises?.exercises?.name) ?? exercise,
       weightKg: num(row.weight_kg),
       reps: num(row.reps),
@@ -327,9 +330,9 @@ export class SupabaseData implements CoachData {
 
   async volumeByMuscle(since: string): Promise<MuscleVolume[]> {
     const rows = await this.#get<Record<string, any>>(
-      'sets?select=weight_kg,reps,created_at,kind,' +
+      'sets?select=weight_kg,reps,logged_at,kind,' +
         'session_exercises!inner(exercises!inner(primary_muscles))' +
-        `&created_at=gte.${since}&deleted_at=is.null`,
+        `&logged_at=gte.${since}&deleted_at=is.null`,
     );
 
     const totals = new Map<string, MuscleVolume>();

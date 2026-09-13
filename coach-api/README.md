@@ -32,17 +32,38 @@ supabase secrets set COACH_MODEL=gemini-3-pro    # to pin a specific model
 | Variable | Default | Meaning |
 |---|---|---|
 | `COACH_PROVIDER` | `gemini` | `gemini` or `anthropic` |
-| `COACH_MODEL` | `gemini-2.5-pro` | Overrides the model name |
+| `COACH_MODEL` | `gemini-2.5-flash` | Overrides the model name |
 | `GEMINI_API_KEY` | — | From aistudio.google.com |
 | `ANTHROPIC_API_KEY` | — | From console.anthropic.com |
 | `COACH_ALLOW_TRAINING_TIER` | unset | See below |
 
-The default is Gemini's *Pro* model rather than Flash: this coach reads numbers
-out of tools and reasons about stalls and trends, which is the work Flash is
-worst at. Pro's free-tier request limits are much lower than Flash's, so if the
-coach starts answering with rate-limit errors, `COACH_MODEL=gemini-2.5-flash` is
-the fallback — and the eval suite is the honest way to find out what that costs
-in quality.
+The default is a **Flash** model, and that is a constraint rather than a
+preference. Gemini's Pro models have no free allowance — a free key asking for
+one gets a 429 reading `limit: 0` — so Pro means a bill. Flash is weaker at
+exactly the work this coach does, reasoning about stalls and trends across
+tool results, which is why the eval suite matters here more than it would
+otherwise: it is the honest way to find out whether Flash is good enough, and
+the switch to a paid model is one variable if it is not.
+
+**Model names go stale faster than this repo will**, in two ways that look
+different and are the same problem:
+
+| Symptom | Meaning |
+|---|---|
+| `404 … no longer available to new users` | The name was retired |
+| `429 … limit: 0` | The model exists but has no free quota |
+
+Neither is worth retrying, and both are fixed by naming a different model. So
+the adapter treats them as one case: it asks the API which models the key can
+actually use and puts that list in the error, which reaches the chat rather than
+a log. Then:
+
+```bash
+npx.cmd supabase secrets set COACH_MODEL=<one of the names it listed>
+```
+
+No redeploy. This whole mechanism exists because the first two real questions
+were answered by a retired model and a paid-only one, in that order.
 
 ### Why Gemini is the default, and the catch
 

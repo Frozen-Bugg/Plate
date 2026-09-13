@@ -23,7 +23,7 @@ export class GeminiClient implements ModelClient {
   // has to run unchanged on both — in an Edge Function and in the tests.
   constructor(
     apiKey: string,
-    model = 'gemini-2.5-pro',
+    model = 'gemini-2.5-flash',
     fetchImpl: typeof fetch = fetch,
     host = 'https://generativelanguage.googleapis.com',
   ) {
@@ -63,6 +63,9 @@ export class GeminiClient implements ModelClient {
         headers: {
           'content-type': 'application/json',
           'x-goog-api-key': this.#apiKey,
+          // Without this the endpoint has been observed answering 200 with an
+          // empty body rather than an SSE stream.
+          accept: 'text/event-stream',
         },
         body: JSON.stringify(body),
       });
@@ -73,15 +76,107 @@ export class GeminiClient implements ModelClient {
 
     if (!response.ok) {
       const detail = await response.text().catch(() => '');
+
+      // Model names move, and the two ways they move both land here: a retired
+      // name answers 404, and a name with no free allowance answers 429 with
+      // "limit: 0". Neither is a rate limit to wait out, and both are fixed by
+      // naming a different model — so the error carries the list of names this
+      // key can actually use. Guessing and redeploying is the alternative, and
+      // it is a bad one.
+      const noQuota = response.status === 429 && /limit: 0/.test(detail);
+      const wrongModel = response.status === 404 || noQuota;
+
       throw new ModelError(
-        `Gemini returned ${response.status}: ${detail.slice(0, 500)}`,
+        `Gemini returned ${response.status}: ${detail.slice(0, 400)}` +
+          (wrongModel ? await this.#suggestModels() : ''),
         response.status,
-        // 429 is the free tier's rate limit and 5xx is theirs, not ours.
-        response.status === 429 || response.status >= 500,
+        // A real rate limit is worth one retry; a model that does not exist,
+        // or has no free allowance, will answer the same way forever.
+        (response.status === 429 && !noQuota) || response.status >= 500,
       );
     }
 
-    return readStream(response, onText);
+    try {
+      return await readStream(response, onText);
+    } catch (error) {
+      // A 200 that carried nothing. Observed against this endpoint from the
+      // Edge runtime while the very same request, unstreamed, answers normally
+      // — so fall back to it rather than failing. The lifter loses the answer
+      // appearing word by word and keeps the answer, which is the right way
+      // round.
+      if (error instanceof ModelError && /empty stream/.test(error.message)) {
+        return this.#unstreamed(body, onText);
+      }
+      throw error;
+    }
+  }
+
+  /// The same request without `alt=sse`, parsed into the same reply.
+  ///
+  /// The whole answer arrives at once, so [onText] is called once with all of
+  /// it. Callers that render deltas keep working; they just get one large one.
+  async #unstreamed(
+    body: Record<string, unknown>,
+    onText?: OnText,
+  ): Promise<ModelReply> {
+    const response = await this.#fetch(
+      `${this.#host}/v1beta/models/${this.model}:generateContent`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-goog-api-key': this.#apiKey,
+        },
+        body: JSON.stringify(body),
+      },
+    );
+
+    if (!response.ok) {
+      const detail = (await response.text().catch(() => '')).slice(0, 400);
+      throw new ModelError(
+        `Gemini returned nothing when streaming, and ${response.status} ` +
+          `without it: ${detail}${await this.#suggestModels()}`,
+        response.status,
+        false,
+      );
+    }
+
+    const chunk = (await response.json()) as GeminiChunk;
+    const reply = collect([chunk]);
+    if (reply.text) onText?.(reply.text);
+    return reply;
+  }
+
+  /// Asks the API which models this key can talk to, for the error message.
+  ///
+  /// Best effort by design: it runs only on a failure that is already being
+  /// reported, so if the listing also fails there is nothing useful to add and
+  /// nothing is lost by saying so.
+  async #suggestModels(): Promise<string> {
+    try {
+      const response = await this.#fetch(`${this.#host}/v1beta/models`, {
+        headers: { 'x-goog-api-key': this.#apiKey },
+      });
+      if (!response.ok) return '';
+
+      const body = (await response.json()) as {
+        models?: { name?: string; supportedGenerationMethods?: string[] }[];
+      };
+      const usable = (body.models ?? [])
+        .filter((m) =>
+          (m.supportedGenerationMethods ?? []).includes('generateContent')
+        )
+        .map((m) => (m.name ?? '').replace(/^models\//, ''))
+        .filter(Boolean);
+
+      if (usable.length === 0) return '';
+      return (
+        `\n\nThis key can use: ${usable.join(', ')}.` +
+        '\nSet one with: supabase secrets set COACH_MODEL=<name>'
+      );
+    } catch {
+      return '';
+    }
   }
 }
 
@@ -164,6 +259,70 @@ function toContents(messages: Turn[]) {
   });
 }
 
+/// Folds Gemini chunks into a reply.
+///
+/// Shared by the streaming and non-streaming paths so the two cannot drift: a
+/// fallback that returns a subtly different shape is a fallback nobody notices
+/// is being used.
+function accumulator() {
+  let text = '';
+  const calls: ToolCall[] = [];
+  const usage: Usage = { inputTokens: 0, outputTokens: 0 };
+  let finish: string | undefined;
+
+  return {
+    add(chunk: GeminiChunk, onText?: OnText) {
+      if (chunk.error) {
+        throw new ModelError(`Gemini: ${chunk.error.message ?? 'unknown error'}`);
+      }
+
+      // Usage is cumulative across frames, so the last one wins rather than
+      // summing — summing would multiply the input tokens by the frame count.
+      if (chunk.usageMetadata) {
+        usage.inputTokens = chunk.usageMetadata.promptTokenCount ?? 0;
+        usage.outputTokens = chunk.usageMetadata.candidatesTokenCount ?? 0;
+      }
+
+      const candidate = chunk.candidates?.[0];
+      if (!candidate) return;
+      if (candidate.finishReason) finish = candidate.finishReason;
+
+      for (const part of candidate.content?.parts ?? []) {
+        if (typeof part.text === 'string' && part.text.length > 0) {
+          text += part.text;
+          onText?.(part.text);
+        }
+        if (part.functionCall) {
+          calls.push({
+            // Gemini supplies no call id. The index is stable within a turn,
+            // which is all anything upstream needs it for.
+            id: `call_${calls.length}`,
+            name: part.functionCall.name,
+            args: part.functionCall.args ?? {},
+          });
+        }
+      }
+    },
+
+    finish(): ModelReply {
+      // Nothing at all: no text, no tool call, not even a reason for stopping.
+      // Treating that as a normal ending is how an empty bubble appears in the
+      // chat with nothing to explain it.
+      if (text === '' && calls.length === 0 && finish === undefined) {
+        throw new ModelError('Gemini sent an empty stream', undefined, true);
+      }
+      return { text, calls, usage, stop: stopReason(finish, calls.length > 0) };
+    },
+  };
+}
+
+/// One already-parsed response, for the non-streaming path.
+function collect(chunks: GeminiChunk[]): ModelReply {
+  const fold = accumulator();
+  for (const chunk of chunks) fold.add(chunk);
+  return fold.finish();
+}
+
 /// Reads the SSE stream, emitting text as it arrives and collecting the rest.
 async function readStream(
   response: Response,
@@ -173,11 +332,7 @@ async function readStream(
     throw new ModelError('Gemini returned no body');
   }
 
-  let text = '';
-  const calls: ToolCall[] = [];
-  const usage: Usage = { inputTokens: 0, outputTokens: 0 };
-  let finish: string | undefined;
-
+  const fold = accumulator();
   for await (const event of sseEvents(response.body)) {
     let chunk: GeminiChunk;
     try {
@@ -186,40 +341,9 @@ async function readStream(
       // A half-frame is not worth failing a whole answer over.
       continue;
     }
-
-    if (chunk.error) {
-      throw new ModelError(`Gemini: ${chunk.error.message ?? 'unknown error'}`);
-    }
-
-    // Usage is cumulative across frames, so the last one wins rather than
-    // summing — summing would multiply the input tokens by the frame count.
-    if (chunk.usageMetadata) {
-      usage.inputTokens = chunk.usageMetadata.promptTokenCount ?? 0;
-      usage.outputTokens = chunk.usageMetadata.candidatesTokenCount ?? 0;
-    }
-
-    const candidate = chunk.candidates?.[0];
-    if (!candidate) continue;
-    if (candidate.finishReason) finish = candidate.finishReason;
-
-    for (const part of candidate.content?.parts ?? []) {
-      if (typeof part.text === 'string' && part.text.length > 0) {
-        text += part.text;
-        onText?.(part.text);
-      }
-      if (part.functionCall) {
-        calls.push({
-          // Gemini supplies no call id. The index is stable within a turn,
-          // which is all anything upstream needs it for.
-          id: `call_${calls.length}`,
-          name: part.functionCall.name,
-          args: part.functionCall.args ?? {},
-        });
-      }
-    }
+    fold.add(chunk, onText);
   }
-
-  return { text, calls, usage, stop: stopReason(finish, calls.length > 0) };
+  return fold.finish();
 }
 
 function stopReason(finish: string | undefined, hasCalls: boolean): StopReason {
@@ -250,6 +374,13 @@ export async function* sseEvents(
   const decoder = new TextDecoder();
   let buffer = '';
 
+  const payload = (event: string) =>
+    event
+      .split('\n')
+      .filter((line) => line.startsWith('data:'))
+      .map((line) => line.slice(5).trim())
+      .join('');
+
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -260,14 +391,18 @@ export async function* sseEvents(
     while ((split = buffer.indexOf('\n\n')) !== -1) {
       const event = buffer.slice(0, split);
       buffer = buffer.slice(split + 2);
-      const data = event
-        .split('\n')
-        .filter((line) => line.startsWith('data:'))
-        .map((line) => line.slice(5).trim())
-        .join('');
+      const data = payload(event);
       if (data && data !== '[DONE]') yield data;
     }
   }
+
+  // Whatever is left when the stream closes. A final event is not obliged to
+  // end with a blank line, and dropping it loses the frame carrying the finish
+  // reason and the token usage — or, when the whole answer arrives as one
+  // event, the entire answer. That is exactly how this returned nothing at all
+  // and called it a normal ending.
+  const last = payload(buffer);
+  if (last && last !== '[DONE]') yield last;
 }
 
 interface GeminiChunk {

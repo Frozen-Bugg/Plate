@@ -331,3 +331,102 @@ test('an event split across network frames is still read', async () => {
   const reply = await new GeminiClient('k', 'm', impl).send(request);
   assert.equal(reply.text, 'split answer');
 });
+
+test('a final event with no trailing blank line is not dropped', async () => {
+  // SSE events are separated by a blank line, but the last one is not obliged
+  // to end with one. Dropping it loses the frame carrying the finish reason
+  // and the usage — and when the whole answer arrives as a single event, the
+  // answer itself. That produced an empty chat bubble with nothing to explain
+  // it, and the stream reported a normal ending.
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(
+        new TextEncoder().encode(
+          `data: ${JSON.stringify({
+            candidates: [
+              { content: { parts: [{ text: 'Hold at 2400.' }] }, finishReason: 'STOP' },
+            ],
+            usageMetadata: { promptTokenCount: 900, candidatesTokenCount: 12 },
+          })}`, // deliberately no \n\n
+        ),
+      );
+      controller.close();
+    },
+  });
+
+  const impl = (async () =>
+    new Response(body, {
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+    })) as unknown as typeof fetch;
+
+  const reply = await new GeminiClient('k', 'm', impl).send(request);
+  assert.equal(reply.text, 'Hold at 2400.');
+  assert.deepEqual(reply.usage, { inputTokens: 900, outputTokens: 12 });
+});
+
+test('an empty stream falls back to the unstreamed answer', async () => {
+  // Observed for real: this endpoint answers 200 with an empty body from the
+  // Edge runtime while the identical request, without alt=sse, answers
+  // normally. Calling the empty one 'end' produced a blank chat bubble with
+  // nothing to explain it.
+  const urls: string[] = [];
+  const impl = (async (url: string | URL, init?: RequestInit) => {
+    urls.push(String(url));
+    if (String(url).includes('alt=sse')) {
+      return new Response('', {
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+      });
+    }
+    return new Response(
+      JSON.stringify({
+        candidates: [
+          { content: { parts: [{ text: 'About 0.5 kg a week. Fine.' }] }, finishReason: 'STOP' },
+        ],
+        usageMetadata: { promptTokenCount: 900, candidatesTokenCount: 11 },
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    );
+  }) as unknown as typeof fetch;
+
+  const chunks: string[] = [];
+  const reply = await new GeminiClient('k', 'gemini-2.5-flash', impl)
+    .send(request, (c) => chunks.push(c));
+
+  assert.equal(reply.text, 'About 0.5 kg a week. Fine.');
+  assert.equal(reply.stop, 'end');
+  assert.deepEqual(reply.usage, { inputTokens: 900, outputTokens: 11 });
+  // Callers that render deltas still get one, just a large one.
+  assert.equal(chunks.join(''), 'About 0.5 kg a week. Fine.');
+
+  assert.equal(urls.length, 2, 'the fallback did not run, or ran twice');
+  assert.match(urls[1], /:generateContent$/);
+});
+
+test('an empty stream and a failing fallback reports both', async () => {
+  // Nothing left to try. The error has to say what was attempted, or it reads
+  // as "the coach is broken" with no way in.
+  const impl = (async (url: string | URL) =>
+    String(url).includes('alt=sse')
+      ? new Response('', { status: 200 })
+      : new Response('{"error":{"message":"nope"}}', { status: 400 })) as unknown as typeof fetch;
+
+  const failed = await new GeminiClient('k', 'm', impl).send(request).catch((e) => e);
+  assert.ok(failed instanceof ModelError);
+  assert.match(failed.message, /nothing when streaming, and 400 without it/);
+  assert.equal(failed.retryable, false, 'a 400 will not fix itself');
+});
+
+test('a stream carrying only a finish reason is a real, empty answer', async () => {
+  // Distinct from the case above: the model did answer, it just said nothing.
+  // That is a refusal or a truncation and must not be confused with a dropped
+  // connection.
+  const reply = await new GeminiClient(
+    'k',
+    'm',
+    sseFetch([{ candidates: [{ finishReason: 'SAFETY' }] }]).impl,
+  ).send(request);
+  assert.equal(reply.stop, 'refusal');
+  assert.equal(reply.text, '');
+});
