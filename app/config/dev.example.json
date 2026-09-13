@@ -3,5 +3,6 @@
   "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_...",
   "POWERSYNC_URL": "https://YOUR-INSTANCE.powersync.journeyapps.com",
   "GOOGLE_WEB_CLIENT_ID": "",
-  "GOOGLE_IOS_CLIENT_ID": ""
+  "GOOGLE_IOS_CLIENT_ID": "",
+  "USDA_API_KEY": ""
 }

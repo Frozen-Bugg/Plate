@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 
 import 'foods_repository.dart';
+import 'usda_search_service.dart';
 
 final _log = Logger('food-search');
 
@@ -197,8 +198,30 @@ final foodSearchServiceProvider =
 
 /// Online results for a query, or an empty list when there is no connection,
 /// no match, or nothing worth offering.
+/// Both sources, asked at once.
+///
+/// Open Food Facts knows packaged food; USDA knows raw ingredients. They are
+/// asked in parallel because together they are still one search box, and a
+/// second round trip would double the wait for the half nobody was after.
+///
+/// Packaged results come first. Most searches are for something with a barcode,
+/// and "Chicken, broilers or fryers, breast" above a brand of yoghurt would be
+/// a worse list however good the data behind it is.
 final onlineFoodSearchProvider =
     FutureProvider.family<List<FoodFacts>, String>((ref, query) async {
   if (query.trim().length < 2) return const [];
-  return ref.watch(foodSearchServiceProvider).search(query);
+
+  final results = await Future.wait([
+    ref.watch(foodSearchServiceProvider).search(query),
+    ref.watch(usdaSearchServiceProvider).search(query),
+  ]);
+
+  // Same food from both sides: the packaged one wins, because it is the one
+  // with a barcode behind it.
+  final seen = <String>{};
+  return [
+    for (final list in results)
+      for (final facts in list)
+        if (seen.add(facts.name.trim().toLowerCase())) facts,
+  ];
 });

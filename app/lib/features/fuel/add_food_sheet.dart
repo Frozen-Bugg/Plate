@@ -10,9 +10,10 @@ import 'meals_repository.dart';
 
 /// Search what you already eat, pick an amount, log it.
 ///
-/// Yours first, then Open Food Facts. What a lifter has eaten before answers
-/// most searches instantly and offline; the online list is for the thing they
-/// have not logged yet.
+/// Yours first, then online. What a lifter has eaten before answers most
+/// searches instantly and offline; the online list is for the thing they have
+/// not logged yet — Open Food Facts for anything with a barcode, USDA for the
+/// raw ingredients a recipe is made of.
 Future<void> showAddFoodSheet(
   BuildContext context, {
   required String day,
@@ -182,8 +183,8 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet> {
             _query.trim().isEmpty
                 ? 'Nothing logged yet. Add the first food and it will be here '
                     'tomorrow.'
-                : 'Nothing found, here or in Open Food Facts. "New" adds it '
-                    'from the label.',
+                : 'Nothing found, here or online. "New" adds it from the '
+                    'label.',
             textAlign: TextAlign.center,
             style: text.bodyMedium?.copyWith(color: muted),
           ),
@@ -241,7 +242,7 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet> {
             ),
           ),
         if (fresh.isNotEmpty) ...[
-          heading('Open Food Facts'),
+          heading('Found online'),
           for (final facts in fresh)
             ListTile(
               title: Text(facts.name),
@@ -249,6 +250,9 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet> {
                 [
                   ?facts.brand,
                   '${facts.kcalPer100.round()} kcal / 100 ${facts.basis}',
+                  // Which database it came from, because they are good at
+                  // different things and the difference shows in the name.
+                  if (facts.source == 'usda') 'USDA',
                 ].join(' · '),
                 style: text.labelSmall?.copyWith(color: muted),
               ),

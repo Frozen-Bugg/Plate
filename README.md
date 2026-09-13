@@ -94,6 +94,12 @@ The exit test from the roadmap:
 
 The app hides the Apple button off iOS and the Google button until its client IDs are configured.
 
+- **`USDA_API_KEY`** is optional, free from
+  [fdc.nal.usda.gov/api-key-signup.html](https://fdc.nal.usda.gov/api-key-signup.html). It adds USDA
+  FoodData Central to the food search, which is where raw ingredients live — "chicken breast, raw",
+  "white rice, dry", the things a recipe is made of. Open Food Facts covers packaged food and needs
+  no key. Without a USDA key that half of the search is simply absent: no error, nothing to explain.
+
 ## Development
 
 From `app/`:

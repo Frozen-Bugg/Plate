@@ -12,6 +12,15 @@ abstract final class AppConfig {
   static const googleWebClientId = String.fromEnvironment('GOOGLE_WEB_CLIENT_ID');
   static const googleIosClientId = String.fromEnvironment('GOOGLE_IOS_CLIENT_ID');
 
+  /// USDA FoodData Central, free from fdc.nal.usda.gov/api-key-signup.html.
+  ///
+  /// Optional. Without it the food search is Open Food Facts only, which is
+  /// strong on packaged food and weak on the raw ingredients a recipe is made
+  /// of. Nothing breaks; that half of the search is simply not there.
+  static const usdaApiKey = String.fromEnvironment('USDA_API_KEY');
+
+  static bool get usdaConfigured => usdaApiKey.isNotEmpty;
+
   /// Keys the app cannot start without.
   static List<String> get missingRequired => [
         if (supabaseUrl.isEmpty) 'SUPABASE_URL',
