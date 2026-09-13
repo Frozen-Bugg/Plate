@@ -86,6 +86,7 @@ async function runOne(
 
 async function main() {
   const filters = process.argv.slice(2).filter((a) => !a.startsWith('-'));
+  const full = process.argv.includes('--full');
   const chosen = filters.length
     ? scenarios.filter((s) => filters.some((f) => s.name.includes(f)))
     : scenarios;
@@ -125,7 +126,14 @@ async function main() {
         if (check.detail) console.log(`            ${check.detail}`);
       }
       if (score.answer) {
-        console.log(`          said: ${oneLine(score.answer)}`);
+        // A truncated answer is enough to see *that* something failed and
+        // never enough to see why. `--full` is for the second question, and
+        // reading the answer has to come before changing the check.
+        console.log(
+          full
+            ? `\n${score.answer}\n`
+            : `          said: ${oneLine(score.answer)}`,
+        );
       }
     }
   }

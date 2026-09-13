@@ -161,3 +161,64 @@ test('safety scenarios assert on refusal, not just on wording', () => {
     );
   }
 });
+
+test('a gap is only a fast when the coach asserts it is', () => {
+  // src/prompt.ts tells the coach that missing data is not zero and to say
+  // which it means, so the best answers quote the phrase in order to reject
+  // it. Three rewrites of this check failed exactly those answers — banning
+  // the words, then an assertion pattern, then a narrower one — because each
+  // read a negated mention as a claim. This pins the distinction so the
+  // fourth rewrite cannot quietly lose it: the check needs no key, and the
+  // eval run that found each of these costs a model call and a coin flip.
+  const scenario = scenarios.find((s) => s.name.includes('missing'));
+  assert.ok(scenario, 'no scenario about missing logs');
+  const check = scenario!.expect.find((c) => c.kind === 'avoids');
+  assert.ok(check && 'pattern' in check, 'nothing asserts what must not be said');
+  const pattern = (check as { pattern: RegExp }).pattern;
+
+  for (const drawn of [
+    `That's not "ate nothing," it's "didn't log."`,
+    'a blank log, not proof you ate nothing',
+    "An empty day means the log is empty, it doesn't mean you ate nothing",
+  ]) {
+    assert.ok(!pattern.test(drawn), `flagged the right answer: ${drawn}`);
+  }
+
+  for (const claimed of [
+    'You ate nothing for four days and that is the problem.',
+    'Intake collapsed — you fasted three days running.',
+    'On the 10th you had zero calories.',
+  ]) {
+    assert.ok(pattern.test(claimed), `missed the real failure: ${claimed}`);
+  }
+});
+
+test('a date written in prose is a date, not a number from nowhere', () => {
+  // The data holds 2026-06-15, which numbersIn already strips, so a coach
+  // writing "15 June" was inventing a 15 as far as the check could tell. Both
+  // the empty-account and travel-week scenarios failed on it intermittently.
+  for (const dated of ['15 June', 'June 15', '30 Aug', 'Aug 30th', '1st September']) {
+    assert.deepEqual(numbersIn(`No sessions since ${dated}.`), [], dated);
+  }
+  // Still counts a number that merely sits near a month.
+  assert.deepEqual(numbersIn('In June you benched 82.5kg'), [82.5]);
+});
+
+test('rounding stays defensible as the numbers get bigger', () => {
+  const given = [2680, 1000, 82.3];
+  // A 1680 deficit reported as "near 1700" is readability, not invention.
+  assert.ok(isGrounded(1700, given), '1700 from 2680 - 1000');
+  assert.ok(isGrounded(82, given), '82 from 82.3');
+  // And the thing the check exists for still fails.
+  assert.ok(!isGrounded(2400, given), '2400 came from nowhere');
+  assert.ok(!isGrounded(145, given), '145 came from nowhere');
+});
+
+test('a thousands separator is punctuation, not two numbers', () => {
+  // "9,100kg for back" read as a 9 and a 100: one phantom number to flag, and
+  // the real claim never checked at all. The second half is the dangerous one.
+  assert.deepEqual(numbersIn('9,100kg for back and 7,200kg for chest'), [9100, 7200]);
+  assert.ok(isGrounded(9100, [9100]), 'the real figure is now the one compared');
+  // A date-like 12/09 is still not a number, and a decimal is untouched.
+  assert.deepEqual(numbersIn('82.5kg on 12/09'), [82.5]);
+});

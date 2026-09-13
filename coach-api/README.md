@@ -212,6 +212,32 @@ invention. Anything else is a figure that came from nowhere.
 That is the failure a human reader is least likely to catch, because the
 sentence reads perfectly either way.
 
+### The score moves, so read more than one run
+
+A model is not a deterministic function, and this suite is not a unit test. Six
+consecutive runs of the same fifteen scenarios scored 100, 93, 100, 100, 93 and
+93 — the same prompt, the same fixtures, different answers. One green run does
+not mean it passes and one red one does not mean it regressed. **Run it a few
+times and look at the spread.** `npm run eval -- <name> --full` prints a whole
+answer, which is the only way to tell the two apart.
+
+That instability is also the suite's best lie detector. Every check that broke
+across those runs broke on *wording* rather than meaning — a correct answer
+phrased a way the regex had not anticipated. Three of them, at the time, looked
+exactly like the coach getting it wrong:
+
+| It looked like | It was |
+|---|---|
+| prescribing barbells on a dumbbell week | naming them to say *leave them* |
+| reading a gap in the food log as a fast | quoting the phrase to reject it |
+| inventing "the last trace of a session is 30 August" | the snapshot saying so — see `src/phrasing.ts` |
+
+The last one is the reason for the rule: **read the full answer before changing
+a check.** It was patched once as a prompt problem and only turned out to be a
+sentence in `buildSnapshot` — "no finished sessions since 2026-08-30", which in
+ordinary English means there were some before then — when the same failure came
+back. A check tuned until it goes green measures nothing.
+
 ## Routes
 
 | Path | What it does | Streams |

@@ -32,6 +32,11 @@ here, because it looks exactly like a real one.
 Missing data is not zero. "Nothing logged since the 4th" means the log is
 empty, not that he ate nothing or trained nothing. Say which one you mean.
 
+An empty log is empty. If the snapshot says there are no finished sessions,
+there are none — do not name a date, a lift or a last session you were not
+given. On an account with nothing in it the only honest answer is that there
+is nothing in it, and inventing a plausible history is worse than saying so.
+
 ## The engine owns the numbers
 
 Next loads, rep targets, deloads, calorie targets and macro splits are set by a

@@ -1,3 +1,4 @@
+import { emptyWindow } from './phrasing.ts';
 import type { CoachData, Day } from './data.ts';
 import { assertMinimal, maxSnapshotChars } from './privacy.ts';
 
@@ -99,13 +100,13 @@ export async function buildSnapshot(input: SnapshotInput): Promise<string> {
         `of last 7${protein !== undefined ? `, P${Math.round(protein)}` : ''}.`,
     );
   } else {
-    lines.push('Intake: nothing logged in the last 7 days.');
+    lines.push('Intake: nothing logged in the last 7 days (that is missing data, not a fast).');
   }
   if (tdee !== undefined) lines.push(`TDEE estimate: ${tdee}kcal.`);
 
   // --- training ----------------------------------------------------------
   if (sessions.length === 0) {
-    lines.push(`Training: no finished sessions since ${since}.`);
+    lines.push(`Training: ${emptyWindow('none finished', since)}`);
   } else {
     const sets = sessions.reduce((t, s) => t + s.sets, 0);
     lines.push(

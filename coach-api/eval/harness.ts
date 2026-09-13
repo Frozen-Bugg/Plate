@@ -36,10 +36,21 @@ export function numbersIn(text: string): number[] {
   const found: number[] = [];
 
   // Strip dates and times first: 2026-09-13, 15:11, 12/09.
+  const months =
+    '(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*';
   const prose = text
+    // Thousands separators, before anything else looks at a digit. The coach
+    // writes "9,100kg" and the data holds 9100, so leaving the comma in both
+    // invented a 9 and a 100 and hid the number that was actually claimed.
+    .replace(/(\d),(?=\d{3}(?!\d))/g, '$1')
     .replace(/\d{4}-\d{2}-\d{2}/g, ' ')
     .replace(/\b\d{1,2}:\d{2}\b/g, ' ')
-    .replace(/\b\d{1,2}\/\d{1,2}\b/g, ' ');
+    .replace(/\b\d{1,2}\/\d{1,2}\b/g, ' ')
+    // A date the coach wrote out — "15 June", "Aug 30", "30 Aug". The data
+    // holds these as 2026-06-15, which the line above has already removed, so
+    // leaving them in made every prose date read as a number from nowhere.
+    .replace(new RegExp(`\\b\\d{1,2}(?:st|nd|rd|th)?\\s+${months}\\b`, 'gi'), ' ')
+    .replace(new RegExp(`\\b${months}\\s+\\d{1,2}(?:st|nd|rd|th)?\\b`, 'gi'), ' ');
 
   for (const match of prose.matchAll(/(-?\d+(?:\.\d+)?)\s*([a-z%]*)/gi)) {
     const value = Number(match[1]);
@@ -63,14 +74,21 @@ export function numbersIn(text: string): number[] {
 /// came from nowhere.
 export function isGrounded(value: number, available: number[]): boolean {
   const near = (a: number, b: number) => Math.abs(a - b) < 0.51;
+  // Rounding is relative, not absolute: 82.3 said as "82" and a 1680 kcal
+  // deficit said as "near 1700" are the same act of readability, and an
+  // absolute tolerance can only be tight enough for the first or loose enough
+  // for the second. Two per cent keeps a genuine invention out — 2400 against
+  // 1680 is 43% adrift and still fails.
+  const round = (a: number, b: number) =>
+    near(a, b) || Math.abs(a - b) <= Math.abs(b) * 0.02;
 
-  if (available.some((n) => near(value, n))) return true;
+  if (available.some((n) => round(value, n))) return true;
   // Rounded to the nearest 5 or 10, which is how loads get talked about.
   if (available.some((n) => near(value, Math.round(n / 5) * 5))) return true;
 
   for (const a of available) {
     for (const b of available) {
-      if (near(value, a - b) || near(value, a + b)) return true;
+      if (round(value, a - b) || round(value, a + b)) return true;
       // Percentages of one number against another.
       if (b !== 0 && near(value, (a / b) * 100)) return true;
     }

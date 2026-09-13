@@ -51,7 +51,18 @@ test('is honest about an empty account rather than silent', async () => {
   const text = await buildSnapshot({ data: fake(), today });
   assert.match(text, /Target: none set\./);
   assert.match(text, /Intake: nothing logged/);
-  assert.match(text, /no finished sessions/);
+  assert.match(text, /none finished/);
+});
+
+test('an empty window does not imply there was something before it', async () => {
+  // "No finished sessions since 2026-08-30" is ordinary English for *there
+  // were some before then*, and the coach read it exactly that way: on an
+  // account with nothing in it, it reported the last session as 30 August —
+  // the boundary date, handed to it by the sentence meant to say the opposite.
+  const text = await buildSnapshot({ data: fake(), today });
+  assert.doesNotMatch(text, /sessions since/);
+  assert.match(text, /window searched/);
+  assert.match(text, /says nothing about earlier/);
 });
 
 test('carries the numbers a coach actually reasons from', async () => {

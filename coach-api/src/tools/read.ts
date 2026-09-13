@@ -1,5 +1,6 @@
 import type { Tool } from '../agent.ts';
 import type { CoachData } from '../data.ts';
+import { emptyWindow } from '../phrasing.ts';
 import { assertMinimal, capped } from '../privacy.ts';
 import { shiftDay } from '../snapshot.ts';
 
@@ -69,7 +70,7 @@ export function readTools(context: ToolContext): Tool[] {
             to: context.today,
             sessions: rows,
             summary: total === 0
-              ? `No finished workouts since ${from}`
+              ? emptyWindow('No finished workouts', from)
               : `${total} workouts since ${from}`,
             truncated,
           },
@@ -107,7 +108,7 @@ export function readTools(context: ToolContext): Tool[] {
             from,
             sets: rows,
             summary: total === 0
-              ? `No sets of ${exercise} since ${from} — check the name with search_exercises`
+              ? `${emptyWindow(`No sets of ${exercise}`, from)} Check the name with search_exercises.`
               : `${total} sets of ${exercise} since ${from}`,
             truncated,
           },
@@ -155,7 +156,7 @@ export function readTools(context: ToolContext): Tool[] {
             from,
             muscles,
             summary: muscles.length === 0
-              ? `No working sets since ${from}`
+              ? emptyWindow('No working sets', from)
               : `${muscles.length} muscles trained since ${from}`,
           },
           'get_volume_by_muscle',
@@ -205,7 +206,7 @@ export function readTools(context: ToolContext): Tool[] {
             foods: detail,
             // The distinction that stops the coach saying "you ate nothing".
             summary: logged.length === 0
-              ? `Nothing logged since ${from}. That is missing data, not a fast.`
+              ? `${emptyWindow('Nothing logged', from)} That is missing data, not a fast.`
               : `${logged.length} of ${days.length} days logged since ${from}`,
           },
           'query_nutrition',
@@ -237,7 +238,7 @@ export function readTools(context: ToolContext): Tool[] {
               60,
             ).rows,
             summary: days.length === 0
-              ? `No days recorded since ${from}`
+              ? emptyWindow('No days recorded', from)
               : `${days.length} days since ${from}`,
           },
           'query_body',

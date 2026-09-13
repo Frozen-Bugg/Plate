@@ -126,7 +126,7 @@ test('query_sets points at search_exercises when the name misses', async () => {
   const result = (await toolsOf(fake())('query_sets').run({
     exercise: 'Bench Pres',
   })) as any;
-  assert.match(result.summary, /check the name with search_exercises/);
+  assert.match(result.summary, /check the name with search_exercises/i);
 });
 
 test('get_progression_status names what is stalled', async () => {
