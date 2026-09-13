@@ -22,6 +22,7 @@ import { SupabaseData } from '../../../coach-api/src/data.ts';
 import { guardTrainingTier, modelFrom } from '../../../coach-api/src/model/index.ts';
 import { systemFor } from '../../../coach-api/src/prompt.ts';
 import { writeBrief } from '../../../coach-api/src/tools/briefs.ts';
+import { draftRecipe } from '../../../coach-api/src/tools/draft.ts';
 import { suggestMeals } from '../../../coach-api/src/tools/suggest.ts';
 import { ParseError, parseMeal, parsePhoto, parseSets } from '../../../coach-api/src/tools/parse.ts';
 import { buildSnapshot } from '../../../coach-api/src/snapshot.ts';
@@ -95,6 +96,9 @@ Deno.serve(async (request) => {
   }
   if (path.endsWith('/brief')) return brief(body, jwt);
   if (path.endsWith('/suggest')) return suggest(body, jwt);
+  if (path.endsWith('/draft-recipe')) {
+    return oneShot(() => draftRecipe(chosen(), body.text ?? ''));
+  }
 
   const message = (body.message ?? '').trim();
   if (!message) return fail(400, 'Nothing to answer.');

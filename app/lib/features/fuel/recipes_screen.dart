@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'add_food_sheet.dart';
+import 'draft_recipe_sheet.dart';
 import 'meals_repository.dart';
 import 'prep_screen.dart';
 import 'recipes_repository.dart';
@@ -44,6 +45,16 @@ class _RecipesScreenState extends ConsumerState<RecipesScreen> {
     );
   }
 
+  Future<void> _draft() async {
+    final id = await showDraftRecipeSheet(context);
+    if (id == null || !mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => RecipeScreen(id: id, day: widget.day, slot: widget.slot),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
@@ -60,10 +71,27 @@ class _RecipesScreenState extends ConsumerState<RecipesScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Recipes')),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _create,
-        icon: const Icon(Icons.add),
-        label: const Text('New recipe'),
+      // Two ways to start one. Describing it is faster when the dish exists
+      // in your head and not yet on the shelf; the empty form is for when you
+      // are standing over the pan already.
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          FloatingActionButton.small(
+            heroTag: 'blank-recipe',
+            tooltip: 'Start an empty recipe',
+            onPressed: _create,
+            child: const Icon(Icons.add),
+          ),
+          const SizedBox(height: 10),
+          FloatingActionButton.extended(
+            heroTag: 'draft-recipe',
+            onPressed: _draft,
+            icon: const Icon(Icons.auto_awesome_outlined),
+            label: const Text('Describe a dish'),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -127,8 +155,9 @@ class _NoRecipes extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               'A recipe is worth saving when you have cooked it twice. The '
-              'quickest way in is the day log: open a meal you have already '
-              'eaten and save it as a recipe.',
+              'quickest way in is the day log — open a meal you have already '
+              'eaten and save it as a recipe. Or describe a dish and let the '
+              'coach draft one.',
               textAlign: TextAlign.center,
               style: text.bodySmall?.copyWith(color: muted),
             ),

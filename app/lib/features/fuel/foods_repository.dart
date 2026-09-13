@@ -97,6 +97,36 @@ class FoodsRepository {
         .watch();
   }
 
+  /// The closest food already on the shelf to [name], or null.
+  ///
+  /// Used to cost a drafted recipe: the coach names "Chicken breast" and this
+  /// is what turns that into a row with numbers behind it. Exact first, then a
+  /// containment either way round — "Rice" should find "White rice, dry", and
+  /// "Chicken breast, raw" should find "Chicken breast".
+  ///
+  /// Deliberately conservative. A wrong match is worse than none, because a
+  /// recipe silently costed against the wrong food reads perfectly.
+  Future<Food?> bestMatch(String name) async {
+    final needle = name.trim().toLowerCase();
+    if (needle.isEmpty) return null;
+
+    final rows = await (_db.select(_db.foods)
+          ..where((f) => f.userId.equals(_userId))
+          ..where((f) => f.deletedAt.isNull()))
+        .get();
+
+    Food? contained;
+    for (final food in rows) {
+      final candidate = food.name.trim().toLowerCase();
+      if (candidate == needle) return food;
+      if (contained == null &&
+          (candidate.contains(needle) || needle.contains(candidate))) {
+        contained = food;
+      }
+    }
+    return contained;
+  }
+
   Future<Food?> byId(String id) => (_db.select(_db.foods)
         ..where((f) => f.id.equals(id))
         ..where((f) => f.deletedAt.isNull())

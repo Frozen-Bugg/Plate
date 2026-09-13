@@ -106,3 +106,62 @@ double _num(Object? value) => switch (value) {
 final suggestServiceProvider = Provider<SuggestService>(
   (ref) => SuggestService(ref.watch(quickAddServiceProvider)),
 );
+
+/// One ingredient of a drafted recipe.
+///
+/// No macros, on purpose: the coach names foods and weights, and every number
+/// comes from a food row on this device. See `coach-api/src/tools/draft.ts`.
+class DraftIngredient {
+  const DraftIngredient({required this.name, required this.grams, this.note});
+
+  factory DraftIngredient.fromJson(Map<String, dynamic> json) =>
+      DraftIngredient(
+        name: json['name'] as String? ?? '',
+        grams: _num(json['grams']),
+        note: json['note'] as String?,
+      );
+
+  final String name;
+  final double grams;
+  final String? note;
+}
+
+class DraftedRecipe {
+  const DraftedRecipe({
+    required this.name,
+    required this.servings,
+    required this.ingredients,
+    this.method,
+  });
+
+  factory DraftedRecipe.fromJson(Map<String, dynamic> json) => DraftedRecipe(
+        name: json['name'] as String? ?? 'Recipe',
+        servings: (json['servings'] as num?)?.round() ?? 1,
+        method: json['method'] as String?,
+        ingredients: [
+          for (final row in (json['ingredients'] as List<dynamic>? ?? const []))
+            DraftIngredient.fromJson((row as Map).cast<String, dynamic>()),
+        ],
+      );
+
+  final String name;
+  final int servings;
+  final String? method;
+  final List<DraftIngredient> ingredients;
+}
+
+/// Asks the coach to draft a recipe from a description.
+class DraftService {
+  DraftService(this._quickAdd);
+
+  final QuickAddService _quickAdd;
+
+  Future<DraftedRecipe> draftRecipe(String description) async {
+    final json = await _quickAdd.post('draft-recipe', {'text': description});
+    return DraftedRecipe.fromJson((json as Map).cast<String, dynamic>());
+  }
+}
+
+final draftServiceProvider = Provider<DraftService>(
+  (ref) => DraftService(ref.watch(quickAddServiceProvider)),
+);

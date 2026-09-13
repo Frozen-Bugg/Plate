@@ -63,7 +63,7 @@ test('the arithmetic is done here and handed over', async () => {
   assert.equal(result.logged.kcal, 610);
   assert.equal(result.left?.kcal, 1570);
   assert.equal(result.left?.proteinG, 119);
-  assert.match(model.lastMessages[0]!.text!, /Left today: 1570 kcal, P119/);
+  assert.match((model.lastMessages[0] as { text: string }).text, /Left today: 1570 kcal, P119/);
 });
 
 test('no tools, one call, low effort', async () => {
@@ -100,7 +100,7 @@ test('the fridge is described with its deadlines', async () => {
     today,
   });
 
-  const sent = model.lastMessages[0]!.text!;
+  const sent = (model.lastMessages[0] as { text: string }).text;
   assert.match(sent, /Beef chilli: 2 servings left, 584 kcal and P41 each, must be eaten by tomorrow/);
   assert.match(sent, /Overnight oats.*keeps 4 more days/);
   // And the device is told too, so it can say it without waiting on the model.
@@ -110,8 +110,8 @@ test('the fridge is described with its deadlines', async () => {
 test('an empty fridge says so rather than being left out', async () => {
   const model = new StubClient([{ text: threeOptions }]);
   await suggestMeals(model, { data: fake(), today });
-  assert.match(model.lastMessages[0]!.text!, /Nothing cooked in the fridge/);
-  assert.match(model.lastMessages[0]!.text!, /No saved recipes/);
+  assert.match((model.lastMessages[0] as { text: string }).text, /Nothing cooked in the fridge/);
+  assert.match((model.lastMessages[0] as { text: string }).text, /No saved recipes/);
 });
 
 test('no target is a different answer from nothing left', async () => {
@@ -123,7 +123,7 @@ test('no target is a different answer from nothing left', async () => {
 
   assert.equal(result.left, undefined);
   assert.equal(result.target, undefined);
-  assert.match(model.lastMessages[0]!.text!, /No calorie target is set/);
+  assert.match((model.lastMessages[0] as { text: string }).text, /No calorie target is set/);
 });
 
 test('options carry where they came from, so the device can log them', async () => {
@@ -144,7 +144,7 @@ test('what the lifter said is passed along', async () => {
     today,
     note: 'I have got chicken, rice and spinach in',
   });
-  assert.match(model.lastMessages[0]!.text!, /They said: I have got chicken/);
+  assert.match((model.lastMessages[0] as { text: string }).text, /They said: I have got chicken/);
 });
 
 test('a nameless option is dropped rather than shown blank', async () => {
