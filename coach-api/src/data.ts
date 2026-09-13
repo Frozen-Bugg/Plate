@@ -92,6 +92,22 @@ export interface MealRow {
   fatG: number;
 }
 
+/// Hard sets and volume per muscle, for the "am I doing enough back work"
+/// question. Muscles come from the exercise library, so it is only as good as
+/// the library's tagging — which is why the tool that returns this says so.
+export interface MuscleVolume {
+  muscle: string;
+  hardSets: number;
+  volumeKg: number;
+}
+
+/// A note the coach kept. Content only: which thread it came from is a row id.
+export interface Memory {
+  content: string;
+  kind: string;
+  weight: number;
+}
+
 export interface CoachData {
   profile(): Promise<Profile | null>;
   /// Aggregated days, newest first, from [since] inclusive.
@@ -103,6 +119,9 @@ export interface CoachData {
   meals(since: string): Promise<MealRow[]>;
   /// Names only — the coach picks a movement by name and the server resolves it.
   exerciseNames(): Promise<string[]>;
+  volumeByMuscle(since: string): Promise<MuscleVolume[]>;
+  foodNames(match: string): Promise<string[]>;
+  memories(): Promise<Memory[]>;
 }
 
 /// Reads through PostgREST as the signed-in lifter.
@@ -304,6 +323,64 @@ export class SupabaseData implements CoachData {
       'exercises?select=name&deleted_at=is.null&order=name.asc',
     );
     return rows.map((row) => String(row.name));
+  }
+
+  async volumeByMuscle(since: string): Promise<MuscleVolume[]> {
+    const rows = await this.#get<Record<string, any>>(
+      'sets?select=weight_kg,reps,created_at,kind,' +
+        'session_exercises!inner(exercises!inner(primary_muscles))' +
+        `&created_at=gte.${since}&deleted_at=is.null`,
+    );
+
+    const totals = new Map<string, MuscleVolume>();
+    for (const row of rows) {
+      // Warm-ups are not stimulus. Rows written before `kind` was set
+      // explicitly have none, and they were all working sets.
+      if (row.kind && row.kind !== 'working') continue;
+      const muscles: string[] =
+        row.session_exercises?.exercises?.primary_muscles ?? [];
+      const reps = num(row.reps) ?? 0;
+      const volume = (num(row.weight_kg) ?? 0) * reps;
+      if (reps <= 0) continue;
+
+      for (const muscle of muscles.length ? muscles : ['untagged']) {
+        const current =
+          totals.get(muscle) ?? { muscle, hardSets: 0, volumeKg: 0 };
+        // A set counts once per muscle it trains; volume is attributed whole to
+        // each, so these columns do not sum to the session total. The tool says
+        // so rather than leaving the model to assume otherwise.
+        current.hardSets += 1;
+        current.volumeKg += volume;
+        totals.set(muscle, current);
+      }
+    }
+
+    return [...totals.values()]
+      .map((m) => ({ ...m, volumeKg: Math.round(m.volumeKg) }))
+      .sort((a, b) => b.hardSets - a.hardSets);
+  }
+
+  async foodNames(match: string): Promise<string[]> {
+    const safe = encodeURIComponent(`%${match.replace(/[%,()]/g, '')}%`);
+    const rows = await this.#get<Record<string, unknown>>(
+      `foods?select=name,brand&name=ilike.${safe}&deleted_at=is.null` +
+        '&order=last_used_at.desc.nullslast&limit=25',
+    );
+    return rows.map((row) =>
+      [row.name, row.brand].filter(Boolean).join(' · '),
+    );
+  }
+
+  async memories(): Promise<Memory[]> {
+    const rows = await this.#get<Record<string, unknown>>(
+      'coach_memories?select=content,kind,weight&deleted_at=is.null' +
+        '&order=weight.desc,last_used_at.desc.nullslast&limit=30',
+    );
+    return rows.map((row) => ({
+      content: String(row.content),
+      kind: str(row.kind) ?? 'note',
+      weight: num(row.weight) ?? 1,
+    }));
   }
 }
 

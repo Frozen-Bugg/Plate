@@ -84,6 +84,8 @@ jobs:
         working-directory: coach-api
       # Stripping types does not check them, so the two are separate steps and
       # a type error has to fail the build on its own.
+      # Also typechecks supabase/functions/coach against deno-shim.d.ts, which
+      # is the only check that file gets — there is no Deno in this job.
       - run: npm run typecheck
         working-directory: coach-api
       # No key and no network: the loop runs against a scripted model and the

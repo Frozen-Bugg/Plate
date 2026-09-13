@@ -108,3 +108,26 @@ that test.
   out for you.
 - **Streaming is always on**, even when nobody is listening. One code path that
   is always exercised beats a simpler one that is not.
+
+## The Edge Function
+
+`supabase/functions/coach/index.ts` is the only file here that cannot be run by
+the tests: there is no Deno on a Windows box and `supabase functions serve`
+wants Docker. So it is kept deliberately thin — parse, build context, run the
+loop, stream — and `npm run typecheck` checks it against `deno-shim.d.ts`,
+which declares just enough of Deno's globals to catch a typo before a deploy.
+
+```bash
+npx.cmd supabase functions deploy coach
+```
+
+It does two things worth knowing:
+
+- **It never writes to the database.** The device saves both turns to
+  `coach_messages` and PowerSync carries them up, the same path a logged set
+  takes. One write path is why chat history works offline and survives a failed
+  request.
+- **It does not trust the caller's identity.** `verify_jwt` is on by default so
+  the platform validates the token, and the token is then forwarded to PostgREST
+  so RLS decides what can be read. Nothing in the function filters by user id,
+  because nothing in it should be trusted to.

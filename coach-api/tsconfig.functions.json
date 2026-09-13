@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // The Edge Function has no DOM and no Node; it has Deno's globals, which
+    // `deno-shim.d.ts` declares just enough of.
+    "types": [],
+    // It also lives outside this package, so there is no `"type": "module"`
+    // above it and NodeNext would read it as CommonJS. Deno and the CLI's
+    // bundler both resolve the way a bundler does, so say so.
+    "module": "ESNext",
+    "moduleResolution": "Bundler"
+  },
+  "include": [
+    "deno-shim.d.ts",
+    "src/**/*.ts",
+    "../supabase/functions/**/*.ts"
+  ]
+}

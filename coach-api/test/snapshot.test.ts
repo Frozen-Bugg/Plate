@@ -17,6 +17,9 @@ function fake(overrides: Partial<CoachData> = {}): CoachData {
     setsFor: async () => [],
     meals: async () => [],
     exerciseNames: async () => [],
+    volumeByMuscle: async () => [],
+    foodNames: async () => [],
+    memories: async () => [],
     ...overrides,
   };
 }
