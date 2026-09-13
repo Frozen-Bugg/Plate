@@ -320,8 +320,12 @@ migration with `user_id` and RLS, a stream in `sync-streams.yaml`, a table in
 
 ## 8. Build order
 
-Each step is usable on its own, and each is useful even if the next is never
-built.
+All eight are built. Each was usable on its own, and each turned out to be
+useful before the next one existed — which is the only real test of an order.
+
+One thing changed on the way through: steps 6 and 7 became one piece of work,
+because a plan you cannot shop for is a wish and a list with no plan behind it
+is a blank page.
 
 1. **Recipes UI.** List, detail, create, edit, scale, favourite, log. Schema and
    sync already exist — this is screens and a repository. Closes a Phase 3 gap
