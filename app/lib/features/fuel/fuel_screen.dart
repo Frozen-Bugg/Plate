@@ -25,7 +25,7 @@ class FuelScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final day = ref.watch(fuelDayProvider);
     final log = ref.watch(dayLogProvider(day)).value;
-    final target = ref.watch(todayTargetProvider);
+    final target = ref.watch(targetForDayProvider(day));
     final total = log?.total ?? DayLog.totalOf(const []);
 
     return TabScaffold(
@@ -56,15 +56,23 @@ class FuelScreen extends ConsumerWidget {
               ),
               child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: MacroRings(
-                  kcal: total.kcal,
-                  kcalTarget: target?.kcal.toDouble(),
-                  proteinG: total.proteinG,
-                  proteinTarget: target?.proteinG,
-                  carbG: total.carbG,
-                  carbTarget: target?.carbG,
-                  fatG: total.fatG,
-                  fatTarget: target?.fatG,
+                child: Column(
+                  children: [
+                    MacroRings(
+                      kcal: total.kcal,
+                      kcalTarget: target?.kcal.toDouble(),
+                      proteinG: total.proteinG,
+                      proteinTarget: target?.proteinG,
+                      carbG: total.carbG,
+                      carbTarget: target?.carbG,
+                      fatG: total.fatG,
+                      fatTarget: target?.fatG,
+                    ),
+                    if (target?.shifted ?? false) ...[
+                      const SizedBox(height: 10),
+                      _ShiftNote(target: target!),
+                    ],
+                  ],
                 ),
               ),
             ),
@@ -107,6 +115,44 @@ class FuelScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Why today's carbohydrate is not the same as yesterday's.
+///
+/// A target that silently differs by day is one nobody trusts. The weekly
+/// total has not moved — this is the same food, put where the training is.
+class _ShiftNote extends StatelessWidget {
+  const _ShiftNote({required this.target});
+
+  final DayTarget target;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    final up = target.carbG > target.baseCarbG;
+    final moved = (target.carbG - target.baseCarbG).abs().round();
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          up ? Icons.trending_up : Icons.trending_down,
+          size: 14,
+          color: muted,
+        ),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            up
+                ? 'Training day: $moved g more carbs, borrowed from rest days'
+                : 'Rest day: $moved g fewer carbs, saved for training days',
+            style: text.labelSmall?.copyWith(color: muted),
+          ),
+        ),
+      ],
     );
   }
 }

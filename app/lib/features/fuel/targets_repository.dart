@@ -9,6 +9,8 @@ import '../../core/db/database_providers.dart';
 import '../../core/profile/profile_repository.dart';
 import '../body/activity_repository.dart';
 import '../body/body_repository.dart';
+import '../train/sessions_repository.dart';
+import 'training_rhythm.dart';
 import 'meals_repository.dart';
 
 /// What to eat, effective-dated.
@@ -211,5 +213,87 @@ final bmrProvider = Provider<double?>((ref) {
     heightCm: heightCm,
     ageYears: DateTime.now().year - birthYear,
     sex: sex,
+  );
+});
+
+/// The target as it applies to one day, after the training-day carb shift.
+///
+/// The stored row is the *week's* target. docs/PLAN.md §6 allows an optional
+/// share of carbohydrate to move from rest days onto training days with the
+/// weekly total unchanged, and until now that column was stored, editable and
+/// read by nothing — a setting that silently did nothing.
+class DayTarget {
+  const DayTarget({
+    required this.row,
+    required this.kcal,
+    required this.proteinG,
+    required this.carbG,
+    required this.fatG,
+    required this.shifted,
+    required this.isTrainingDay,
+  });
+
+  final NutritionTarget row;
+  final int kcal;
+  final double proteinG;
+  final double carbG;
+  final double fatG;
+
+  /// Whether the carb shift actually moved anything today.
+  final bool shifted;
+  final bool isTrainingDay;
+
+  /// What the day would have been without the shift, for explaining it.
+  double get baseCarbG => row.carbG;
+  int get baseKcal => row.kcal;
+}
+
+/// The target in force on [day], shifted for training if that is switched on.
+final targetForDayProvider = Provider.family<DayTarget?, String>((ref, day) {
+  final history = ref.watch(targetHistoryProvider).value ?? const [];
+  final row = history
+      .where((t) => t.effectiveFrom.compareTo(day) <= 0)
+      .firstOrNull;
+  if (row == null) return null;
+
+  final rhythm = ref.watch(trainingRhythmProvider);
+  final sessions = ref.watch(recentSessionsProvider).value ?? const [];
+  final isTrainingDay = trainsOn(rhythm, day, sessions);
+  final pct = row.trainingDayCarbShiftPct ?? 0;
+
+  if (pct <= 0 || !rhythm.canShift) {
+    return DayTarget(
+      row: row,
+      kcal: row.kcal,
+      proteinG: row.proteinG,
+      carbG: row.carbG,
+      fatG: row.fatG,
+      shifted: false,
+      isTrainingDay: isTrainingDay,
+    );
+  }
+
+  // The engine owns the arithmetic, here as everywhere else.
+  final moved = engine.shiftCarbs(
+    target: engine.MacroTarget(
+      kcal: row.kcal,
+      proteinG: row.proteinG.round(),
+      fatG: row.fatG.round(),
+      carbG: row.carbG.round(),
+      flooredAtBmr: false,
+    ),
+    shiftPct: pct,
+    isTrainingDay: isTrainingDay,
+    trainingDaysPerWeek: rhythm.daysPerWeek,
+  );
+
+  return DayTarget(
+    row: row,
+    kcal: moved.kcal,
+    proteinG: moved.proteinG.toDouble(),
+    carbG: moved.carbG.toDouble(),
+    fatG: moved.fatG.toDouble(),
+    shifted: moved.carbG != row.carbG.round(),
+    isTrainingDay: isTrainingDay,
   );
 });

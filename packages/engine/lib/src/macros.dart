@@ -205,3 +205,56 @@ CalorieProposal? proposeCalorieChange({
     targetRatePercent: edge,
   );
 }
+
+/// The same week's food, distributed to match the training.
+///
+/// docs/PLAN.md §6: an optional carb shift from rest days onto training days,
+/// with the weekly total unchanged. Carbohydrate is the fuel for the session,
+/// so there is a case for eating more of it on the days there is one — but it
+/// is a *distribution*, not extra food, and the arithmetic has to say so.
+///
+/// [shiftPct] is the share of a rest day's carbohydrate that moves. At 15% and
+/// four training days in a seven-day week, each rest day gives up 15% of its
+/// carbs and the three days' worth is spread across the four sessions.
+///
+/// Protein and fat do not move. Protein has a floor worth defending every day,
+/// and fat has a hormonal minimum; only carbohydrate is fuel timing.
+///
+/// Returns the target unchanged when there is nothing to redistribute — no
+/// shift asked for, no training days, or no rest days to take from. A week of
+/// seven sessions has no rest day to borrow against, and pretending otherwise
+/// would quietly add food.
+MacroTarget shiftCarbs({
+  required MacroTarget target,
+  required int shiftPct,
+  required bool isTrainingDay,
+  required int trainingDaysPerWeek,
+}) {
+  final restDays = 7 - trainingDaysPerWeek;
+  if (shiftPct <= 0 ||
+      trainingDaysPerWeek <= 0 ||
+      restDays <= 0 ||
+      target.carbG <= 0) {
+    return target;
+  }
+
+  final share = shiftPct.clamp(0, 50) / 100;
+  final moved = target.carbG * share;
+
+  final carbG = isTrainingDay
+      // Everything the rest days gave up, split across the sessions.
+      ? target.carbG + (moved * restDays) / trainingDaysPerWeek
+      : target.carbG - moved;
+
+  // The calories follow the carbohydrate, because the carbohydrate is what
+  // moved. A shift that left kcal alone would be a target that does not add up.
+  final delta = (carbG - target.carbG) * kcalPerGramCarb;
+
+  return MacroTarget(
+    kcal: (target.kcal + delta).round(),
+    proteinG: target.proteinG,
+    fatG: target.fatG,
+    carbG: carbG.round(),
+    flooredAtBmr: target.flooredAtBmr,
+  );
+}
