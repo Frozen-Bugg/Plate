@@ -20,8 +20,10 @@ the dashboard, and a fortnight of food logs producing a believable TDEE — are 
 Phase 4 (Coach v1) is built: the schema, the agent harness, nine read tools, streaming chat, food
 logging by sentence, photo and label reading, set logging by voice, pre-workout briefs and
 post-workout debriefs, and an eval suite whose pass mark *is* the phase's exit test. Its exit test —
-≥90% of scenarios answered correctly, citing data — has not been run yet: `npm run eval` needs a key
-in `coach-api/.env`.
+≥90% of scenarios answered correctly, citing data — **passes**, at 93–100% depending on the run
+(`npm run eval`, which needs a key in `coach-api/.env`). The spread is the model, not a regression:
+read `coach-api/README.md` on why one run proves nothing either way, and why reading a full answer
+has to come before changing a check.
 
 The `propose_*` family and the proposals inbox are Phase 5, so nothing the coach says can change
 anything yet, which is the intended order.
