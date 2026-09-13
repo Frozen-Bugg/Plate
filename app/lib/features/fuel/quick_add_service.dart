@@ -190,6 +190,11 @@ class QuickAddService {
     );
   }
 
+  /// Posts to a coach route. Public so a sibling service can share the token
+  /// handling, the timeout and the error wording rather than growing its own.
+  Future<dynamic> post(String route, Map<String, dynamic> body) =>
+      _post(route, body);
+
   Future<dynamic> _post(String route, Map<String, dynamic> body) async {
     final token = Supabase.instance.client.auth.currentSession?.accessToken;
     if (token == null) throw const QuickAddError('You are signed out.');

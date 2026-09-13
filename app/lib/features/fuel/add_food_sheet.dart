@@ -17,6 +17,7 @@ Future<void> showAddFoodSheet(
   BuildContext context, {
   required String day,
   String slot = 'snack',
+  String? search,
 }) {
   return showModalBottomSheet<void>(
     context: context,
@@ -24,7 +25,7 @@ Future<void> showAddFoodSheet(
     showDragHandle: true,
     builder: (context) => Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-      child: _AddFoodSheet(day: day, slot: slot),
+      child: _AddFoodSheet(day: day, slot: slot, search: search),
     ),
   );
 }
@@ -55,10 +56,16 @@ class _AddFoodSheet extends ConsumerStatefulWidget {
     required this.day,
     required this.slot,
     this.pickTitle,
+    this.search,
   });
 
   final String day;
   final String slot;
+
+  /// What to search for on open. Set when something else already knows what
+  /// is being looked for — a coach suggestion, say — so the sheet does not
+  /// ask for it to be typed twice.
+  final String? search;
 
   /// Set when the sheet is picking rather than logging; also its heading.
   final String? pickTitle;
@@ -68,9 +75,9 @@ class _AddFoodSheet extends ConsumerStatefulWidget {
 }
 
 class _AddFoodSheetState extends ConsumerState<_AddFoodSheet> {
-  final _search = TextEditingController();
+  late final _search = TextEditingController(text: widget.search ?? '');
   late String _slot = widget.slot;
-  var _query = '';
+  late var _query = widget.search ?? '';
 
   @override
   void dispose() {

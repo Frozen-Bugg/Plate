@@ -293,7 +293,7 @@ export class ParseError extends Error {
 /// Asking for JSON only gets JSON only most of the time. The rest of the time
 /// it arrives fenced, or with a sentence in front of it, and failing on that
 /// would be pedantry at the lifter's expense.
-function parseJson(text: string): unknown {
+export function parseJson(text: string): unknown {
   const fenced = /```(?:json)?\s*([\s\S]*?)```/.exec(text);
   const body = fenced?.[1] ?? text;
 

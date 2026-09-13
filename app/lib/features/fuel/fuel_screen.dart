@@ -13,6 +13,7 @@ import 'prep_screen.dart';
 import 'quick_add_sheet.dart';
 import 'recipes_repository.dart';
 import 'recipes_screen.dart';
+import 'suggest_sheet.dart';
 import 'targets_repository.dart';
 import 'targets_screen.dart';
 
@@ -84,6 +85,13 @@ class FuelScreen extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
+          FloatingActionButton.small(
+            heroTag: 'suggest',
+            tooltip: 'What should I eat?',
+            onPressed: () => showSuggestSheet(context, day: day),
+            child: const Icon(Icons.lightbulb_outline),
+          ),
+          const SizedBox(height: 10),
           FloatingActionButton.small(
             heroTag: 'quick-add',
             tooltip: 'Say or type a whole meal',

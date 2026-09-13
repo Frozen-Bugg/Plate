@@ -22,6 +22,7 @@ import { SupabaseData } from '../../../coach-api/src/data.ts';
 import { guardTrainingTier, modelFrom } from '../../../coach-api/src/model/index.ts';
 import { systemFor } from '../../../coach-api/src/prompt.ts';
 import { writeBrief } from '../../../coach-api/src/tools/briefs.ts';
+import { suggestMeals } from '../../../coach-api/src/tools/suggest.ts';
 import { ParseError, parseMeal, parsePhoto, parseSets } from '../../../coach-api/src/tools/parse.ts';
 import { buildSnapshot } from '../../../coach-api/src/snapshot.ts';
 import { readTools } from '../../../coach-api/src/tools/read.ts';
@@ -93,6 +94,7 @@ Deno.serve(async (request) => {
     );
   }
   if (path.endsWith('/brief')) return brief(body, jwt);
+  if (path.endsWith('/suggest')) return suggest(body, jwt);
 
   const message = (body.message ?? '').trim();
   if (!message) return fail(400, 'Nothing to answer.');
@@ -206,6 +208,35 @@ async function oneShot(parse: () => Promise<unknown>): Promise<Response> {
 /// The note before a session, or after one.
 ///
 /// Reads the lifter's own data, so unlike the parses it needs their token.
+/// "What should I eat?" — three options, none of them logged.
+///
+/// Reads rather than writes, so it needs the lifter's JWT and the training
+/// tier guard, same as the brief. Everything numeric is worked out here; the
+/// model is asked only which combinations are a good idea.
+async function suggest(
+  body: { today?: string; note?: string },
+  jwt: string,
+): Promise<Response> {
+  const env = Deno.env.toObject();
+
+  try {
+    guardTrainingTier(env, { synthetic: false });
+    const data = new SupabaseData(env.SUPABASE_URL!, env.SUPABASE_ANON_KEY!, jwt);
+    const result = await suggestMeals(modelFrom(env), {
+      data,
+      today: /^d{4}-d{2}-d{2}$/.test(body.today ?? '')
+        ? body.today!
+        : new Date().toISOString().slice(0, 10),
+      note: body.note,
+    });
+    return new Response(JSON.stringify(result), {
+      headers: { ...cors, 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    return fail(503, message_of(error));
+  }
+}
+
 async function brief(
   body: { kind?: string; today?: string; justDid?: string },
   jwt: string,
