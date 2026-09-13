@@ -30,6 +30,10 @@ part 'app_database.g.dart';
   Meals,
   MealItems,
   NutritionTargets,
+  CoachThreads,
+  CoachMessages,
+  CoachMemories,
+  AiProposals,
   SyncRejections,
 ])
 class AppDatabase extends _$AppDatabase {

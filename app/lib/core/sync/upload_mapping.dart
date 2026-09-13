@@ -6,6 +6,8 @@ import 'dart:convert';
 const jsonColumns = <String, Set<String>>{
   'profiles': {'equipment', 'injuries'},
   'exercises': {'primary_muscles', 'secondary_muscles'},
+  'coach_messages': {'tool_calls'},
+  'ai_proposals': {'payload'},
 };
 
 /// Postgres booleans arrive on the device as 0/1 integers.
@@ -14,6 +16,7 @@ const boolColumns = <String, Set<String>>{
   'sets': {'is_pr'},
   'foods': {'favourite'},
   'recipes': {'favourite'},
+  'ai_proposals': {'validated'},
 };
 
 /// Converts a PowerSync CRUD payload for [table] into the JSON body Supabase expects.

@@ -322,4 +322,67 @@ const schema = Schema([
   ], indexes: [
     Index('rollup', [IndexedColumn.descending('rollup_on')]),
   ]),
+
+  // Phase 4 (Coach). The conversation syncs so a thread started on the phone
+  // can be read on the web, and so the app can render history offline.
+  Table('coach_threads', [
+    Column.text('user_id'),
+    Column.text('title'),
+    Column.text('kind'),
+    Column.text('last_message_at'),
+    ..._timestamps,
+  ], indexes: [
+    Index('recent', [IndexedColumn.descending('last_message_at')]),
+  ]),
+  Table('coach_messages', [
+    Column.text('user_id'),
+    Column.text('thread_id'),
+    Column.integer('position'),
+    Column.text('role'),
+    Column.text('content'),
+    // jsonb in Postgres, JSON text here. Listed in upload_mapping.dart.
+    Column.text('tool_calls'),
+    Column.text('model'),
+    Column.integer('input_tokens'),
+    Column.integer('output_tokens'),
+    Column.text('error'),
+    ..._timestamps,
+  ], indexes: [
+    Index('thread', [
+      IndexedColumn('thread_id'),
+      IndexedColumn('position'),
+    ]),
+  ]),
+  Table('coach_memories', [
+    Column.text('user_id'),
+    Column.text('content'),
+    Column.text('kind'),
+    Column.integer('weight'),
+    Column.text('source'),
+    Column.text('thread_id'),
+    Column.text('last_used_at'),
+    ..._timestamps,
+  ], indexes: [
+    Index('used', [IndexedColumn.descending('last_used_at')]),
+  ]),
+  Table('ai_proposals', [
+    Column.text('user_id'),
+    Column.text('kind'),
+    Column.text('status'),
+    // jsonb in Postgres. Listed in upload_mapping.dart.
+    Column.text('payload'),
+    Column.text('rationale'),
+    Column.text('thread_id'),
+    Column.integer('validated'),
+    Column.text('validation_notes'),
+    Column.text('responded_at'),
+    Column.text('decline_reason'),
+    Column.text('expires_at'),
+    ..._timestamps,
+  ], indexes: [
+    Index('pending', [
+      IndexedColumn('status'),
+      IndexedColumn.descending('created_at'),
+    ]),
+  ]),
 ]);

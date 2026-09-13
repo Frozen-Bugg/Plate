@@ -105,6 +105,7 @@ const SYNCED = [
   'daily_rollup',
   'foods', 'recipes', 'recipe_items', 'meals', 'meal_items',
   'nutrition_targets',
+  'coach_threads', 'coach_messages', 'coach_memories', 'ai_proposals',
 ];
 
 console.log('\nevery synced table:');
@@ -638,5 +639,191 @@ await check('meals go with the lifter', async () => {
   }
 });
 
-console.log(`\n${pass} passed, ${fail} failed`);
+
+// ---------------------------------------------------------------------------
+// coach (Phase 4)
+// ---------------------------------------------------------------------------
+
+console.log('\ncoach:');
+
+const userWithThread = async () => {
+  const uid = await newUser();
+  const thread = (await db.query(
+    `insert into public.coach_threads (user_id) values ($1) returning id`,
+    [uid])).rows[0].id;
+  return { uid, thread };
+};
+
+await check('a thread only holds the kinds of conversation that exist', async () => {
+  const uid = await newUser();
+  expect(
+    await rejects(
+      `insert into public.coach_threads (user_id, kind) values ($1,'gossip')`,
+      [uid]),
+    'accepted an unknown thread kind');
+});
+
+await check('two messages cannot take the same place in a thread', async () => {
+  // The device generates both the turn and the reply, often in the same
+  // millisecond, so created_at cannot order them and position has to.
+  const { uid, thread } = await userWithThread();
+  await db.query(
+    `insert into public.coach_messages (user_id, thread_id, position, role)
+     values ($1,$2,0,'user')`, [uid, thread]);
+  expect(
+    await rejects(
+      `insert into public.coach_messages (user_id, thread_id, position, role)
+       values ($1,$2,0,'assistant')`, [uid, thread]),
+    'accepted two messages at position 0');
+});
+
+await check('a deleted message frees its place', async () => {
+  // The index is partial, so a soft-deleted turn must not block the one that
+  // replaces it — the same rule the day-keyed tables follow.
+  const { uid, thread } = await userWithThread();
+  const first = (await db.query(
+    `insert into public.coach_messages (user_id, thread_id, position, role)
+     values ($1,$2,0,'user') returning id`, [uid, thread])).rows[0].id;
+  await db.query(
+    `update public.coach_messages set deleted_at=now() where id=$1`, [first]);
+  await db.query(
+    `insert into public.coach_messages (user_id, thread_id, position, role)
+     values ($1,$2,0,'user')`, [uid, thread]);
+});
+
+await check('a message cannot be attached to another lifter\'s thread', async () => {
+  const { thread } = await userWithThread();
+  const other = await newUser();
+  expect(
+    await rejects(
+      `insert into public.coach_messages (user_id, thread_id, position, role)
+       values ($1,$2,0,'user')`, [other, thread]),
+    'attached a message to a thread belonging to someone else');
+});
+
+await check('deleting a thread takes its messages', async () => {
+  const { uid, thread } = await userWithThread();
+  await db.query(
+    `insert into public.coach_messages (user_id, thread_id, position, role)
+     values ($1,$2,0,'user')`, [uid, thread]);
+  await db.query(`delete from public.coach_threads where id=$1`, [thread]);
+  const left = (await db.query(
+    `select 1 from public.coach_messages where thread_id=$1`, [thread])).rows;
+  expect(left.length === 0, 'messages outlived their thread');
+});
+
+await check('a memory outlives the conversation that produced it', async () => {
+  // "Your left shoulder complains on overhead press" does not stop being true
+  // because the thread it was said in was deleted.
+  const { uid, thread } = await userWithThread();
+  await db.query(
+    `insert into public.coach_memories (user_id, thread_id, content)
+     values ($1,$2,'Left shoulder complains on overhead press')`, [uid, thread]);
+  await db.query(`delete from public.coach_threads where id=$1`, [thread]);
+  const kept = (await db.query(
+    `select thread_id from public.coach_memories where user_id=$1`, [uid])).rows;
+  expect(kept.length === 1, 'the memory went with the thread');
+  expect(kept[0].thread_id === null, 'the memory still points at a dead thread');
+});
+
+await check('a proposal outlives the conversation that produced it', async () => {
+  const { uid, thread } = await userWithThread();
+  await db.query(
+    `insert into public.ai_proposals (user_id, thread_id, kind, payload)
+     values ($1,$2,'deload','{}'::jsonb)`, [uid, thread]);
+  await db.query(`delete from public.coach_threads where id=$1`, [thread]);
+  const kept = (await db.query(
+    `select thread_id from public.ai_proposals where user_id=$1`, [uid])).rows;
+  expect(kept.length === 1, 'the proposal went with the thread');
+  expect(kept[0].thread_id === null, 'the proposal still points at a dead thread');
+});
+
+await check('an empty memory is not a memory', async () => {
+  const uid = await newUser();
+  expect(
+    await rejects(
+      `insert into public.coach_memories (user_id, content) values ($1,'')`,
+      [uid]),
+    'accepted an empty memory');
+});
+
+await check('a proposal starts unanswered and unvalidated', async () => {
+  const uid = await newUser();
+  const row = (await db.query(
+    `insert into public.ai_proposals (user_id, kind, payload)
+     values ($1,'deload','{"weeks":1}'::jsonb)
+     returning status, validated, responded_at`, [uid])).rows[0];
+  expect(row.status === 'pending', 'did not start pending');
+  expect(row.validated === false, 'started validated');
+  expect(row.responded_at === null, 'started answered');
+});
+
+await check('an answered proposal has to say when', async () => {
+  // The proposals inbox reads this invariant, so it is enforced here rather
+  // than trusted to whoever writes the row.
+  const uid = await newUser();
+  expect(
+    await rejects(
+      `insert into public.ai_proposals (user_id, kind, payload, status)
+       values ($1,'deload','{}'::jsonb,'accepted')`, [uid]),
+    'accepted an answer with no answered-at');
+});
+
+await check('an unanswered proposal cannot claim to have been answered', async () => {
+  const uid = await newUser();
+  expect(
+    await rejects(
+      `insert into public.ai_proposals (user_id, kind, payload, responded_at)
+       values ($1,'deload','{}'::jsonb, now())`, [uid]),
+    'a pending proposal carried a responded_at');
+});
+
+await check('only a decline carries a reason', async () => {
+  const uid = await newUser();
+  expect(
+    await rejects(
+      `insert into public.ai_proposals
+         (user_id, kind, payload, status, responded_at, decline_reason)
+       values ($1,'deload','{}'::jsonb,'accepted', now(), 'too soon')`, [uid]),
+    'an accepted proposal carried a decline reason');
+  // And a real decline does.
+  await db.query(
+    `insert into public.ai_proposals
+       (user_id, kind, payload, status, responded_at, decline_reason)
+     values ($1,'deload','{}'::jsonb,'declined', now(), 'Competition in 2 weeks')`,
+    [uid]);
+});
+
+await check('the coach cannot propose something nobody can apply', async () => {
+  const uid = await newUser();
+  expect(
+    await rejects(
+      `insert into public.ai_proposals (user_id, kind, payload)
+       values ($1,'buy_supplements','{}'::jsonb)`, [uid]),
+    'accepted a proposal kind the engine has no way to apply');
+});
+
+await check('the coach goes with the lifter', async () => {
+  const { uid, thread } = await userWithThread();
+  await db.query(
+    `insert into public.coach_messages (user_id, thread_id, position, role)
+     values ($1,$2,0,'user')`, [uid, thread]);
+  await db.query(
+    `insert into public.coach_memories (user_id, content) values ($1,'Travels often')`,
+    [uid]);
+  await db.query(
+    `insert into public.ai_proposals (user_id, kind, payload)
+     values ($1,'targets','{"kcal":2400}'::jsonb)`, [uid]);
+
+  await db.query(`delete from auth.users where id=$1`, [uid]);
+  for (const table of ['coach_threads', 'coach_messages', 'coach_memories',
+    'ai_proposals']) {
+    const left = (await db.query(
+      `select 1 from public.${table} where user_id=$1`, [uid])).rows;
+    expect(left.length === 0, `${table} survived the account being deleted`);
+  }
+});
+
+console.log(`
+${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

@@ -439,3 +439,107 @@ class NutritionTargets extends Table with SyncedRow {
   IntColumn get tdeeKcal => integer().nullable()();
   TextColumn get notes => text().nullable()();
 }
+
+// ---------------------------------------------------------------------------
+// Phase 4 — Coach
+// ---------------------------------------------------------------------------
+
+/// A conversation with the coach.
+///
+/// [kind] records what opened it: a Sunday review and a mid-workout "swap this
+/// exercise" are not the same thing to look back through.
+class CoachThreads extends Table with SyncedRow {
+  TextColumn get userId => text()();
+
+  /// Written by the coach from the first exchange. Null until then.
+  TextColumn get title => text().nullable()();
+
+  /// 'chat', 'brief', 'debrief', 'review' or 'nudge'.
+  TextColumn get kind => text().withDefault(const Constant('chat'))();
+
+  /// Denormalised so the thread list sorts without reading the messages.
+  DateTimeColumn get lastMessageAt => dateTime().nullable()();
+}
+
+/// One turn in a thread.
+///
+/// Stores what was shown, not what was sent: [content] is the text the lifter
+/// saw and [toolCalls] the chips beside it, never the raw API transcript. The
+/// Coach API rebuilds its own context each turn.
+class CoachMessages extends Table with SyncedRow {
+  TextColumn get userId => text()();
+  TextColumn get threadId => text()();
+
+  /// Ordering within the thread. Timestamps are not enough — a turn and its
+  /// reply can land in the same millisecond.
+  IntColumn get position => integer()();
+
+  /// 'user' or 'assistant'.
+  TextColumn get role => text()();
+  TextColumn get content => text().withDefault(const Constant(''))();
+
+  /// What the coach looked at: `[{tool, summary}]`. jsonb in Postgres, so it is
+  /// listed in `upload_mapping.dart`.
+  TextColumn get toolCalls => text().withDefault(const Constant('[]'))();
+
+  TextColumn get model => text().nullable()();
+  IntColumn get inputTokens => integer().nullable()();
+  IntColumn get outputTokens => integer().nullable()();
+
+  /// A turn that failed is kept and shown. A coach that answers nothing and
+  /// says nothing about it is the same bug as a silently discarded write.
+  TextColumn get error => text().nullable()();
+}
+
+/// What the coach carries between conversations.
+///
+/// Visible to the lifter on purpose: a coach whose notes you cannot read or
+/// delete is one you cannot correct.
+class CoachMemories extends Table with SyncedRow {
+  TextColumn get userId => text()();
+  TextColumn get content => text()();
+
+  /// 'note', 'preference', 'constraint', 'goal' or 'decline'.
+  TextColumn get kind => text().withDefault(const Constant('note'))();
+
+  /// How strongly it should outrank others when context is tight, 1–5.
+  IntColumn get weight => integer().withDefault(const Constant(1))();
+
+  /// 'coach', 'lifter' or 'engine'.
+  TextColumn get source => text().withDefault(const Constant('coach'))();
+  TextColumn get threadId => text().nullable()();
+  DateTimeColumn get lastUsedAt => dateTime().nullable()();
+}
+
+/// A change the coach wants to make, waiting for an answer.
+///
+/// The only route from the coach to a change. Nothing here is applied by being
+/// written — the device applies it through the engine, after an accept.
+class AiProposals extends Table with SyncedRow {
+  TextColumn get userId => text()();
+
+  /// 'program_change', 'deload', 'targets', 'meal_plan' or 'exercise_swap'.
+  TextColumn get kind => text()();
+
+  /// 'pending', 'accepted', 'declined', 'expired' or 'superseded'.
+  TextColumn get status => text().withDefault(const Constant('pending'))();
+
+  /// The change itself, shaped by [kind]. jsonb in Postgres, so it is listed in
+  /// `upload_mapping.dart`.
+  TextColumn get payload => text()();
+
+  /// What the card says, in the coach's words.
+  TextColumn get rationale => text().withDefault(const Constant(''))();
+  TextColumn get threadId => text().nullable()();
+
+  /// The engine's verdict, written before the card is shown. An unvalidated
+  /// proposal must never be offered.
+  BoolColumn get validated => boolean().withDefault(const Constant(false))();
+  TextColumn get validationNotes => text().nullable()();
+
+  DateTimeColumn get respondedAt => dateTime().nullable()();
+  TextColumn get declineReason => text().nullable()();
+
+  /// A stale proposal is worse than none: the data it was built on has moved on.
+  DateTimeColumn get expiresAt => dateTime().nullable()();
+}
