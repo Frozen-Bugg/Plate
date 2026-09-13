@@ -10,6 +10,8 @@ import 'foods_repository.dart';
 import 'macro_rings.dart';
 import 'meals_repository.dart';
 import 'quick_add_sheet.dart';
+import 'recipes_repository.dart';
+import 'recipes_screen.dart';
 import 'targets_repository.dart';
 import 'targets_screen.dart';
 
@@ -26,6 +28,17 @@ class FuelScreen extends ConsumerWidget {
 
     return TabScaffold(
       title: 'Fuel',
+      actions: [
+        IconButton(
+          tooltip: 'Recipes',
+          icon: const Icon(Icons.menu_book_outlined),
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => RecipesScreen(day: day),
+            ),
+          ),
+        ),
+      ],
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 148),
         children: [
@@ -199,9 +212,15 @@ class _Slot extends ConsumerWidget {
           children: [
             ListTile(
               title: Text(_label(slot), style: text.titleSmall),
-              trailing: Text(
-                items.isEmpty ? '—' : '${total.kcal.round()} kcal',
-                style: text.labelLarge?.copyWith(color: muted),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    items.isEmpty ? '—' : '${total.kcal.round()} kcal',
+                    style: text.labelLarge?.copyWith(color: muted),
+                  ),
+                  _SlotMenu(slot: slot, day: day, items: items),
+                ],
               ),
               onTap: () => showAddFoodSheet(context, day: day, slot: slot),
             ),
@@ -219,6 +238,144 @@ class _Slot extends ConsumerWidget {
         'snack' => 'Snacks',
         _ => slot,
       };
+}
+
+/// What else a meal slot can do: log a saved recipe, or become one.
+///
+/// "Save as a recipe" is here rather than anywhere cleverer because this is
+/// where the information already is. The recipes worth keeping are the meals
+/// already eaten, and asking for a name is the whole of the work.
+class _SlotMenu extends ConsumerWidget {
+  const _SlotMenu({required this.slot, required this.day, required this.items});
+
+  final String slot;
+  final String day;
+  final List<MealItem> items;
+
+  Future<void> _saveAsRecipe(BuildContext context, WidgetRef ref) async {
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => _NameDialog(slot: slot),
+    );
+    if (name == null || !context.mounted) return;
+
+    final saved = await ref.read(recipesRepositoryProvider).fromMealItems(
+          name: name,
+          items: items,
+        );
+    if (!context.mounted) return;
+
+    // Items logged from another recipe have no food_id to carry over, and
+    // recipe_items requires one. Saying so beats quietly saving a smaller
+    // dinner than the one on screen.
+    final messenger = ScaffoldMessenger.of(context);
+    if (saved.id == null) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Nothing here can become an ingredient yet.'),
+        ),
+      );
+      return;
+    }
+
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          saved.skipped == 0
+              ? 'Saved "$name" · ${saved.added} ingredients'
+              : 'Saved "$name" · ${saved.added} ingredients, '
+                  '${saved.skipped} skipped',
+        ),
+        action: SnackBarAction(
+          label: 'Open',
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => RecipeScreen(id: saved.id!, day: day, slot: slot),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_vert, size: 18),
+      tooltip: 'More',
+      onSelected: (choice) async {
+        switch (choice) {
+          case 'recipe':
+            await Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => RecipesScreen(day: day, slot: slot),
+              ),
+            );
+          case 'save':
+            await _saveAsRecipe(context, ref);
+        }
+      },
+      itemBuilder: (_) => [
+        const PopupMenuItem(value: 'recipe', child: Text('Log a recipe')),
+        PopupMenuItem(
+          value: 'save',
+          enabled: items.isNotEmpty,
+          child: const Text('Save as a recipe'),
+        ),
+      ],
+    );
+  }
+}
+
+class _NameDialog extends StatefulWidget {
+  const _NameDialog({required this.slot});
+
+  final String slot;
+
+  @override
+  State<_NameDialog> createState() => _NameDialogState();
+}
+
+class _NameDialogState extends State<_NameDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final value = _controller.text.trim();
+    Navigator.of(context).pop(value.isEmpty ? null : value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Save as a recipe'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        textCapitalization: TextCapitalization.sentences,
+        decoration: const InputDecoration(
+          labelText: 'Name',
+          hintText: 'Chicken rice bowl',
+          helperText: 'The amounts come across as they were logged. Set the '
+              'servings and the cooked weight afterwards.',
+          helperMaxLines: 3,
+        ),
+        onSubmitted: (_) => _submit(),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(onPressed: _submit, child: const Text('Save')),
+      ],
+    );
+  }
 }
 
 class _Item extends ConsumerWidget {
@@ -295,7 +452,11 @@ class _Item extends ConsumerWidget {
     if (item.foodId case final id?) {
       return ref.watch(foodByIdProvider(id)).value?.name ?? 'Food';
     }
-    if (item.recipeId != null) return 'Recipe';
+    if (item.recipeId case final id?) {
+      // Was the literal word "Recipe" before there were any. The row keeps its
+      // own macros either way, so a deleted recipe still reads sensibly.
+      return ref.watch(recipeProvider(id)).value?.name ?? 'Recipe';
+    }
     return 'Food';
   }
 }

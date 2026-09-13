@@ -29,11 +29,39 @@ Future<void> showAddFoodSheet(
   );
 }
 
+/// Picks a food and an amount, and writes nothing.
+///
+/// The same sheet as logging — the same search, the same Open Food Facts
+/// fallback, the same barcode scanner, the same "New" escape hatch — because a
+/// second food search would be a second set of bugs and would drift from this
+/// one within a month. Only the ending differs: this hands the answer back.
+Future<({Food food, double grams})?> showFoodPicker(
+  BuildContext context, {
+  String title = 'Add ingredient',
+}) {
+  return showModalBottomSheet<({Food food, double grams})>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (context) => Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: _AddFoodSheet(day: '', slot: 'snack', pickTitle: title),
+    ),
+  );
+}
+
 class _AddFoodSheet extends ConsumerStatefulWidget {
-  const _AddFoodSheet({required this.day, required this.slot});
+  const _AddFoodSheet({
+    required this.day,
+    required this.slot,
+    this.pickTitle,
+  });
 
   final String day;
   final String slot;
+
+  /// Set when the sheet is picking rather than logging; also its heading.
+  final String? pickTitle;
 
   @override
   ConsumerState<_AddFoodSheet> createState() => _AddFoodSheetState();
@@ -64,7 +92,12 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet> {
           children: [
             Row(
               children: [
-                Expanded(child: Text('Log food', style: text.headlineSmall)),
+                Expanded(
+                  child: Text(
+                    widget.pickTitle ?? 'Log food',
+                    style: text.headlineSmall,
+                  ),
+                ),
                 IconButton(
                   tooltip: 'Scan a barcode',
                   onPressed: _scan,
@@ -78,21 +111,25 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet> {
               ],
             ),
             const SizedBox(height: 8),
-            SegmentedButton<String>(
-              segments: [
-                for (final slot in mealSlots)
-                  ButtonSegment(
-                    value: slot,
-                    label: Text(
-                      slot == 'snack' ? 'Snacks' : '${slot[0].toUpperCase()}${slot.substring(1)}',
+            // An ingredient does not belong to a meal, so picking one has no
+            // slot to choose.
+            if (widget.pickTitle == null) ...[
+              SegmentedButton<String>(
+                segments: [
+                  for (final slot in mealSlots)
+                    ButtonSegment(
+                      value: slot,
+                      label: Text(
+                        slot == 'snack' ? 'Snacks' : '${slot[0].toUpperCase()}${slot.substring(1)}',
+                      ),
                     ),
-                  ),
-              ],
-              selected: {_slot},
-              showSelectedIcon: false,
-              onSelectionChanged: (s) => setState(() => _slot = s.first),
-            ),
-            const SizedBox(height: 12),
+                ],
+                selected: {_slot},
+                showSelectedIcon: false,
+                onSelectionChanged: (s) => setState(() => _slot = s.first),
+              ),
+              const SizedBox(height: 12),
+            ],
             TextField(
               controller: _search,
               autofocus: true,
@@ -224,8 +261,17 @@ class _AddFoodSheetState extends ConsumerState<_AddFoodSheet> {
   }
 
   Future<void> _pickQuantity(Food food) async {
-    final grams = await showQuantitySheet(context, food: food);
+    final grams = await showQuantitySheet(
+      context,
+      food: food,
+      cta: widget.pickTitle == null ? 'Log' : 'Add',
+    );
     if (grams == null || !mounted) return;
+
+    if (widget.pickTitle != null) {
+      Navigator.of(context).pop((food: food, grams: grams));
+      return;
+    }
 
     await ref.read(mealsRepositoryProvider).logFood(
           food: food,

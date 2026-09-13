@@ -10,11 +10,16 @@ class TabScaffold extends StatelessWidget {
     super.key,
     required this.title,
     required this.body,
+    this.actions = const [],
     this.floatingActionButton,
   });
 
   final String title;
   final Widget body;
+
+  /// Shown before the sync chip, so a tab's own actions sit where a tab's own
+  /// actions belong and the chip stays put across tabs.
+  final List<Widget> actions;
   final Widget? floatingActionButton;
 
   @override
@@ -23,6 +28,7 @@ class TabScaffold extends StatelessWidget {
       appBar: AppBar(
         title: Text(title),
         actions: [
+          ...actions,
           const SyncStatusChip(),
           IconButton(
             tooltip: 'Settings',
