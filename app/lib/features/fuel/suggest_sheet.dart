@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'add_food_sheet.dart';
+import '../../core/db/app_database.dart';
+import 'foods_repository.dart';
 import 'prep_repository.dart';
-import 'quick_add_service.dart';
 import 'recipes_repository.dart';
 import 'recipes_screen.dart';
 import 'suggest_service.dart';
@@ -11,9 +11,17 @@ import 'suggest_service.dart';
 /// "What should I eat?", answered in three options.
 ///
 /// Opened from the day log, because that is where the question is asked — at
-/// six in the evening, looking at the rings. Nothing here logs anything by
-/// itself: an option is a thing to consider, and logging it is a second tap
-/// through the sheets that already exist.
+/// six in the evening, looking at the rings.
+///
+/// The options outlive the sheet. They are held in [suggestionsProvider], so
+/// closing this and opening it again shows the same three, and the one you were
+/// half-decided on is still there. Refresh is a button, not a side effect of
+/// looking.
+///
+/// Nothing here logs anything. An option becomes a **recipe** — read it, cook
+/// it, log a portion from the recipe screen like any other — except food
+/// already in the fridge, which is logged against its batch so the remainder
+/// comes down.
 Future<void> showSuggestSheet(
   BuildContext context, {
   required String day,
@@ -42,16 +50,19 @@ class _SuggestSheet extends ConsumerStatefulWidget {
 
 class _SuggestSheetState extends ConsumerState<_SuggestSheet> {
   final _note = TextEditingController();
-  Suggestions? _result;
-  String? _error;
-  var _asking = false;
+
+  /// The option being turned into a recipe, if any. Named rather than a bool so
+  /// the spinner lands on the row that was tapped.
+  String? _opening;
 
   @override
   void initState() {
     super.initState();
-    // Asked immediately: the common case is having nothing to add, and making
-    // someone type before they are offered anything is a sheet nobody opens.
-    _ask();
+    // Only if there is nothing for today already. This is the whole fix: the
+    // sheet no longer asks a fresh question every time it is opened.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(suggestionsProvider.notifier).ensure(day: widget.day);
+    });
   }
 
   @override
@@ -60,47 +71,39 @@ class _SuggestSheetState extends ConsumerState<_SuggestSheet> {
     super.dispose();
   }
 
-  Future<void> _ask() async {
-    setState(() {
-      _asking = true;
-      _error = null;
-    });
-
-    try {
-      final result = await ref.read(suggestServiceProvider).suggest(
-            day: widget.day,
-            note: _note.text,
-          );
-      if (mounted) setState(() => _result = result);
-    } on QuickAddError catch (error) {
-      if (mounted) setState(() => _error = error.message);
-    } catch (_) {
-      if (mounted) {
-        setState(() => _error = 'The coach could not answer just now.');
-      }
-    } finally {
-      if (mounted) setState(() => _asking = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
-    final result = _result;
+    final state = ref.watch(suggestionsProvider);
+    final result = state.suggestions;
 
     return SizedBox(
-      height: MediaQuery.of(context).size.height * 0.8,
+      height: MediaQuery.of(context).size.height * 0.82,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('What should I eat?', style: text.headlineSmall),
-            const SizedBox(height: 4),
+            Row(
+              children: [
+                Expanded(
+                  child: Text('What should I eat?', style: text.headlineSmall),
+                ),
+                IconButton(
+                  tooltip: 'Ask again',
+                  onPressed: state.asking
+                      ? null
+                      : () => ref
+                          .read(suggestionsProvider.notifier)
+                          .ensure(day: widget.day, force: true),
+                  icon: const Icon(Icons.refresh),
+                ),
+              ],
+            ),
             Text(
               switch (result?.leftKcal) {
-                null => 'Nothing is logged as a target, so these are ordinary '
+                null => 'Nothing is set as a target, so these are ordinary '
                     'meals rather than ones that fit.',
                 final left when left <= 0 =>
                   'You are over for today. These would put you further over.',
@@ -115,7 +118,7 @@ class _SuggestSheetState extends ConsumerState<_SuggestSheet> {
               _UrgentBanner(text: urgent),
             ],
             const SizedBox(height: 12),
-            Expanded(child: _body(context)),
+            Expanded(child: _body(context, state)),
             const SizedBox(height: 8),
             // The pantry that is not a table. Said once, for this question.
             TextField(
@@ -125,10 +128,10 @@ class _SuggestSheetState extends ConsumerState<_SuggestSheet> {
                 hintText: 'Anything to work with? "chicken and rice"',
                 suffixIcon: IconButton(
                   icon: const Icon(Icons.send),
-                  onPressed: _asking ? null : _ask,
+                  onPressed: state.asking ? null : _askWithNote,
                 ),
               ),
-              onSubmitted: (_) => _ask(),
+              onSubmitted: (_) => _askWithNote(),
             ),
           ],
         ),
@@ -136,14 +139,21 @@ class _SuggestSheetState extends ConsumerState<_SuggestSheet> {
     );
   }
 
-  Widget _body(BuildContext context) {
+  void _askWithNote() {
+    ref.read(suggestionsProvider.notifier).askWith(
+          day: widget.day,
+          note: _note.text,
+        );
+  }
+
+  Widget _body(BuildContext context, SuggestionsState state) {
     final text = Theme.of(context).textTheme;
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
 
-    if (_asking && _result == null) {
+    if (state.asking && state.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (_error case final error?) {
+    if (state.error case final error?) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -154,13 +164,18 @@ class _SuggestSheetState extends ConsumerState<_SuggestSheet> {
               style: text.bodyMedium?.copyWith(color: muted),
             ),
             const SizedBox(height: 12),
-            OutlinedButton(onPressed: _ask, child: const Text('Try again')),
+            OutlinedButton(
+              onPressed: () => ref
+                  .read(suggestionsProvider.notifier)
+                  .ensure(day: widget.day, force: true),
+              child: const Text('Try again'),
+            ),
           ],
         ),
       );
     }
 
-    final options = _result?.options ?? const <Suggestion>[];
+    final options = state.suggestions?.options ?? const <Suggestion>[];
     if (options.isEmpty) {
       return Center(
         child: Text(
@@ -175,12 +190,17 @@ class _SuggestSheetState extends ConsumerState<_SuggestSheet> {
         ListView(
           children: [
             for (final option in options)
-              _OptionCard(option: option, day: widget.day, slot: widget.slot),
+              _OptionCard(
+                option: option,
+                day: widget.day,
+                slot: widget.slot,
+                busy: _opening == option.name,
+                onOpen: () => _open(option),
+              ),
           ],
         ),
-        // Re-asking keeps the old answers on screen: a blank sheet while it
-        // thinks loses the option they were half-decided on.
-        if (_asking)
+        // A refresh keeps the old answers on screen while it runs.
+        if (state.asking)
           const Positioned(
             top: 0,
             right: 0,
@@ -192,6 +212,142 @@ class _SuggestSheetState extends ConsumerState<_SuggestSheet> {
           ),
       ],
     );
+  }
+
+  /// Turns an option into something you can cook and log.
+  ///
+  /// Food in the fridge stays a portion of its batch — that is the accounting
+  /// that keeps the remainder right, and there is nothing to cook. Everything
+  /// else ends up on the recipe screen, which is where a recipe is read and
+  /// where a portion is logged.
+  Future<void> _open(Suggestion option) async {
+    if (_opening != null) return;
+
+    if (option.fromPrep case final name?) {
+      final batch = ref
+          .read(prepOnHandProvider)
+          .where((b) => b.name.toLowerCase() == name.toLowerCase())
+          .firstOrNull;
+      if (batch != null) {
+        await _eatFromFridge(batch);
+        return;
+      }
+    }
+
+    setState(() => _opening = option.name);
+    try {
+      final id = await _recipeFor(option);
+      if (id == null || !mounted) return;
+
+      // The sheet closes and the recipe opens. Coming back for another option
+      // means reopening the sheet, which now holds the same three.
+      Navigator.of(context).pop();
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) =>
+              RecipeScreen(id: id, day: widget.day, slot: widget.slot),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _opening = null);
+    }
+  }
+
+  Future<void> _eatFromFridge(Batch batch) async {
+    final result = await showPortionSheet(
+      context,
+      name: batch.name,
+      servingWeightG: batch.servingWeightG,
+      isWeighed: batch.isWeighed,
+      nutritionFor: batch.nutritionForGrams,
+      maxGrams: batch.gramsLeft,
+      subtitle: '${batch.gramsLeft.round()} g left in the fridge',
+      slot: widget.slot,
+    );
+    if (result == null) return;
+
+    await ref.read(prepRepositoryProvider).logPortion(
+          batch: batch,
+          grams: result.grams,
+          slot: result.slot,
+          day: widget.day,
+        );
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  /// The recipe behind an option, saving a new one if there is not one yet.
+  Future<String?> _recipeFor(Suggestion option) async {
+    final saved = ref.read(recipesProvider).value ?? const <RecipeDetail>[];
+
+    // One of theirs, named exactly: open it rather than drafting a second copy.
+    final name = option.fromRecipe ?? option.name;
+    final existing = saved
+        .where((r) => r.name.toLowerCase() == name.toLowerCase())
+        .firstOrNull;
+    if (existing != null) return existing.id;
+
+    // A new idea. Drafting it is a second model call, which is why it happens
+    // on the tap rather than for all three up front — two of them are never
+    // opened.
+    try {
+      final draft = await ref
+          .read(draftServiceProvider)
+          .draftRecipe('${option.name}. ${option.why}');
+
+      final recipes = ref.read(recipesRepositoryProvider);
+      final foods = ref.read(foodsRepositoryProvider);
+      final id = await recipes.create(
+        name: draft.name,
+        servings: draft.servings,
+        steps: draft.steps,
+      );
+
+      // Same order as the drafter: the shelf first, then the coach, and
+      // anything priced by the coach is saved as an estimate.
+      final matched = <String, Food?>{};
+      for (final ingredient in draft.ingredients) {
+        matched[ingredient.name] = await foods.bestMatch(ingredient.name);
+      }
+      final unpriced = [
+        for (final MapEntry(:key, :value) in matched.entries)
+          if (value == null) key,
+      ];
+      if (unpriced.isNotEmpty) {
+        try {
+          final priced =
+              await ref.read(draftServiceProvider).estimate(unpriced);
+          for (final estimate in priced) {
+            for (final missing in unpriced) {
+              if (missing.trim().toLowerCase() ==
+                  estimate.name.trim().toLowerCase()) {
+                matched[missing] = await foods.remember(estimate.facts);
+              }
+            }
+          }
+        } catch (_) {
+          // The recipe is short by whatever could not be priced, and its own
+          // screen says which.
+        }
+      }
+
+      for (final ingredient in draft.ingredients) {
+        if (matched[ingredient.name] case final food?) {
+          await recipes.addIngredient(
+            recipeId: id,
+            foodId: food.id,
+            quantityG: ingredient.grams,
+          );
+        }
+      }
+      return id;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not write that one up.')),
+        );
+      }
+      return null;
+    }
   }
 }
 
@@ -211,7 +367,8 @@ class _UrgentBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.schedule, size: 18, color: theme.colorScheme.onErrorContainer),
+          Icon(Icons.schedule,
+              size: 18, color: theme.colorScheme.onErrorContainer),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -226,22 +383,20 @@ class _UrgentBanner extends StatelessWidget {
   }
 }
 
-/// One option, and the way to log it.
-///
-/// Food already cooked logs through the batch, so the portion comes out of the
-/// fridge and the remainder goes down. Anything else opens the ordinary food
-/// search with the name filled in — the coach's guess at 412 kcal is not
-/// something to write into a log as fact.
 class _OptionCard extends ConsumerWidget {
   const _OptionCard({
     required this.option,
     required this.day,
     required this.slot,
+    required this.busy,
+    required this.onOpen,
   });
 
   final Suggestion option;
   final String day;
   final String slot;
+  final bool busy;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -251,114 +406,65 @@ class _OptionCard extends ConsumerWidget {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(child: Text(option.name, style: text.titleMedium)),
-                Text('${option.kcal.round()}', style: text.titleMedium),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: busy ? null : onOpen,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: Text(option.name, style: text.titleMedium)),
+                  Text('${option.kcal.round()}', style: text.titleMedium),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'P ${option.proteinG.round()} · C ${option.carbG.round()} · '
+                'F ${option.fatG.round()}',
+                style: text.labelSmall?.copyWith(color: muted),
+              ),
+              if (option.why.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(option.why, style: text.bodySmall),
               ],
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'P ${option.proteinG.round()} · C ${option.carbG.round()} · '
-              'F ${option.fatG.round()}',
-              style: text.labelSmall?.copyWith(color: muted),
-            ),
-            if (option.why.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(option.why, style: text.bodySmall),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  if (option.fromPrep != null)
+                    _Tag(icon: Icons.kitchen_outlined, label: 'In the fridge')
+                  else if (option.fromRecipe != null)
+                    _Tag(icon: Icons.menu_book_outlined, label: 'Saved recipe')
+                  else
+                    _Tag(
+                      icon: Icons.auto_awesome_outlined,
+                      label: 'Writes up as a recipe',
+                    ),
+                  const Spacer(),
+                  if (busy)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 12),
+                      child: SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  else
+                    TextButton(
+                      onPressed: onOpen,
+                      child: Text(option.isCooked ? 'Eat it' : 'Recipe'),
+                    ),
+                ],
+              ),
             ],
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                if (option.fromPrep != null)
-                  _Tag(icon: Icons.kitchen_outlined, label: 'In the fridge')
-                else if (option.fromRecipe != null)
-                  _Tag(icon: Icons.menu_book_outlined, label: 'Saved recipe')
-                else
-                  _Tag(icon: Icons.auto_awesome_outlined, label: 'Estimate'),
-                const Spacer(),
-                TextButton(
-                  onPressed: () => _log(context, ref),
-                  child: Text(option.isCooked ? 'Eat it' : 'Log it'),
-                ),
-              ],
-            ),
-          ],
+          ),
         ),
       ),
     );
-  }
-
-  Future<void> _log(BuildContext context, WidgetRef ref) async {
-    // Food in the fridge: log the portion against the batch, so the remainder
-    // comes down and the macros are the real ones rather than the suggestion's.
-    if (option.fromPrep case final name?) {
-      final batch = ref
-          .read(prepOnHandProvider)
-          .where((b) => b.name.toLowerCase() == name.toLowerCase())
-          .firstOrNull;
-      if (batch != null) {
-        final result = await showPortionSheet(
-          context,
-          name: batch.name,
-          servingWeightG: batch.servingWeightG,
-          isWeighed: batch.isWeighed,
-          nutritionFor: batch.nutritionForGrams,
-          maxGrams: batch.gramsLeft,
-          subtitle: '${batch.gramsLeft.round()} g left in the fridge',
-          slot: slot,
-        );
-        if (result == null) return;
-        await ref.read(prepRepositoryProvider).logPortion(
-              batch: batch,
-              grams: result.grams,
-              slot: result.slot,
-              day: day,
-            );
-        if (context.mounted) Navigator.of(context).pop();
-        return;
-      }
-    }
-
-    // One of their recipes: log a portion of the real thing.
-    if (option.fromRecipe case final name?) {
-      final recipe = (ref.read(recipesProvider).value ?? const <RecipeDetail>[])
-          .where((r) => r.name.toLowerCase() == name.toLowerCase())
-          .firstOrNull;
-      if (recipe != null && context.mounted) {
-        final result = await showPortionSheet(
-          context,
-          name: recipe.name,
-          servingWeightG: recipe.servingWeightG,
-          isWeighed: recipe.isWeighed,
-          nutritionFor: recipe.nutritionForGrams,
-          slot: slot,
-        );
-        if (result == null) return;
-        await ref.read(recipesRepositoryProvider).logToMeal(
-              recipe: recipe,
-              grams: result.grams,
-              slot: result.slot,
-              day: day,
-            );
-        if (context.mounted) Navigator.of(context).pop();
-        return;
-      }
-    }
-
-    // Everything else is a suggestion, not a food. The coach's 412 kcal is a
-    // guess about a meal that does not exist yet, and writing a guess into the
-    // log as fact is what docs/PLAN.md §11 exists to stop. So this opens the
-    // ordinary search instead.
-    if (!context.mounted) return;
-    Navigator.of(context).pop();
-    await showAddFoodSheet(context, day: day, slot: slot, search: option.name);
   }
 }
 
@@ -376,9 +482,12 @@ class _Tag extends StatelessWidget {
       children: [
         Icon(icon, size: 14, color: muted),
         const SizedBox(width: 6),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(color: muted),
+        Flexible(
+          child: Text(
+            label,
+            style:
+                Theme.of(context).textTheme.labelSmall?.copyWith(color: muted),
+          ),
         ),
       ],
     );

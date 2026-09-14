@@ -133,13 +133,16 @@ class DraftedRecipe {
     required this.name,
     required this.servings,
     required this.ingredients,
-    this.method,
+    this.steps = const [],
   });
 
   factory DraftedRecipe.fromJson(Map<String, dynamic> json) => DraftedRecipe(
         name: json['name'] as String? ?? 'Recipe',
         servings: (json['servings'] as num?)?.round() ?? 1,
-        method: json['method'] as String?,
+        steps: [
+          for (final step in (json['steps'] as List<dynamic>? ?? const []))
+            if (step is String && step.trim().isNotEmpty) step.trim(),
+        ],
         ingredients: [
           for (final row in (json['ingredients'] as List<dynamic>? ?? const []))
             DraftIngredient.fromJson((row as Map).cast<String, dynamic>()),
@@ -148,7 +151,9 @@ class DraftedRecipe {
 
   final String name;
   final int servings;
-  final String? method;
+
+  /// How to cook it, a step to an entry.
+  final List<String> steps;
   final List<DraftIngredient> ingredients;
 }
 
@@ -285,3 +290,76 @@ class EstimatedFood {
         fibrePer100: fibrePer100,
       );
 }
+
+/// The suggestions on offer, and whether they are being fetched.
+class SuggestionsState {
+  const SuggestionsState({
+    this.day,
+    this.suggestions,
+    this.error,
+    this.asking = false,
+  });
+
+  /// The day these were asked for. A new day is a new question.
+  final String? day;
+  final Suggestions? suggestions;
+  final String? error;
+  final bool asking;
+
+  bool get isEmpty => suggestions == null;
+}
+
+/// Holds what the coach suggested until somebody asks for something else.
+///
+/// The sheet used to ask on every open, so glancing at the options and closing
+/// it threw them away — reopening produced three different meals and no way
+/// back to the one you had half-decided on. Suggestions are a *thing you were
+/// given*, not a fresh roll of the dice, so they live here and outlive the
+/// sheet.
+///
+/// Kept per day, and only for this run of the app. A day-old suggestion is
+/// answering a question about a day that has finished, and a cold start is a
+/// natural moment to ask again.
+class SuggestionsNotifier extends Notifier<SuggestionsState> {
+  @override
+  SuggestionsState build() => const SuggestionsState();
+
+  /// Fetches only when there is nothing usable — a fresh day, an error, or a
+  /// first open. [force] is the refresh button, which is the "until asked"
+  /// half of "it should not change until asked".
+  Future<void> ensure({required String day, bool force = false}) async {
+    if (state.asking) return;
+    if (!force && state.day == day && state.suggestions != null) return;
+
+    state = SuggestionsState(
+      day: day,
+      // Kept on screen while a refresh runs: a blank sheet loses the option
+      // somebody was reading.
+      suggestions: force ? state.suggestions : null,
+      asking: true,
+    );
+
+    try {
+      final result =
+          await ref.read(suggestServiceProvider).suggest(day: day, note: _note);
+      state = SuggestionsState(day: day, suggestions: result);
+    } on QuickAddError catch (error) {
+      state = SuggestionsState(day: day, error: error.message);
+    } catch (_) {
+      state = SuggestionsState(day: day, error: 'The coach could not answer.');
+    }
+  }
+
+  String? _note;
+
+  /// Asks again with something to work around — "chicken and rice in".
+  Future<void> askWith({required String day, required String note}) {
+    _note = note.trim().isEmpty ? null : note.trim();
+    return ensure(day: day, force: true);
+  }
+}
+
+final suggestionsProvider =
+    NotifierProvider<SuggestionsNotifier, SuggestionsState>(
+  SuggestionsNotifier.new,
+);

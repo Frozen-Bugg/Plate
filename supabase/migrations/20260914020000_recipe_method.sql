@@ -1,0 +1,12 @@
+-- How to cook it.
+--
+-- `notes` already existed and is the lifter's own free text — "double the
+-- chilli", "Sam does not eat this". The method is a different thing: an ordered
+-- list read standing over a pan, and rendering it as a numbered list reliably
+-- means keeping it apart from prose somebody typed.
+--
+-- Stored as one text column with a step to a line rather than as a jsonb array.
+-- A text[] or jsonb would need a line in upload_mapping.dart and would buy
+-- nothing here: nothing queries an individual step, and PowerSync would carry
+-- it as JSON text either way.
+alter table public.recipes add column method text;

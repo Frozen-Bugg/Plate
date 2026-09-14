@@ -231,6 +231,7 @@ const schema = Schema([
     Column.integer('servings'),
     Column.real('total_weight_g'),
     Column.text('notes'),
+    Column.text('method'),
     Column.text('last_used_at'),
     Column.integer('favourite'),
     ..._timestamps,

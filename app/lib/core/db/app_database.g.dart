@@ -12406,6 +12406,15 @@ class $RecipesTable extends Recipes with TableInfo<$RecipesTable, Recipe> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _methodMeta = const VerificationMeta('method');
+  @override
+  late final GeneratedColumn<String> method = GeneratedColumn<String>(
+    'method',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _lastUsedAtMeta = const VerificationMeta(
     'lastUsedAt',
   );
@@ -12443,6 +12452,7 @@ class $RecipesTable extends Recipes with TableInfo<$RecipesTable, Recipe> {
     servings,
     totalWeightG,
     notes,
+    method,
     lastUsedAt,
     favourite,
   ];
@@ -12516,6 +12526,12 @@ class $RecipesTable extends Recipes with TableInfo<$RecipesTable, Recipe> {
         notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
       );
     }
+    if (data.containsKey('method')) {
+      context.handle(
+        _methodMeta,
+        method.isAcceptableOrUnknown(data['method']!, _methodMeta),
+      );
+    }
     if (data.containsKey('last_used_at')) {
       context.handle(
         _lastUsedAtMeta,
@@ -12576,6 +12592,10 @@ class $RecipesTable extends Recipes with TableInfo<$RecipesTable, Recipe> {
         DriftSqlType.string,
         data['${effectivePrefix}notes'],
       ),
+      method: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}method'],
+      ),
       lastUsedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}last_used_at'],
@@ -12602,7 +12622,16 @@ class Recipe extends DataClass implements Insertable<Recipe> {
   final String name;
   final int? servings;
   final double? totalWeightG;
+
+  /// The lifter's own remarks. Free text.
   final String? notes;
+
+  /// How to cook it, one step to a line.
+  ///
+  /// Apart from [notes] because it is an ordered list read standing over a pan,
+  /// and a numbered list rendered out of somebody's free-text prose is a
+  /// numbered list that eventually renders wrong.
+  final String? method;
   final DateTime? lastUsedAt;
   final bool favourite;
   const Recipe({
@@ -12615,6 +12644,7 @@ class Recipe extends DataClass implements Insertable<Recipe> {
     this.servings,
     this.totalWeightG,
     this.notes,
+    this.method,
     this.lastUsedAt,
     required this.favourite,
   });
@@ -12637,6 +12667,9 @@ class Recipe extends DataClass implements Insertable<Recipe> {
     }
     if (!nullToAbsent || notes != null) {
       map['notes'] = Variable<String>(notes);
+    }
+    if (!nullToAbsent || method != null) {
+      map['method'] = Variable<String>(method);
     }
     if (!nullToAbsent || lastUsedAt != null) {
       map['last_used_at'] = Variable<DateTime>(lastUsedAt);
@@ -12664,6 +12697,9 @@ class Recipe extends DataClass implements Insertable<Recipe> {
       notes: notes == null && nullToAbsent
           ? const Value.absent()
           : Value(notes),
+      method: method == null && nullToAbsent
+          ? const Value.absent()
+          : Value(method),
       lastUsedAt: lastUsedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(lastUsedAt),
@@ -12686,6 +12722,7 @@ class Recipe extends DataClass implements Insertable<Recipe> {
       servings: serializer.fromJson<int?>(json['servings']),
       totalWeightG: serializer.fromJson<double?>(json['totalWeightG']),
       notes: serializer.fromJson<String?>(json['notes']),
+      method: serializer.fromJson<String?>(json['method']),
       lastUsedAt: serializer.fromJson<DateTime?>(json['lastUsedAt']),
       favourite: serializer.fromJson<bool>(json['favourite']),
     );
@@ -12703,6 +12740,7 @@ class Recipe extends DataClass implements Insertable<Recipe> {
       'servings': serializer.toJson<int?>(servings),
       'totalWeightG': serializer.toJson<double?>(totalWeightG),
       'notes': serializer.toJson<String?>(notes),
+      'method': serializer.toJson<String?>(method),
       'lastUsedAt': serializer.toJson<DateTime?>(lastUsedAt),
       'favourite': serializer.toJson<bool>(favourite),
     };
@@ -12718,6 +12756,7 @@ class Recipe extends DataClass implements Insertable<Recipe> {
     Value<int?> servings = const Value.absent(),
     Value<double?> totalWeightG = const Value.absent(),
     Value<String?> notes = const Value.absent(),
+    Value<String?> method = const Value.absent(),
     Value<DateTime?> lastUsedAt = const Value.absent(),
     bool? favourite,
   }) => Recipe(
@@ -12730,6 +12769,7 @@ class Recipe extends DataClass implements Insertable<Recipe> {
     servings: servings.present ? servings.value : this.servings,
     totalWeightG: totalWeightG.present ? totalWeightG.value : this.totalWeightG,
     notes: notes.present ? notes.value : this.notes,
+    method: method.present ? method.value : this.method,
     lastUsedAt: lastUsedAt.present ? lastUsedAt.value : this.lastUsedAt,
     favourite: favourite ?? this.favourite,
   );
@@ -12746,6 +12786,7 @@ class Recipe extends DataClass implements Insertable<Recipe> {
           ? data.totalWeightG.value
           : this.totalWeightG,
       notes: data.notes.present ? data.notes.value : this.notes,
+      method: data.method.present ? data.method.value : this.method,
       lastUsedAt: data.lastUsedAt.present
           ? data.lastUsedAt.value
           : this.lastUsedAt,
@@ -12765,6 +12806,7 @@ class Recipe extends DataClass implements Insertable<Recipe> {
           ..write('servings: $servings, ')
           ..write('totalWeightG: $totalWeightG, ')
           ..write('notes: $notes, ')
+          ..write('method: $method, ')
           ..write('lastUsedAt: $lastUsedAt, ')
           ..write('favourite: $favourite')
           ..write(')'))
@@ -12782,6 +12824,7 @@ class Recipe extends DataClass implements Insertable<Recipe> {
     servings,
     totalWeightG,
     notes,
+    method,
     lastUsedAt,
     favourite,
   );
@@ -12798,6 +12841,7 @@ class Recipe extends DataClass implements Insertable<Recipe> {
           other.servings == this.servings &&
           other.totalWeightG == this.totalWeightG &&
           other.notes == this.notes &&
+          other.method == this.method &&
           other.lastUsedAt == this.lastUsedAt &&
           other.favourite == this.favourite);
 }
@@ -12812,6 +12856,7 @@ class RecipesCompanion extends UpdateCompanion<Recipe> {
   final Value<int?> servings;
   final Value<double?> totalWeightG;
   final Value<String?> notes;
+  final Value<String?> method;
   final Value<DateTime?> lastUsedAt;
   final Value<bool> favourite;
   final Value<int> rowid;
@@ -12825,6 +12870,7 @@ class RecipesCompanion extends UpdateCompanion<Recipe> {
     this.servings = const Value.absent(),
     this.totalWeightG = const Value.absent(),
     this.notes = const Value.absent(),
+    this.method = const Value.absent(),
     this.lastUsedAt = const Value.absent(),
     this.favourite = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -12839,6 +12885,7 @@ class RecipesCompanion extends UpdateCompanion<Recipe> {
     this.servings = const Value.absent(),
     this.totalWeightG = const Value.absent(),
     this.notes = const Value.absent(),
+    this.method = const Value.absent(),
     this.lastUsedAt = const Value.absent(),
     this.favourite = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -12854,6 +12901,7 @@ class RecipesCompanion extends UpdateCompanion<Recipe> {
     Expression<int>? servings,
     Expression<double>? totalWeightG,
     Expression<String>? notes,
+    Expression<String>? method,
     Expression<DateTime>? lastUsedAt,
     Expression<bool>? favourite,
     Expression<int>? rowid,
@@ -12868,6 +12916,7 @@ class RecipesCompanion extends UpdateCompanion<Recipe> {
       if (servings != null) 'servings': servings,
       if (totalWeightG != null) 'total_weight_g': totalWeightG,
       if (notes != null) 'notes': notes,
+      if (method != null) 'method': method,
       if (lastUsedAt != null) 'last_used_at': lastUsedAt,
       if (favourite != null) 'favourite': favourite,
       if (rowid != null) 'rowid': rowid,
@@ -12884,6 +12933,7 @@ class RecipesCompanion extends UpdateCompanion<Recipe> {
     Value<int?>? servings,
     Value<double?>? totalWeightG,
     Value<String?>? notes,
+    Value<String?>? method,
     Value<DateTime?>? lastUsedAt,
     Value<bool>? favourite,
     Value<int>? rowid,
@@ -12898,6 +12948,7 @@ class RecipesCompanion extends UpdateCompanion<Recipe> {
       servings: servings ?? this.servings,
       totalWeightG: totalWeightG ?? this.totalWeightG,
       notes: notes ?? this.notes,
+      method: method ?? this.method,
       lastUsedAt: lastUsedAt ?? this.lastUsedAt,
       favourite: favourite ?? this.favourite,
       rowid: rowid ?? this.rowid,
@@ -12934,6 +12985,9 @@ class RecipesCompanion extends UpdateCompanion<Recipe> {
     if (notes.present) {
       map['notes'] = Variable<String>(notes.value);
     }
+    if (method.present) {
+      map['method'] = Variable<String>(method.value);
+    }
     if (lastUsedAt.present) {
       map['last_used_at'] = Variable<DateTime>(lastUsedAt.value);
     }
@@ -12958,6 +13012,7 @@ class RecipesCompanion extends UpdateCompanion<Recipe> {
           ..write('servings: $servings, ')
           ..write('totalWeightG: $totalWeightG, ')
           ..write('notes: $notes, ')
+          ..write('method: $method, ')
           ..write('lastUsedAt: $lastUsedAt, ')
           ..write('favourite: $favourite, ')
           ..write('rowid: $rowid')
@@ -27037,6 +27092,7 @@ typedef $$RecipesTableCreateCompanionBuilder =
       Value<int?> servings,
       Value<double?> totalWeightG,
       Value<String?> notes,
+      Value<String?> method,
       Value<DateTime?> lastUsedAt,
       Value<bool> favourite,
       Value<int> rowid,
@@ -27052,6 +27108,7 @@ typedef $$RecipesTableUpdateCompanionBuilder =
       Value<int?> servings,
       Value<double?> totalWeightG,
       Value<String?> notes,
+      Value<String?> method,
       Value<DateTime?> lastUsedAt,
       Value<bool> favourite,
       Value<int> rowid,
@@ -27108,6 +27165,11 @@ class $$RecipesTableFilterComposer
 
   ColumnFilters<String> get notes => $composableBuilder(
     column: $table.notes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get method => $composableBuilder(
+    column: $table.method,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -27176,6 +27238,11 @@ class $$RecipesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get method => $composableBuilder(
+    column: $table.method,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get lastUsedAt => $composableBuilder(
     column: $table.lastUsedAt,
     builder: (column) => ColumnOrderings(column),
@@ -27225,6 +27292,9 @@ class $$RecipesTableAnnotationComposer
   GeneratedColumn<String> get notes =>
       $composableBuilder(column: $table.notes, builder: (column) => column);
 
+  GeneratedColumn<String> get method =>
+      $composableBuilder(column: $table.method, builder: (column) => column);
+
   GeneratedColumn<DateTime> get lastUsedAt => $composableBuilder(
     column: $table.lastUsedAt,
     builder: (column) => column,
@@ -27271,6 +27341,7 @@ class $$RecipesTableTableManager
                 Value<int?> servings = const Value.absent(),
                 Value<double?> totalWeightG = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
+                Value<String?> method = const Value.absent(),
                 Value<DateTime?> lastUsedAt = const Value.absent(),
                 Value<bool> favourite = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -27284,6 +27355,7 @@ class $$RecipesTableTableManager
                 servings: servings,
                 totalWeightG: totalWeightG,
                 notes: notes,
+                method: method,
                 lastUsedAt: lastUsedAt,
                 favourite: favourite,
                 rowid: rowid,
@@ -27299,6 +27371,7 @@ class $$RecipesTableTableManager
                 Value<int?> servings = const Value.absent(),
                 Value<double?> totalWeightG = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
+                Value<String?> method = const Value.absent(),
                 Value<DateTime?> lastUsedAt = const Value.absent(),
                 Value<bool> favourite = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -27312,6 +27385,7 @@ class $$RecipesTableTableManager
                 servings: servings,
                 totalWeightG: totalWeightG,
                 notes: notes,
+                method: method,
                 lastUsedAt: lastUsedAt,
                 favourite: favourite,
                 rowid: rowid,

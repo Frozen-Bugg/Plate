@@ -360,7 +360,16 @@ class Recipes extends Table with SyncedRow {
   TextColumn get name => text()();
   IntColumn get servings => integer().nullable()();
   RealColumn get totalWeightG => real().nullable()();
+
+  /// The lifter's own remarks. Free text.
   TextColumn get notes => text().nullable()();
+
+  /// How to cook it, one step to a line.
+  ///
+  /// Apart from [notes] because it is an ordered list read standing over a pan,
+  /// and a numbered list rendered out of somebody's free-text prose is a
+  /// numbered list that eventually renders wrong.
+  TextColumn get method => text().nullable()();
   DateTimeColumn get lastUsedAt => dateTime().nullable()();
   BoolColumn get favourite => boolean().withDefault(const Constant(false))();
 }

@@ -95,6 +95,14 @@ class RecipeDetail {
       weightG <= 0 ? _nothing : scaledBy(grams / weightG);
 
   bool get isEmpty => ingredients.isEmpty;
+
+  /// How to cook it, a step to a line. Empty when nobody wrote one.
+  List<String> get steps => [
+        for (final line in (recipe.method ?? '').split('\n'))
+          if (line.trim().isNotEmpty) line.trim(),
+      ];
+
+  bool get hasMethod => steps.isNotEmpty;
 }
 
 /// Recipes and the ingredients in them.
@@ -179,6 +187,7 @@ class RecipesRepository {
     int servings = 1,
     double? totalWeightG,
     String? notes,
+    List<String> steps = const [],
   }) async {
     // Views do not support RETURNING, so the id is generated here.
     final id = uuid.v7();
@@ -190,6 +199,7 @@ class RecipesRepository {
             servings: Value(servings),
             totalWeightG: Value(totalWeightG),
             notes: Value(notes),
+            method: Value(steps.isEmpty ? null : steps.join('\n')),
             favourite: const Value(false),
           ),
         );
@@ -203,6 +213,7 @@ class RecipesRepository {
     double? totalWeightG,
     bool clearTotalWeight = false,
     String? notes,
+    List<String>? steps,
     bool? favourite,
   }) =>
       (_db.update(_db.recipes)..where((r) => r.id.equals(id))).write(
@@ -215,6 +226,9 @@ class RecipesRepository {
                   ? const Value.absent()
                   : Value(totalWeightG)),
           notes: notes == null ? const Value.absent() : Value(notes),
+          method: steps == null
+              ? const Value.absent()
+              : Value(steps.isEmpty ? null : steps.join('\n')),
           favourite:
               favourite == null ? const Value.absent() : Value(favourite),
           updatedAt: Value(nowUtc()),

@@ -12,7 +12,11 @@ const bowl = JSON.stringify({
     { name: 'White rice', grams: 300, note: 'dry' },
     { name: 'Olive oil', grams: 30 },
   ],
-  method: 'Roast the chicken, boil the rice, combine.',
+  steps: [
+    'Rinse the rice until the water runs clear.',
+    'Simmer it covered for 10 minutes, then rest it covered for 10 more.',
+    'Cut the chicken into 2 cm strips and sear 4 minutes a side.',
+  ],
 });
 
 test('a recipe comes back as names and weights', async () => {
@@ -29,7 +33,8 @@ test('a recipe comes back as names and weights', async () => {
     grams: 600,
     note: 'raw weight',
   });
-  assert.match(draft.method!, /Roast the chicken/);
+  assert.equal(draft.steps.length, 3);
+  assert.match(draft.steps[0]!, /water runs clear/);
 });
 
 test('the model is told in so many words not to state a macro', async () => {
@@ -232,4 +237,63 @@ test('a week with nothing to plan is not an error', async () => {
     { onHand: 'loads', recipes: [] },
   );
   assert.deepEqual(plan.cooks, []);
+});
+
+test('the method is steps, long enough to follow', async () => {
+  const model = new StubClient([{ text: bowl }]);
+  await draftRecipe(model, 'chicken and rice');
+
+  // The first version capped this at two sentences, which is a description of
+  // a recipe rather than a recipe.
+  assert.match(model.lastRequest.system, /One action to a step/);
+  assert.match(model.lastRequest.system, /how to tell it is done by looking/);
+});
+
+test('a method that arrives as one paragraph is still usable', async () => {
+  // Refusing it would throw away a working recipe over its punctuation.
+  const draft = await draftRecipe(
+    new StubClient([{
+      text: JSON.stringify({
+        name: 'Omelette',
+        servings: 1,
+        ingredients: [{ name: 'Eggs', grams: 150 }],
+        steps: 'Beat the eggs.\nHeat the pan.\nPour them in.',
+      }),
+    }]),
+    'omelette',
+  );
+
+  assert.deepEqual(draft.steps, ['Beat the eggs.', 'Heat the pan.', 'Pour them in.']);
+});
+
+test('numbering the model added is stripped, because the app numbers them', async () => {
+  const draft = await draftRecipe(
+    new StubClient([{
+      text: JSON.stringify({
+        name: 'Omelette',
+        servings: 1,
+        ingredients: [{ name: 'Eggs', grams: 150 }],
+        steps: ['1. Beat the eggs.', '2) Heat the pan.', '- Pour them in.', '   ', 'x'],
+      }),
+    }]),
+    'omelette',
+  );
+
+  assert.deepEqual(draft.steps, ['Beat the eggs.', 'Heat the pan.', 'Pour them in.']);
+});
+
+test('a recipe with no method is still a recipe', async () => {
+  const draft = await draftRecipe(
+    new StubClient([{
+      text: JSON.stringify({
+        name: 'Protein shake',
+        servings: 1,
+        ingredients: [{ name: 'Whey', grams: 30 }],
+      }),
+    }]),
+    'a shake',
+  );
+
+  assert.deepEqual(draft.steps, []);
+  assert.equal(draft.name, 'Protein shake');
 });

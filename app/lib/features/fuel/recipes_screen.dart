@@ -345,6 +345,20 @@ class RecipeScreen extends ConsumerWidget {
             ),
           for (final ingredient in recipe.ingredients)
             _IngredientRow(ingredient: ingredient),
+          if (recipe.hasMethod) ...[
+            const SizedBox(height: 24),
+            Text(
+              'METHOD',
+              style: text.labelSmall?.copyWith(color: muted, letterSpacing: 1),
+            ),
+            const SizedBox(height: 8),
+            for (final (index, step) in recipe.steps.indexed)
+              _Step(number: index + 1, text: step),
+          ],
+          if (recipe.recipe.notes case final notes?) ...[
+            const SizedBox(height: 20),
+            Text(notes, style: text.bodySmall?.copyWith(color: muted)),
+          ],
         ],
       ),
     );
@@ -581,6 +595,42 @@ class _Stepper extends StatelessWidget {
           onPressed: value < 100 ? () => onChanged(value + 1) : null,
         ),
       ],
+    );
+  }
+}
+
+/// One step of the method.
+///
+/// Numbered down the side rather than run together as a paragraph, because it
+/// is read a line at a time with wet hands, glancing back at where you were.
+class _Step extends StatelessWidget {
+  const _Step({required this.number, required this.text});
+
+  final int number;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muted = theme.colorScheme.onSurfaceVariant;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 26,
+            child: Text(
+              '$number',
+              style: theme.textTheme.labelLarge?.copyWith(color: muted),
+            ),
+          ),
+          Expanded(
+            child: Text(text, style: theme.textTheme.bodyMedium),
+          ),
+        ],
+      ),
     );
   }
 }

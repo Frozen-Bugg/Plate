@@ -28,9 +28,12 @@ export interface DraftRecipe {
   name: string;
   servings: number;
   ingredients: DraftIngredient[];
-  /// What the model wants to say about the method, if anything. One or two
-  /// sentences; the app stores it as the recipe's notes.
-  method?: string;
+  /// How to cook it, one action to a step.
+  ///
+  /// Long enough to follow without knowing the dish. The first version of this
+  /// was capped at two sentences — "Roast the chicken, boil the rice, combine"
+  /// — which is a description of a recipe rather than a recipe.
+  steps: string[];
 }
 
 const prompt = `
@@ -39,7 +42,7 @@ makes, and what goes in it by weight. You do not chat or greet.
 
 Reply with JSON only. No prose, no markdown fence.
 
-{"name":"Chicken rice bowl","servings":4,"ingredients":[{"name":"Chicken breast","grams":600,"note":"raw weight"},{"name":"White rice","grams":300,"note":"dry"}],"method":"Roast the chicken, boil the rice, combine."}
+{"name":"Chicken rice bowl","servings":4,"ingredients":[{"name":"Chicken breast","grams":600,"note":"raw weight"},{"name":"White rice","grams":300,"note":"dry"}],"steps":["Rinse the rice until the water runs clear, then put it in a pan with 600 ml of cold water and a pinch of salt.","Bring to the boil, cover, and turn the heat to its lowest for 10 minutes. Leave it covered off the heat for another 10.","While it cooks, cut the chicken into strips about 2 cm thick and season both sides.","Heat the oil in a wide pan over a medium-high heat until it shimmers. Lay the chicken in without crowding it.","Cook 4-5 minutes a side, until the outside is browned and the thickest part is no longer pink. Rest it 5 minutes, then slice.","Divide the rice between four containers, top with the chicken, and let everything cool before the lids go on."]}
 
 Rules:
 
@@ -54,11 +57,25 @@ Rules:
   calories and the easiest thing to leave out.
 - "servings" is how many portions the dish makes. Say 1 if it is for one meal.
 - Keep it to what was asked for. Do not add a side nobody mentioned.
-- "method" is optional and at most two sentences. Leave it out for something
-  that needs no explaining.
+
+"steps" is the method, and it is the part that gets read standing over a pan.
+Write it for somebody who has not made this before:
+
+- One action to a step, in the order they happen. Four to ten steps for most
+  dishes.
+- Give the numbers that decide whether it works: heat level, how long, what
+  size to cut something, how much water. "Simmer 10 minutes" beats "cook the
+  rice".
+- Say how to tell it is done by looking at it, not only by the clock — browned,
+  no longer pink, the water absorbed, a knife goes through easily.
+- Put the waiting first where it helps. If the rice takes twenty minutes, start
+  it before the chicken.
+- No equipment nobody mentioned, and no ingredient that is not in the list
+  above.
+- Plain sentences. No numbering — the app numbers them — and no flourishes.
 
 If the description names no dish at all, reply
-{"name":"","servings":1,"ingredients":[]}.
+{"name":"","servings":1,"ingredients":[],"steps":[]}.
 `.trim();
 
 /// Drafts a recipe from a description. Throws when nothing usable comes back.
@@ -123,10 +140,30 @@ function validate(value: unknown): DraftRecipe {
         ? Math.round(servings)
         : 1,
     ingredients,
-    ...(typeof raw.method === 'string' && raw.method.trim()
-      ? { method: raw.method.trim() }
-      : {}),
+    steps: asSteps(raw.steps),
   };
+}
+
+/// The method, cleaned up.
+///
+/// Accepts a single string as well as a list: models hand back one paragraph
+/// often enough that refusing it would throw away a usable recipe over its
+/// punctuation. Leading numbering is stripped because the app numbers them, and
+/// "1. 1. Rinse the rice" is the kind of thing nobody notices until it ships.
+function asSteps(value: unknown): string[] {
+  const raw = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? value.split(/\n+/)
+      : [];
+
+  const steps: string[] = [];
+  for (const entry of raw.slice(0, 30)) {
+    if (typeof entry !== 'string') continue;
+    const step = entry.replace(/^\s*(?:\d+[.)]|[-*•])\s*/, '').trim();
+    if (step.length > 1) steps.push(step);
+  }
+  return steps;
 }
 
 // ---------------------------------------------------------------------------

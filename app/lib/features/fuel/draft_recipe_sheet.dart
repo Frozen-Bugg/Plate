@@ -85,7 +85,7 @@ class _DraftSheet extends ConsumerStatefulWidget {
 class _DraftSheetState extends ConsumerState<_DraftSheet> {
   final _description = TextEditingController();
   String? _name;
-  String? _method;
+  List<String> _steps = const [];
   int _servings = 1;
   List<_Line> _lines = [];
   String? _error;
@@ -150,7 +150,7 @@ class _DraftSheetState extends ConsumerState<_DraftSheet> {
       setState(() {
         _name = draft.name;
         _servings = draft.servings;
-        _method = draft.method;
+        _steps = draft.steps;
         _lines = lines;
       });
 
@@ -218,7 +218,7 @@ class _DraftSheetState extends ConsumerState<_DraftSheet> {
     final id = await repository.create(
       name: _name!,
       servings: _servings,
-      notes: _method,
+      steps: _steps,
     );
     final foods = ref.read(foodsRepositoryProvider);
     for (final line in _lines) {
@@ -330,9 +330,30 @@ class _DraftSheetState extends ConsumerState<_DraftSheet> {
         ),
         const Divider(),
         for (final line in _lines) _LineRow(line: line, onFind: () => _find(line)),
-        if (_method case final method?) ...[
-          const SizedBox(height: 12),
-          Text(method, style: text.bodySmall?.copyWith(color: muted)),
+        if (_steps.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          Text(
+            'METHOD',
+            style: text.labelSmall?.copyWith(color: muted, letterSpacing: 1),
+          ),
+          const SizedBox(height: 8),
+          for (final (index, step) in _steps.indexed)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 26,
+                    child: Text(
+                      '${index + 1}',
+                      style: text.labelLarge?.copyWith(color: muted),
+                    ),
+                  ),
+                  Expanded(child: Text(step, style: text.bodyMedium)),
+                ],
+              ),
+            ),
         ],
       ],
     );
