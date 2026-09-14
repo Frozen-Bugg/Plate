@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/db/app_database.dart';
 import 'foods_repository.dart';
 import 'groceries_repository.dart';
 import 'prep_repository.dart';
@@ -109,8 +110,39 @@ class _WeekPlanSheetState extends ConsumerState<_WeekPlanSheet> {
       // shop for it. Unmatched ingredients still go on the list — they have to
       // be bought whether or not the app knows their calories.
       final id = await recipes.create(name: cook.name, servings: cook.servings);
+
+      // Anything the shelf cannot answer is priced by the coach, in one call
+      // for the whole cook, and saved as an estimate. A recipe whose olive oil
+      // counts as zero is a recipe that quietly under-reports every portion of
+      // it — see docs/MEAL-PLANNING.md §3.
+      final matched = <String, Food?>{};
       for (final ingredient in cook.ingredients) {
-        final food = await foods.bestMatch(ingredient.name);
+        matched[ingredient.name] = await foods.bestMatch(ingredient.name);
+      }
+      final unpriced = [
+        for (final MapEntry(:key, :value) in matched.entries)
+          if (value == null) key,
+      ];
+      if (unpriced.isNotEmpty) {
+        try {
+          final priced =
+              await ref.read(draftServiceProvider).estimate(unpriced);
+          for (final estimate in priced) {
+            for (final name in unpriced) {
+              if (name.trim().toLowerCase() ==
+                  estimate.name.trim().toLowerCase()) {
+                matched[name] = await foods.remember(estimate.facts);
+              }
+            }
+          }
+        } catch (_) {
+          // The shopping still works; the recipe is short by whatever could
+          // not be priced, and its screen says which.
+        }
+      }
+
+      for (final ingredient in cook.ingredients) {
+        final food = matched[ingredient.name];
         if (food != null) {
           await recipes.addIngredient(
             recipeId: id,

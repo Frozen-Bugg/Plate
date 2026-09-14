@@ -595,6 +595,7 @@ class _IngredientRow extends ConsumerWidget {
     final text = Theme.of(context).textTheme;
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
     final gone = ingredient.food == null;
+    final estimated = ingredient.food?.source == 'coach';
 
     return Dismissible(
       key: ValueKey(ingredient.id),
@@ -614,15 +615,32 @@ class _IngredientRow extends ConsumerWidget {
       child: ListTile(
         dense: true,
         contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-        title: Text(
-          ingredient.name,
-          style: gone ? text.bodyMedium?.copyWith(color: muted) : null,
+        title: Row(
+          children: [
+            Flexible(
+              child: Text(
+                ingredient.name,
+                style: gone ? text.bodyMedium?.copyWith(color: muted) : null,
+              ),
+            ),
+            // A coach-estimated food keeps saying so for as long as it is in
+            // the recipe. It is the number somebody weighs food against, and
+            // the whole point of foods.source is that it can be replaced later
+            // by one off a packet.
+            if (estimated) ...[
+              const SizedBox(width: 8),
+              Icon(Icons.auto_awesome_outlined, size: 13, color: muted),
+            ],
+          ],
         ),
         subtitle: Text(
           gone
               ? 'This food was deleted — it counts as nothing'
-              : '${ingredient.nutrition.kcal.round()} kcal · '
+              : [
+                  if (estimated) 'Estimate',
+                  '${ingredient.nutrition.kcal.round()} kcal',
                   'P ${ingredient.nutrition.proteinG.round()}',
+                ].join(' · '),
           style: text.labelSmall?.copyWith(color: muted),
         ),
         trailing: Text('${ingredient.quantityG.round()} g',

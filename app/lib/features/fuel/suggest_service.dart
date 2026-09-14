@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/day.dart';
+import 'foods_repository.dart';
 import 'quick_add_service.dart';
 
 /// One thing worth eating next.
@@ -162,6 +163,22 @@ class DraftService {
     return DraftedRecipe.fromJson((json as Map).cast<String, dynamic>());
   }
 
+  /// Prices ingredients nothing on the shelf matched.
+  ///
+  /// docs/MEAL-PLANNING.md §3, option three: match, then Open Food Facts, then
+  /// ask. Counting an unmatched ingredient as zero was the worse answer — zero
+  /// is definitely wrong, where an estimate is approximately right and says so.
+  Future<List<EstimatedFood>> estimate(List<String> names) async {
+    final json = await _quickAdd.post('estimate-foods', {'names': names});
+    // The route hands back a bare array; the {foods: …} wrapper is the model's
+    // reply shape and is unwrapped server-side.
+    final list = json is List ? json : const [];
+    return [
+      for (final row in list)
+        EstimatedFood.fromJson((row as Map).cast<String, dynamic>()),
+    ];
+  }
+
   /// A week of cooking, worked out around what is already in the fridge.
   Future<PrepPlan> draftPlan({String? note}) async {
     final json = await _quickAdd.post('draft-plan', {
@@ -220,4 +237,51 @@ class PrepPlan {
 
   final List<PlannedCook> cooks;
   final String? note;
+}
+
+/// Per-100 g nutrition the coach worked out for a food nobody has yet.
+///
+/// An estimate, and it stays labelled as one all the way to the screen — see
+/// `coach-api/src/tools/estimate.ts`. Created with `source = 'coach'` when it is
+/// eventually saved, which is what lets the app keep saying so afterwards.
+class EstimatedFood {
+  const EstimatedFood({
+    required this.name,
+    required this.kcalPer100,
+    required this.proteinPer100,
+    required this.carbPer100,
+    required this.fatPer100,
+    this.fibrePer100,
+    this.note,
+  });
+
+  factory EstimatedFood.fromJson(Map<String, dynamic> json) => EstimatedFood(
+        name: json['name'] as String? ?? '',
+        kcalPer100: _num(json['kcalPer100']),
+        proteinPer100: _num(json['proteinPer100']),
+        carbPer100: _num(json['carbPer100']),
+        fatPer100: _num(json['fatPer100']),
+        fibrePer100:
+            json['fibrePer100'] == null ? null : _num(json['fibrePer100']),
+        note: json['note'] as String?,
+      );
+
+  final String name;
+  final double kcalPer100;
+  final double proteinPer100;
+  final double carbPer100;
+  final double fatPer100;
+  final double? fibrePer100;
+  final String? note;
+
+  /// Ready to be remembered as a food, flagged as the coach's guess.
+  FoodFacts get facts => FoodFacts(
+        name: name,
+        source: 'coach',
+        kcalPer100: kcalPer100,
+        proteinPer100: proteinPer100,
+        carbPer100: carbPer100,
+        fatPer100: fatPer100,
+        fibrePer100: fibrePer100,
+      );
 }

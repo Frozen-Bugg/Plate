@@ -83,12 +83,28 @@ that does not exist, the server has three honest options, in order:
 1. match an existing `foods` row (his own, or one already pulled from Open Food
    Facts);
 2. search Open Food Facts and create the row from a real product;
-3. fall back to the existing `/parse-food` estimator, which creates the food
-   with `source = 'coach'` — **flagged in the card as an estimate**, because a
-   coach-estimated 100 g of "chicken curry" is a guess and should look like one.
+3. ask the coach for the nutrition, through `/estimate-foods`, which creates
+   the food with `source = 'coach'` — **flagged as an estimate everywhere it
+   appears**, because a coach-estimated 100 g of "chicken curry" is a guess and
+   should look like one.
 
 Option 3 is why `foods.source` exists. A plan built on estimates is fine; a plan
 that hides which parts are estimates is not.
+
+Note what option 3 is *not*: it is a second, separate call that is given only a
+list of names and asked only for nutrition. Letting `draft_recipe` return both
+the ingredients and their calories would mean a recipe's totals came back in the
+same breath that invented the ingredient list, which is the arrangement §3
+exists to prevent.
+
+The alternative — leaving an unmatched ingredient at zero — was tried first and
+is worse. Zero is *definitely* wrong, and wrong in the direction that
+under-reports a portion; an estimate is approximately right and says which it
+is. Only a food that cannot be priced at all still counts as nothing, and the
+total says so when one does.
+
+An estimate is held in the draft and written as a food row only when the recipe
+is saved, so an abandoned draft leaves no guesses behind in the food list.
 
 The same rule covers the budget. The coach is *given* the remaining kcal and
 macros in its context — it never computes them, and never restates one it was

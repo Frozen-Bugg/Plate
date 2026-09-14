@@ -23,6 +23,7 @@ import { guardTrainingTier, modelFrom } from '../../../coach-api/src/model/index
 import { systemFor } from '../../../coach-api/src/prompt.ts';
 import { writeBrief } from '../../../coach-api/src/tools/briefs.ts';
 import { draftPrepPlan, draftRecipe } from '../../../coach-api/src/tools/draft.ts';
+import { estimateFoods } from '../../../coach-api/src/tools/estimate.ts';
 import { suggestMeals } from '../../../coach-api/src/tools/suggest.ts';
 import { ParseError, parseMeal, parsePhoto, parseSets } from '../../../coach-api/src/tools/parse.ts';
 import { buildSnapshot } from '../../../coach-api/src/snapshot.ts';
@@ -65,6 +66,7 @@ Deno.serve(async (request) => {
     mediaType?: string;
     kind?: string;
     justDid?: string;
+    names?: string[];
   };
   try {
     body = await request.json();
@@ -100,6 +102,9 @@ Deno.serve(async (request) => {
     return oneShot(() => draftRecipe(chosen(), body.text ?? ''));
   }
   if (path.endsWith('/draft-plan')) return plan(body, jwt);
+  if (path.endsWith('/estimate-foods')) {
+    return oneShot(() => estimateFoods(chosen(), body.names ?? []));
+  }
 
   const message = (body.message ?? '').trim();
   if (!message) return fail(400, 'Nothing to answer.');

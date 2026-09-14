@@ -12,9 +12,14 @@ import 'suggest_service.dart';
 /// "Make me a recipe for that."
 ///
 /// The coach returns names and weights and **no macros at all** — see
-/// `coach-api/src/tools/draft.ts`. Every number on this screen is summed from
-/// food rows on this device, which is why the total can be trusted and why an
-/// ingredient the shelf does not have shows as a gap rather than a guess.
+/// `coach-api/src/tools/draft.ts`. Every number on this screen is summed here,
+/// which is why the total can be trusted.
+///
+/// Ingredients are priced in the order docs/MEAL-PLANNING.md §3 sets out: a
+/// food already on the shelf first, because somebody has checked that one; then
+/// the coach, asked separately and only for nutrition, and marked as an
+/// estimate everywhere it appears. Only a food that cannot be priced at all
+/// counts as nothing, and the total says so when one does.
 Future<String?> showDraftRecipeSheet(BuildContext context) {
   return showModalBottomSheet<String>(
     context: context,
@@ -29,18 +34,45 @@ Future<String?> showDraftRecipeSheet(BuildContext context) {
 
 /// One drafted ingredient, and the food it was matched to.
 class _Line {
-  _Line({required this.name, required this.grams, this.note, this.food});
+  _Line({
+    required this.name,
+    required this.grams,
+    this.note,
+    this.food,
+  });
 
   final String name;
   double grams;
   final String? note;
 
-  /// Null until something on the shelf matches. Everything numeric hangs off
-  /// this, so a null here is a hole in the recipe and is shown as one.
+  /// Something already on the shelf. Preferred over an estimate every time:
+  /// it is a number somebody has already checked.
   Food? food;
 
-  Nutrition? get nutrition =>
-      food == null ? null : nutritionFor(food!, grams);
+  /// The coach's guess at this food, per 100 g, when the shelf had nothing.
+  ///
+  /// Held rather than saved. A food row is only written when the recipe is —
+  /// otherwise every abandoned draft would leave guesses behind in the food
+  /// list, and they would be indistinguishable from foods actually used.
+  EstimatedFood? estimate;
+
+  bool get isEstimate => food == null && estimate != null;
+  bool get isMissing => food == null && estimate == null;
+
+  Nutrition? get nutrition {
+    if (food case final food?) return nutritionFor(food, grams);
+    if (estimate case final guess?) {
+      final factor = grams / 100;
+      return (
+        kcal: guess.kcalPer100 * factor,
+        proteinG: guess.proteinPer100 * factor,
+        carbG: guess.carbPer100 * factor,
+        fatG: guess.fatPer100 * factor,
+        fibreG: (guess.fibrePer100 ?? 0) * factor,
+      );
+    }
+    return null;
+  }
 }
 
 class _DraftSheet extends ConsumerStatefulWidget {
@@ -58,6 +90,7 @@ class _DraftSheetState extends ConsumerState<_DraftSheet> {
   List<_Line> _lines = [];
   String? _error;
   var _asking = false;
+  var _pricing = false;
   var _saving = false;
 
   @override
@@ -68,7 +101,8 @@ class _DraftSheetState extends ConsumerState<_DraftSheet> {
 
   bool get _hasDraft => _name != null;
 
-  int get _unmatched => _lines.where((l) => l.food == null).length;
+  int get _unmatched => _lines.where((l) => l.isMissing).length;
+  int get _estimated => _lines.where((l) => l.isEstimate).length;
 
   Nutrition get _total => _lines.fold(
         (kcal: 0.0, proteinG: 0.0, carbG: 0.0, fatG: 0.0, fibreG: 0.0),
@@ -119,12 +153,48 @@ class _DraftSheetState extends ConsumerState<_DraftSheet> {
         _method = draft.method;
         _lines = lines;
       });
+
+      await _priceTheRest(lines);
     } on QuickAddError catch (error) {
       if (mounted) setState(() => _error = error.message);
     } catch (_) {
       if (mounted) setState(() => _error = 'The coach could not answer.');
     } finally {
       if (mounted) setState(() => _asking = false);
+    }
+  }
+
+  /// Asks the coach to price whatever the shelf could not answer.
+  ///
+  /// docs/MEAL-PLANNING.md §3, option three. Leaving these as zero was the
+  /// worse answer: zero is definitely wrong, an estimate is approximately
+  /// right, and only one of them says which it is.
+  ///
+  /// A failure here is not a failure of the recipe. The lines stay as gaps with
+  /// a Find button, which is exactly where they were before.
+  Future<void> _priceTheRest(List<_Line> lines) async {
+    final missing = [for (final line in lines) if (line.isMissing) line];
+    if (missing.isEmpty) return;
+
+    setState(() => _pricing = true);
+    try {
+      final priced = await ref
+          .read(draftServiceProvider)
+          .estimate([for (final line in missing) line.name]);
+
+      final byName = {
+        for (final food in priced) food.name.trim().toLowerCase(): food,
+      };
+      if (!mounted) return;
+      setState(() {
+        for (final line in missing) {
+          line.estimate = byName[line.name.trim().toLowerCase()];
+        }
+      });
+    } catch (_) {
+      // Nothing to say. The gaps are still gaps and still fixable by hand.
+    } finally {
+      if (mounted) setState(() => _pricing = false);
     }
   }
 
@@ -150,14 +220,21 @@ class _DraftSheetState extends ConsumerState<_DraftSheet> {
       servings: _servings,
       notes: _method,
     );
+    final foods = ref.read(foodsRepositoryProvider);
     for (final line in _lines) {
-      if (line.food case final food?) {
-        await repository.addIngredient(
-          recipeId: id,
-          foodId: food.id,
-          quantityG: line.grams,
-        );
-      }
+      // An estimate becomes a real food row here and not a moment earlier, so
+      // an abandoned draft leaves nothing behind. source = 'coach' is what lets
+      // every screen afterwards keep calling it a guess.
+      final food = line.food ??
+          (line.estimate == null
+              ? null
+              : await foods.remember(line.estimate!.facts));
+      if (food == null) continue;
+      await repository.addIngredient(
+        recipeId: id,
+        foodId: food.id,
+        quantityG: line.grams,
+      );
     }
     if (mounted) Navigator.of(context).pop(id);
   }
@@ -178,8 +255,10 @@ class _DraftSheetState extends ConsumerState<_DraftSheet> {
             const SizedBox(height: 4),
             Text(
               _hasDraft
-                  ? 'Every number here is summed from your own foods. The '
-                      'coach only chose what goes in and how much.'
+                  ? _pricing
+                      ? 'Pricing the ingredients you have not logged before…'
+                      : 'Summed from your own foods, and from the coach where '
+                          'you had none. Estimates are marked.'
                   : 'Describe the dish. "A chicken and rice thing for four '
                       'lunches", "high protein overnight oats".',
               style: text.bodySmall?.copyWith(color: muted),
@@ -285,11 +364,21 @@ class _DraftSheetState extends ConsumerState<_DraftSheet> {
           const SizedBox(height: 4),
           Text(
             _unmatched == 1
-                ? '1 ingredient is not in your foods yet, so it counts as '
+                ? '1 ingredient could not be priced at all, so it counts as '
                     'nothing. Match it or the total is short.'
-                : '$_unmatched ingredients are not in your foods yet, so they '
+                : '$_unmatched ingredients could not be priced at all, so they '
                     'count as nothing. Match them or the total is short.',
             style: text.labelSmall?.copyWith(color: theme.colorScheme.error),
+          ),
+        ] else if (_estimated > 0) ...[
+          const SizedBox(height: 4),
+          Text(
+            _estimated == 1
+                ? '1 ingredient is a coach estimate. Tap it to swap in a food '
+                    'you have weighed.'
+                : '$_estimated ingredients are coach estimates. Tap one to '
+                    'swap in a food you have weighed.',
+            style: text.labelSmall?.copyWith(color: muted),
           ),
         ],
         const SizedBox(height: 10),
@@ -331,17 +420,26 @@ class _LineRow extends StatelessWidget {
     return ListTile(
       dense: true,
       contentPadding: EdgeInsets.zero,
-      title: Text(line.food?.name ?? line.name),
+      title: Row(
+        children: [
+          Flexible(child: Text(line.food?.name ?? line.name)),
+          // An estimate has to look like one on the row it is on, not only in
+          // a summary underneath. This is the number somebody will weigh food
+          // against next Sunday.
+          if (line.isEstimate) ...[
+            const SizedBox(width: 8),
+            Icon(Icons.auto_awesome_outlined, size: 13, color: muted),
+          ],
+        ],
+      ),
       subtitle: Text(
         macros == null
-            ? [
-                'Not in your foods',
-                ?line.note,
-              ].join(' · ')
+            ? ['Could not price it', ?line.note].join(' · ')
             : [
+                if (line.isEstimate) 'Estimate',
                 '${macros.kcal.round()} kcal',
                 'P ${macros.proteinG.round()}',
-                ?line.note,
+                ?line.estimate?.note ?? line.note,
               ].join(' · '),
         style: text.labelSmall?.copyWith(
           color: macros == null ? theme.colorScheme.error : muted,
@@ -350,7 +448,10 @@ class _LineRow extends StatelessWidget {
       trailing: macros == null
           ? TextButton(onPressed: onFind, child: const Text('Find'))
           : Text('${line.grams.round()} g', style: text.labelLarge),
-      onTap: macros == null ? onFind : null,
+      // An estimate stays tappable: swapping in a food you have actually
+      // weighed is the upgrade path, and it should be one tap from the number
+      // you doubt.
+      onTap: onFind,
     );
   }
 }
