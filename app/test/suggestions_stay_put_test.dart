@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:overload/core/db/app_database.dart';
-import 'package:overload/features/fuel/quick_add_service.dart';
 import 'package:overload/features/fuel/recipes_repository.dart';
 import 'package:overload/features/fuel/suggest_service.dart';
 
