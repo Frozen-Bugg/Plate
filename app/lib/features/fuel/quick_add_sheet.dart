@@ -1,21 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:speech_to_text/speech_to_text.dart';
 
 import 'ai_style.dart';
 import 'foods_repository.dart';
 import 'meals_repository.dart';
 import 'quick_add_service.dart';
 
-/// Say or type what you ate, correct what it got wrong, log it.
+/// Type what you ate, correct what it got wrong, log it.
 ///
-/// The confirm step is not politeness. Every number here was estimated by a
-/// model from a sentence, and docs/PLAN.md §11 requires an estimate to be
-/// itemised and editable and never logged on the model's say-so. So the sheet
-/// shows each food separately with what it assumed, and the amount is a field
-/// rather than a fact.
+/// The only way food gets logged in this app. The confirm step is not
+/// politeness. Every number here was estimated by a model from a sentence,
+/// and docs/PLAN.md §11 requires an estimate to be itemised and editable and
+/// never logged on the model's say-so. So the sheet shows each food
+/// separately with what it assumed, and the amount is a field rather than a
+/// fact.
 Future<void> showQuickAddSheet(
   BuildContext context, {
   required String day,
@@ -44,7 +43,6 @@ class _QuickAddSheet extends ConsumerStatefulWidget {
 
 class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
   final _text = TextEditingController();
-  final _speech = SpeechToText();
 
   late String _slot = widget.slot;
   ParsedMeal? _parsed;
@@ -55,7 +53,6 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
   List<MatchedItem>? _matched;
   String? _error;
   var _busy = false;
-  var _listening = false;
   var _saving = false;
 
   /// Looks every parsed item up against the lifter's own foods before
@@ -76,148 +73,12 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
   @override
   void dispose() {
     _text.dispose();
-    // Stops the microphone if the sheet is dismissed mid-sentence.
-    _speech.stop();
     super.dispose();
-  }
-
-  /// Dictation, on the device.
-  ///
-  /// `speech_to_text` uses the platform recogniser, so on most Android phones
-  /// nothing is sent anywhere — and the words land in the same box as typing,
-  /// so they can be corrected before they cost a model call.
-  Future<void> _listen() async {
-    if (_listening) {
-      await _speech.stop();
-      setState(() => _listening = false);
-      return;
-    }
-
-    final available = await _speech.initialize(
-      onStatus: (status) {
-        if (!mounted) return;
-        if (status == 'done' || status == 'notListening') {
-          setState(() => _listening = false);
-        }
-      },
-      onError: (_) {
-        if (mounted) setState(() => _listening = false);
-      },
-    );
-
-    if (!mounted) return;
-    if (!available) {
-      setState(() {
-        _error =
-            'This phone will not let Overload use the microphone. '
-            'Allow it in Settings → Apps → Overload → Permissions, or type '
-            'it instead.';
-      });
-      return;
-    }
-
-    setState(() {
-      _listening = true;
-      _error = null;
-    });
-    await _speech.listen(
-      onResult: (result) {
-        if (!mounted) return;
-        setState(() {
-          _text.text = result.recognizedWords;
-          _text.selection = TextSelection.collapsed(offset: _text.text.length);
-        });
-      },
-      listenOptions: SpeechListenOptions(partialResults: true),
-    );
-  }
-
-  /// Photograph a plate or a label and let the coach read it.
-  ///
-  /// Resized before it leaves the phone. A modern camera produces a 4 MB
-  /// picture, which is slow to upload, expensive to send and no more accurate
-  /// than a 1024 px one — the coach is judging portions, not reading serial
-  /// numbers. The exception is a nutrition label, which is why it is not
-  /// shrunk further.
-  Future<void> _photograph(ImageSource source) async {
-    final picked = await ImagePicker().pickImage(
-      source: source,
-      maxWidth: 1024,
-      maxHeight: 1024,
-      imageQuality: 80,
-    );
-    if (picked == null || !mounted) return;
-
-    setState(() {
-      _busy = true;
-      _error = null;
-      _parsed = null;
-      _matched = null;
-    });
-
-    try {
-      final bytes = await picked.readAsBytes();
-      final meal = await ref
-          .read(quickAddServiceProvider)
-          .parsePhoto(
-            bytes: bytes,
-            // pickImage gives JPEG for a camera shot and keeps the original
-            // format for a gallery pick.
-            mediaType: picked.path.toLowerCase().endsWith('.png')
-                ? 'image/png'
-                : 'image/jpeg',
-            slot: _slot,
-            note: _text.text,
-          );
-      final matched = await _matchAgainstShelf(meal);
-      if (!mounted) return;
-      setState(() {
-        _parsed = meal;
-        _matched = matched;
-        _slot = meal.slot;
-        _error = meal.items.isEmpty
-            ? 'No food found in that picture. Try a clearer shot, or type it.'
-            : null;
-      });
-    } on QuickAddError catch (e) {
-      if (mounted) setState(() => _error = e.message);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _pickPhotoSource() async {
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Take a photo'),
-              subtitle: const Text('A plate, or the nutrition label'),
-              onTap: () => Navigator.pop(context, ImageSource.camera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Choose one'),
-              onTap: () => Navigator.pop(context, ImageSource.gallery),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (source != null && mounted) await _photograph(source);
   }
 
   Future<void> _parse() async {
     final said = _text.text.trim();
     if (said.isEmpty || _busy) return;
-    if (_listening) {
-      await _speech.stop();
-      if (mounted) setState(() => _listening = false);
-    }
 
     setState(() {
       _busy = true;
@@ -237,7 +98,7 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
         // Nothing found is not an error, it is an answer — and one the lifter
         // can act on by rewording rather than by retrying.
         _error = meal.items.isEmpty
-            ? 'No food in that. Try "200g chicken and a cup of rice".'
+            ? 'No food in that. Try "2 eggs and 4 slices of high protein bread".'
             : null;
       });
     } on QuickAddError catch (e) {
@@ -271,10 +132,6 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
             await foods.remember(
               FoodFacts(
                 name: row.name,
-                // Where the *food* came from: the coach estimated it. How it
-                // was logged — by voice — is recorded on the meal item below.
-                // Two different questions, and `foods.source` does not
-                // accept 'voice'.
                 source: 'coach',
                 kcalPer100: row.kcalPer100,
                 proteinPer100: row.proteinPer100,
@@ -288,7 +145,7 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
           quantityG: row.grams,
           slot: _slot,
           day: widget.day,
-          source: 'voice',
+          source: 'manual',
         );
       }
       if (mounted) Navigator.of(context).pop();
@@ -315,9 +172,9 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             AiSheetHeader(
-              title: 'Tell me what you had',
+              title: 'Log food',
               subtitle: matched == null
-                  ? 'Say it, type it, or photograph it'
+                  ? 'Type what you had'
                   : 'Check it, then log it — nothing saves on its own',
               busy: _busy,
             ),
@@ -345,7 +202,6 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
                           setState(() => _slot = s.first),
                     ),
                     const SizedBox(height: 12),
-
                     TextField(
                       controller: _text,
                       autofocus: true,
@@ -353,22 +209,11 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
                       maxLines: 4,
                       textCapitalization: TextCapitalization.sentences,
                       enabled: !_busy,
-                      decoration: InputDecoration(
-                        hintText: '4 eggs and 2 high protein sandwiches',
-                        helperText:
-                            'Or photograph it — a note here helps with '
-                            'anything the camera cannot judge.',
-                        helperMaxLines: 2,
-                        border: const OutlineInputBorder(),
-                        suffixIcon: IconButton(
-                          tooltip: _listening ? 'Stop' : 'Dictate',
-                          onPressed: _busy ? null : _listen,
-                          icon: Icon(
-                            _listening ? Icons.stop_circle : Icons.mic_none,
-                            color: _listening ? theme.colorScheme.error : null,
-                          ),
-                        ),
+                      decoration: const InputDecoration(
+                        hintText: '2 eggs and 4 slices of high protein bread',
+                        border: OutlineInputBorder(),
                       ),
+                      onSubmitted: (_) => _parse(),
                       onChanged: (_) {
                         // A new sentence invalidates the old reading.
                         if (_parsed != null) {
@@ -379,37 +224,10 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
                         }
                       },
                     ),
-                    if (_listening)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Text(
-                          'Listening…',
-                          style: text.labelSmall?.copyWith(
-                            color: theme.colorScheme.error,
-                          ),
-                        ),
-                      ),
-
                     const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: FilledButton(
-                            onPressed: _busy ? null : _parse,
-                            child: Text(_busy ? 'Reading…' : 'Read it'),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton.filledTonal(
-                          tooltip: 'Photograph a plate or a label',
-                          onPressed: _busy ? null : _pickPhotoSource,
-                          icon: const Icon(Icons.photo_camera_outlined),
-                          constraints: const BoxConstraints(
-                            minWidth: 48,
-                            minHeight: 48,
-                          ),
-                        ),
-                      ],
+                    FilledButton(
+                      onPressed: _busy ? null : _parse,
+                      child: Text(_busy ? 'Reading…' : 'Read it'),
                     ),
 
                     if (_error case final message?) ...[

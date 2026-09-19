@@ -5,21 +5,22 @@ import 'package:intl/intl.dart';
 import '../../app/widgets/tab_scaffold.dart';
 import '../../core/day.dart';
 import '../../core/db/app_database.dart';
-import 'add_food_sheet.dart';
+import 'favorite_log_sheet.dart';
 import 'foods_repository.dart';
 import 'macro_rings.dart';
 import 'meals_repository.dart';
-import 'groceries_repository.dart';
-import 'groceries_screen.dart';
-import 'prep_screen.dart';
+import 'quantity_sheet.dart';
 import 'quick_add_sheet.dart';
 import 'recipes_repository.dart';
-import 'recipes_screen.dart';
-import 'suggest_sheet.dart';
 import 'targets_repository.dart';
 import 'targets_screen.dart';
 
 /// The day log: what was eaten, against what was meant to be.
+///
+/// One way in: type it, the coach reads it, you confirm and it logs — see
+/// quick_add_sheet.dart. A favourite saved from an earlier day skips the
+/// reading step but still asks for an amount, so "2 eggs" can become "3
+/// eggs" without retyping the rest of the sentence.
 class FuelScreen extends ConsumerWidget {
   const FuelScreen({super.key});
 
@@ -29,21 +30,10 @@ class FuelScreen extends ConsumerWidget {
     final log = ref.watch(dayLogProvider(day)).value;
     final target = ref.watch(targetForDayProvider(day));
     final total = log?.total ?? DayLog.totalOf(const []);
+    final favorites = ref.watch(favoritesProvider).value ?? const [];
 
     return TabScaffold(
       title: 'Fuel',
-      actions: [
-        const _ShoppingButton(),
-        IconButton(
-          tooltip: 'Recipes',
-          icon: const Icon(Icons.menu_book_outlined),
-          onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => RecipesScreen(day: day),
-            ),
-          ),
-        ),
-      ],
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 148),
         children: [
@@ -84,66 +74,89 @@ class FuelScreen extends ConsumerWidget {
             const SizedBox(height: 12),
             const _NoTargetCard(),
           ],
+          if (favorites.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _Favorites(day: day, favorites: favorites),
+          ],
           const SizedBox(height: 16),
-          FridgeCard(day: day),
           for (final slot in mealSlots) _Slot(slot: slot, log: log),
         ],
       ),
-      // Two ways in, because they suit different moments. Search is exact and
-      // works offline; saying it is faster when you have just eaten four
-      // things and do not want to look up any of them.
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          FloatingActionButton.small(
-            heroTag: 'suggest',
-            tooltip: 'What should I eat?',
-            onPressed: () => showSuggestSheet(context, day: day),
-            child: const Icon(Icons.lightbulb_outline),
-          ),
-          const SizedBox(height: 10),
-          FloatingActionButton.small(
-            heroTag: 'quick-add',
-            tooltip: 'Say or type a whole meal',
-            onPressed: () => showQuickAddSheet(context, day: day),
-            child: const Icon(Icons.mic_none),
-          ),
-          const SizedBox(height: 10),
-          FloatingActionButton.extended(
-            heroTag: 'log-food',
-            onPressed: () => showAddFoodSheet(context, day: day),
-            icon: const Icon(Icons.add),
-            label: const Text('Log food'),
-          ),
-        ],
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => showQuickAddSheet(context, day: day),
+        icon: const Icon(Icons.add),
+        label: const Text('Log food'),
       ),
     );
   }
 }
 
-/// The shopping list, with what is left to pick up on it.
-///
-/// Only shown once there is a list. A basket icon that always leads to an
-/// empty screen is one nobody presses twice.
-class _ShoppingButton extends ConsumerWidget {
-  const _ShoppingButton();
+/// Meals saved once and logged again without the coach re-reading them.
+class _Favorites extends StatelessWidget {
+  const _Favorites({required this.day, required this.favorites});
+
+  final String day;
+  final List<RecipeDetail> favorites;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final list = ref.watch(currentGroceryListProvider);
-    if (list == null) return const SizedBox.shrink();
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
 
-    return IconButton(
-      tooltip: 'Shopping',
-      icon: Badge(
-        isLabelVisible: list.left > 0,
-        label: Text('${list.left}'),
-        child: const Icon(Icons.shopping_basket_outlined),
-      ),
-      onPressed: () => Navigator.of(context).push(
-        MaterialPageRoute<void>(builder: (_) => const GroceriesScreen()),
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'FAVOURITES',
+          style: text.labelSmall?.copyWith(color: muted, letterSpacing: 1),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 76,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: favorites.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 8),
+            itemBuilder: (context, i) {
+              final favorite = favorites[i];
+              return Card(
+                margin: EdgeInsets.zero,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => showFavoriteLogSheet(
+                    context,
+                    day: day,
+                    favorite: favorite,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          favorite.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: text.titleSmall,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${favorite.total.kcal.round()} kcal',
+                          style: text.labelSmall?.copyWith(color: muted),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
@@ -208,8 +221,13 @@ class _DayBar extends ConsumerWidget {
           child: Column(
             children: [
               Text(
-                isToday ? 'TODAY' : DateFormat('EEEE').format(date).toUpperCase(),
-                style: text.labelSmall?.copyWith(color: muted, letterSpacing: 1),
+                isToday
+                    ? 'TODAY'
+                    : DateFormat('EEEE').format(date).toUpperCase(),
+                style: text.labelSmall?.copyWith(
+                  color: muted,
+                  letterSpacing: 1,
+                ),
               ),
               Text(DateFormat('d MMMM').format(date), style: text.titleMedium),
             ],
@@ -219,8 +237,9 @@ class _DayBar extends ConsumerWidget {
           icon: const Icon(Icons.chevron_right),
           // Tomorrow has not happened, and a food log that lets you fill it in
           // is a food log that lies to the engine reading it.
-          onPressed:
-              isToday ? null : () => ref.read(fuelDayProvider.notifier).step(1),
+          onPressed: isToday
+              ? null
+              : () => ref.read(fuelDayProvider.notifier).step(1),
         ),
       ],
     );
@@ -249,11 +268,11 @@ class _NoTargetCard extends ConsumerWidget {
             Text(
               canEstimate
                   ? 'The engine can set them from your weight, your steps and '
-                      'the phase you picked. They are a starting point and '
-                      'every number is editable.'
+                        'the phase you picked. They are a starting point and '
+                        'every number is editable.'
                   : 'Targets need your height, age and sex to start from, and a '
-                      'weigh-in. Add them in Settings and the engine will do '
-                      'the rest.',
+                        'weigh-in. Add them in Settings and the engine will do '
+                        'the rest.',
               style: text.bodySmall?.copyWith(color: muted),
             ),
             const SizedBox(height: 12),
@@ -304,10 +323,10 @@ class _Slot extends ConsumerWidget {
                     items.isEmpty ? '—' : '${total.kcal.round()} kcal',
                     style: text.labelLarge?.copyWith(color: muted),
                   ),
-                  _SlotMenu(slot: slot, day: day, items: items),
+                  _SlotMenu(slot: slot, items: items),
                 ],
               ),
-              onTap: () => showAddFoodSheet(context, day: day, slot: slot),
+              onTap: () => showQuickAddSheet(context, day: day, slot: slot),
             ),
             for (final item in items) _Item(item: item),
           ],
@@ -317,47 +336,42 @@ class _Slot extends ConsumerWidget {
   }
 
   static String _label(String slot) => switch (slot) {
-        'breakfast' => 'Breakfast',
-        'lunch' => 'Lunch',
-        'dinner' => 'Dinner',
-        'snack' => 'Snacks',
-        _ => slot,
-      };
+    'breakfast' => 'Breakfast',
+    'lunch' => 'Lunch',
+    'dinner' => 'Dinner',
+    'snack' => 'Snacks',
+    _ => slot,
+  };
 }
 
-/// What else a meal slot can do: log a saved recipe, or become one.
+/// What else a meal slot can do: become a favourite for quick logging later.
 ///
-/// "Save as a recipe" is here rather than anywhere cleverer because this is
-/// where the information already is. The recipes worth keeping are the meals
+/// This is here rather than anywhere cleverer because this is where the
+/// information already is. The favourites worth having are the meals
 /// already eaten, and asking for a name is the whole of the work.
 class _SlotMenu extends ConsumerWidget {
-  const _SlotMenu({required this.slot, required this.day, required this.items});
+  const _SlotMenu({required this.slot, required this.items});
 
   final String slot;
-  final String day;
   final List<MealItem> items;
 
-  Future<void> _saveAsRecipe(BuildContext context, WidgetRef ref) async {
+  Future<void> _saveAsFavorite(BuildContext context, WidgetRef ref) async {
     final name = await showDialog<String>(
       context: context,
-      builder: (context) => _NameDialog(slot: slot),
+      builder: (context) => const _NameDialog(),
     );
     if (name == null || !context.mounted) return;
 
-    final saved = await ref.read(recipesRepositoryProvider).fromMealItems(
-          name: name,
-          items: items,
-        );
+    final saved = await ref
+        .read(recipesRepositoryProvider)
+        .fromMealItems(name: name, items: items);
     if (!context.mounted) return;
 
-    // Items logged from another recipe have no food_id to carry over, and
-    // recipe_items requires one. Saying so beats quietly saving a smaller
-    // dinner than the one on screen.
     final messenger = ScaffoldMessenger.of(context);
     if (saved.id == null) {
       messenger.showSnackBar(
         const SnackBar(
-          content: Text('Nothing here can become an ingredient yet.'),
+          content: Text('Nothing here can become a favourite yet.'),
         ),
       );
       return;
@@ -367,17 +381,9 @@ class _SlotMenu extends ConsumerWidget {
       SnackBar(
         content: Text(
           saved.skipped == 0
-              ? 'Saved "$name" · ${saved.added} ingredients'
-              : 'Saved "$name" · ${saved.added} ingredients, '
-                  '${saved.skipped} skipped',
-        ),
-        action: SnackBarAction(
-          label: 'Open',
-          onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => RecipeScreen(id: saved.id!, day: day, slot: slot),
-            ),
-          ),
+              ? 'Saved "$name" as a favourite · ${saved.added} items'
+              : 'Saved "$name" as a favourite · ${saved.added} items, '
+                    '${saved.skipped} skipped',
         ),
       ),
     );
@@ -385,37 +391,16 @@ class _SlotMenu extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return PopupMenuButton<String>(
-      icon: const Icon(Icons.more_vert, size: 18),
-      tooltip: 'More',
-      onSelected: (choice) async {
-        switch (choice) {
-          case 'recipe':
-            await Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => RecipesScreen(day: day, slot: slot),
-              ),
-            );
-          case 'save':
-            await _saveAsRecipe(context, ref);
-        }
-      },
-      itemBuilder: (_) => [
-        const PopupMenuItem(value: 'recipe', child: Text('Log a recipe')),
-        PopupMenuItem(
-          value: 'save',
-          enabled: items.isNotEmpty,
-          child: const Text('Save as a recipe'),
-        ),
-      ],
+    return IconButton(
+      tooltip: 'Save as favourite',
+      icon: const Icon(Icons.star_border, size: 20),
+      onPressed: items.isEmpty ? null : () => _saveAsFavorite(context, ref),
     );
   }
 }
 
 class _NameDialog extends StatefulWidget {
-  const _NameDialog({required this.slot});
-
-  final String slot;
+  const _NameDialog();
 
   @override
   State<_NameDialog> createState() => _NameDialogState();
@@ -438,17 +423,18 @@ class _NameDialogState extends State<_NameDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Save as a recipe'),
+      title: const Text('Save as a favourite'),
       content: TextField(
         controller: _controller,
         autofocus: true,
         textCapitalization: TextCapitalization.sentences,
         decoration: const InputDecoration(
           labelText: 'Name',
-          hintText: 'Chicken rice bowl',
-          helperText: 'The amounts come across as they were logged. Set the '
-              'servings and the cooked weight afterwards.',
-          helperMaxLines: 3,
+          hintText: 'Eggs and toast',
+          helperText:
+              'Shows up on the Fuel tab for logging again without '
+              'typing it out.',
+          helperMaxLines: 2,
         ),
         onSubmitted: (_) => _submit(),
       ),
@@ -507,8 +493,7 @@ class _Item extends ConsumerWidget {
           ),
         ),
       ),
-      onDismissed: (_) =>
-          ref.read(mealsRepositoryProvider).deleteItem(item.id),
+      onDismissed: (_) => ref.read(mealsRepositoryProvider).deleteItem(item.id),
       child: ListTile(
         dense: true,
         onTap: item.foodId == null ? null : () => _edit(context, ref),
@@ -537,11 +522,9 @@ class _Item extends ConsumerWidget {
     if (item.foodId case final id?) {
       return ref.watch(foodByIdProvider(id)).value?.name ?? 'Food';
     }
-    if (item.recipeId case final id?) {
-      // Was the literal word "Recipe" before there were any. The row keeps its
-      // own macros either way, so a deleted recipe still reads sensibly.
-      return ref.watch(recipeProvider(id)).value?.name ?? 'Recipe';
-    }
+    // Was the literal word "Recipe" before there were favourites. The row
+    // keeps its own macros either way, so a deleted favourite still reads
+    // sensibly.
     return 'Food';
   }
 }

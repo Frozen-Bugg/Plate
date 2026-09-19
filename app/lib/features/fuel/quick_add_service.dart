@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
@@ -137,35 +136,6 @@ class ParsedMeal {
   final List<ParsedItem> items;
 }
 
-/// One set heard out of a sentence, before it is confirmed.
-///
-/// `sets` is how many identical ones — "three by eight at eighty" is one of
-/// these with sets 3, not three of them, because that is how a lifter says it
-/// and how they will want to correct it.
-class ParsedSet {
-  ParsedSet({
-    required this.exercise,
-    required this.weightKg,
-    required this.reps,
-    required this.sets,
-    this.rir,
-  });
-
-  final String exercise;
-  double weightKg;
-  int reps;
-  int sets;
-  double? rir;
-
-  factory ParsedSet.fromJson(Map<String, dynamic> json) => ParsedSet(
-    exercise: json['exercise'] as String? ?? 'Exercise',
-    weightKg: (json['weightKg'] as num?)?.toDouble() ?? 0,
-    reps: (json['reps'] as num?)?.toInt() ?? 0,
-    sets: (json['sets'] as num?)?.toInt() ?? 1,
-    rir: (json['rir'] as num?)?.toDouble(),
-  );
-}
-
 /// Raised when the sentence could not be turned into food.
 class QuickAddError implements Exception {
   const QuickAddError(this.message);
@@ -188,35 +158,6 @@ class QuickAddService {
   Future<ParsedMeal> parse(String text, {required String slot}) async {
     final json = await _post('parse-food', {'text': text, 'slot': slot});
     return _mealFrom(json, slot);
-  }
-
-  /// Reads a photo of a plate or a label.
-  ///
-  /// [note] is anything the lifter typed alongside it — "the rice is half a
-  /// cup" is the cheapest accuracy available, and a picture cannot say it.
-  Future<ParsedMeal> parsePhoto({
-    required Uint8List bytes,
-    required String mediaType,
-    required String slot,
-    String? note,
-  }) async {
-    final json = await _post('parse-photo', {
-      'image': base64Encode(bytes),
-      'mediaType': mediaType,
-      'slot': slot,
-      if (note != null && note.trim().isNotEmpty) 'text': note.trim(),
-    });
-    return _mealFrom(json, slot);
-  }
-
-  /// Reads a sentence about lifting into sets, for confirmation.
-  Future<List<ParsedSet>> parseSets(String text) async {
-    final json = await _post('parse-sets', {'text': text});
-    final list = json is List ? json : const [];
-    return [
-      for (final set in list)
-        ParsedSet.fromJson((set as Map).cast<String, dynamic>()),
-    ];
   }
 
   ParsedMeal _mealFrom(dynamic json, String fallback) {

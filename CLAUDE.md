@@ -5,21 +5,34 @@ growth engine and an AI coach. **Read [docs/PLAN.md](docs/PLAN.md) before featur
 feature set, the progression/deload rules, the AI harness design, the data model and the phased
 roadmap. Setup instructions are in [README.md](README.md).
 
-Phase 0 (foundations) and Phase 1 (training MVP: exercise library, templates, live workout logging,
-rest timer, PRs, engine v1) are built. Phase 1's exit test — a fortnight of real training with correct
-next-session targets — is still running.
+Phase 0 (foundations) and Phase 1 (training MVP: exercise library, templates, PRs, engine v1) are
+built. Training itself happens in Hevy, not live in this app — see
+[hevy_import.dart](app/lib/features/train/hevy_import.dart) — and a finished workout comes in by
+pasting Hevy's own "Copy" share text, parsed and matched against the exercise library on the device.
+Templates stay for planning, so the engine still has a prescription to judge a set against. Phase 1's
+exit test — a fortnight of real training with correct next-session targets — is still running.
 
 Phase 2 (Body & Move) is built: trend weight, measurements, the morning check-in and readiness,
 Health Connect import, progress photos, `daily_rollup`, Progress v1.
 
-Phase 3 (Fuel) is built: the foods list, Open Food Facts search, the day log, macro rings, adaptive
-TDEE and calorie targets, and intake written back into `daily_rollup`. Barcode scanning, recipes, meal prep, shopping lists and the USDA source all arrived with the
-meal-planning work — see [docs/MEAL-PLANNING.md](docs/MEAL-PLANNING.md). Phase 2's and Phase 3's exit tests — real steps and readiness on
-the dashboard, and a fortnight of food logs producing a believable TDEE — are still running.
+Phase 3 (Fuel) is built, and simpler than it once was: logging food is typing a sentence — "2 eggs and
+4 slices of high protein bread" — which the coach reads into itemised food, matched against the
+lifter's own shelf first and confirmed before anything is written (see
+[quick_add_sheet.dart](app/lib/features/fuel/quick_add_sheet.dart)). A meal saved as a **favourite**
+skips that reading step on repeat, with each ingredient's amount still editable at the point of
+logging (see [favorite_log_sheet.dart](app/lib/features/fuel/favorite_log_sheet.dart)). Manual search,
+barcode scanning, recipes, meal prep and shopping lists — the meal-planning work described in
+[docs/MEAL-PLANNING.md](docs/MEAL-PLANNING.md) — were removed; that doc is now a record of what was
+built and later cut, not of what exists. Macro rings, adaptive TDEE and calorie targets stay, and
+intake still writes back into `daily_rollup`. Phase 2's and Phase 3's exit tests — real steps and
+readiness on the dashboard, and a fortnight of food logs producing a believable TDEE — are still
+running.
 
 Phase 4 (Coach v1) is built: the schema, the agent harness, twelve read tools, streaming chat, food
-logging by sentence, photo and label reading, set logging by voice, pre-workout briefs and
-post-workout debriefs, and an eval suite whose pass mark *is* the phase's exit test. Its exit test —
+logging by sentence, pre-workout briefs and post-workout debriefs, and an eval suite whose pass mark
+*is* the phase's exit test. Photo/label reading and voice set-logging shipped in this phase too but
+were later cut from the app along with the rest of Fuel's manual-entry paths and Train's live logging
+— the coach-api routes behind them may still exist unused; nothing in the app calls them. Its exit test —
 ≥90% of scenarios answered correctly, citing data — **passes**, at 93–100% depending on the run
 (`npm run eval`, which needs a key in `coach-api/.env`). The spread is the model, not a regression:
 read `coach-api/README.md` on why one run proves nothing either way, and why reading a full answer
