@@ -8,6 +8,8 @@ import '../../app/widgets/tab_scaffold.dart';
 import '../../core/db/app_database.dart';
 import 'coach_repository.dart';
 import 'coach_service.dart';
+import 'proposals_repository.dart';
+import 'proposals_screen.dart';
 
 /// The state of the answer being written right now.
 ///
@@ -21,7 +23,8 @@ class Answering {
   final String text;
   final bool busy;
 
-  Answering copyWith({String? messageId, String? text, bool? busy}) => Answering(
+  Answering copyWith({String? messageId, String? text, bool? busy}) =>
+      Answering(
         messageId: messageId ?? this.messageId,
         text: text ?? this.text,
         busy: busy ?? this.busy,
@@ -63,7 +66,9 @@ class CoachTurn extends Notifier<Answering> {
     var finished = false;
 
     try {
-      final events = ref.read(coachServiceProvider).ask(
+      final events = ref
+          .read(coachServiceProvider)
+          .ask(
             message: question,
             history: [
               for (final m in history)
@@ -131,8 +136,7 @@ class CoachTurn extends Notifier<Answering> {
   }
 }
 
-final coachTurnProvider =
-    NotifierProvider<CoachTurn, Answering>(CoachTurn.new);
+final coachTurnProvider = NotifierProvider<CoachTurn, Answering>(CoachTurn.new);
 
 class CoachScreen extends ConsumerWidget {
   const CoachScreen({super.key});
@@ -143,16 +147,39 @@ class CoachScreen extends ConsumerWidget {
 
     return TabScaffold(
       title: 'Coach',
+      actions: const [_ProposalsButton()],
       body: switch (thread) {
         AsyncData(value: final threadId) => _Conversation(threadId: threadId),
         AsyncError(:final error) => Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Text("Couldn't open the conversation.\n$error"),
-            ),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text("Couldn't open the conversation.\n$error"),
           ),
+        ),
         _ => const Center(child: CircularProgressIndicator()),
       },
+    );
+  }
+}
+
+/// A badge on the pending-proposals count, opening the inbox.
+class _ProposalsButton extends ConsumerWidget {
+  const _ProposalsButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final count = ref.watch(pendingProposalsProvider).value?.length ?? 0;
+
+    return Badge(
+      label: Text('$count'),
+      isLabelVisible: count > 0,
+      child: IconButton(
+        tooltip: 'Proposals',
+        icon: const Icon(Icons.fact_check_outlined),
+        onPressed: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => const ProposalsScreen()),
+        ),
+      ),
     );
   }
 }
@@ -222,16 +249,12 @@ class _ConversationState extends ConsumerState<_Conversation> {
                     streaming: messages[i].id == answering.messageId
                         ? answering.text
                         : null,
-                    busy: messages[i].id == answering.messageId &&
-                        answering.busy,
+                    busy:
+                        messages[i].id == answering.messageId && answering.busy,
                   ),
                 ),
         ),
-        _Composer(
-          controller: _input,
-          busy: answering.busy,
-          onSend: _send,
-        ),
+        _Composer(controller: _input, busy: answering.busy, onSend: _send),
       ],
     );
   }
@@ -287,11 +310,7 @@ class _Opening extends StatelessWidget {
 }
 
 class _Bubble extends StatelessWidget {
-  const _Bubble({
-    required this.message,
-    this.streaming,
-    this.busy = false,
-  });
+  const _Bubble({required this.message, this.streaming, this.busy = false});
 
   final CoachMessage message;
 
@@ -320,8 +339,9 @@ class _Bubble extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
         ),
         child: Column(
-          crossAxisAlignment:
-              mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          crossAxisAlignment: mine
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
           children: [
             if (chips.isNotEmpty) ...[
               Wrap(
@@ -372,8 +392,9 @@ class _Chip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colour =
-        chip.ok ? PillarColors.of(context).coach : theme.colorScheme.error;
+    final colour = chip.ok
+        ? PillarColors.of(context).coach
+        : theme.colorScheme.error;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -422,8 +443,10 @@ class _Composer extends StatelessWidget {
                   hintText: 'Ask about your training',
                   border: OutlineInputBorder(),
                   isDense: true,
-                  contentPadding:
-                      EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
                 ),
               ),
             ),

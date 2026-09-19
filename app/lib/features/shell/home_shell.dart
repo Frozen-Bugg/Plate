@@ -6,6 +6,7 @@ import '../../core/profile/profile_repository.dart';
 import '../body/health_import.dart';
 import '../body/photos_repository.dart';
 import '../body/rollup_repository.dart';
+import '../coach/proposal_keeper.dart';
 
 class HomeShell extends ConsumerWidget {
   const HomeShell({super.key, required this.shell});
@@ -25,6 +26,7 @@ class HomeShell extends ConsumerWidget {
     ref.watch(pendingPhotoUploadProvider);
     ref.watch(profileKeeperProvider);
     ref.watch(rollupKeeperProvider);
+    ref.watch(proposalKeeperProvider);
 
     return Scaffold(
       body: shell,
