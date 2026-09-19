@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/config/app_config.dart';
+import '../../core/db/app_database.dart';
 
 /// One food the coach read out of a sentence.
 ///
@@ -67,27 +68,66 @@ class ParsedItem {
   double get scaledFatG => fatPer100 * grams / 100;
 
   /// How it was said, for the line under the name: "4 items", "200 g".
-  String get said =>
-      unit == 'g' || unit == 'ml'
-          ? '${quantity.round()} $unit'
-          : '${_trim(quantity)} ${quantity == 1 ? unit : '${unit}s'}';
+  String get said => unit == 'g' || unit == 'ml'
+      ? '${quantity.round()} $unit'
+      : '${_trim(quantity)} ${quantity == 1 ? unit : '${unit}s'}';
 
   static String _trim(double value) =>
       value == value.roundToDouble() ? value.toStringAsFixed(0) : '$value';
 
   factory ParsedItem.fromJson(Map<String, dynamic> json) => ParsedItem(
-        name: json['name'] as String? ?? 'Food',
-        quantity: (json['quantity'] as num?)?.toDouble() ?? 1,
-        unit: json['unit'] as String? ?? 'item',
-        estimatedGrams: (json['grams'] as num?)?.toDouble() ?? 0,
-        kcal: (json['kcal'] as num?)?.toDouble() ?? 0,
-        proteinG: (json['proteinG'] as num?)?.toDouble() ?? 0,
-        carbG: (json['carbG'] as num?)?.toDouble() ?? 0,
-        fatG: (json['fatG'] as num?)?.toDouble() ?? 0,
-        note: (json['note'] as String?)?.trim().isEmpty ?? true
-            ? null
-            : json['note'] as String,
-      );
+    name: json['name'] as String? ?? 'Food',
+    quantity: (json['quantity'] as num?)?.toDouble() ?? 1,
+    unit: json['unit'] as String? ?? 'item',
+    estimatedGrams: (json['grams'] as num?)?.toDouble() ?? 0,
+    kcal: (json['kcal'] as num?)?.toDouble() ?? 0,
+    proteinG: (json['proteinG'] as num?)?.toDouble() ?? 0,
+    carbG: (json['carbG'] as num?)?.toDouble() ?? 0,
+    fatG: (json['fatG'] as num?)?.toDouble() ?? 0,
+    note: (json['note'] as String?)?.trim().isEmpty ?? true
+        ? null
+        : json['note'] as String,
+  );
+}
+
+/// One [ParsedItem], matched against what is already on the shelf where
+/// that is possible.
+///
+/// The gap this closes: the parser only ever hands back a name and its own
+/// guess at the macros, and logging used to write that guess as a brand-new
+/// `Food` row every time — "eggs" logged fifty times became fifty near-
+/// duplicate rows, each with its own slightly different re-guess, and the
+/// one row actually corrected was never the one reused. Matching by name
+/// first means the fifth "4 eggs" reuses the food the first one made,
+/// corrections and all — the same discipline the recipe drafter already
+/// follows, applied here to logging a sentence.
+class MatchedItem {
+  MatchedItem(this.item);
+
+  final ParsedItem item;
+
+  /// Set after parsing, once the shelf has been searched. Present means this
+  /// item logs against a real food instead of the model's guess.
+  Food? matchedFood;
+
+  bool get isFromShelf => matchedFood != null;
+
+  double get grams => item.grams;
+  set grams(double value) => item.grams = value;
+
+  String get name => matchedFood?.name ?? item.name;
+  String? get note => item.note;
+  String get said => item.said;
+
+  double get kcalPer100 => matchedFood?.kcalPer100 ?? item.kcalPer100;
+  double get proteinPer100 => matchedFood?.proteinPer100 ?? item.proteinPer100;
+  double get carbPer100 => matchedFood?.carbPer100 ?? item.carbPer100;
+  double get fatPer100 => matchedFood?.fatPer100 ?? item.fatPer100;
+
+  double get scaledKcal => kcalPer100 * grams / 100;
+  double get scaledProteinG => proteinPer100 * grams / 100;
+  double get scaledCarbG => carbPer100 * grams / 100;
+  double get scaledFatG => fatPer100 * grams / 100;
 }
 
 class ParsedMeal {
@@ -118,12 +158,12 @@ class ParsedSet {
   double? rir;
 
   factory ParsedSet.fromJson(Map<String, dynamic> json) => ParsedSet(
-        exercise: json['exercise'] as String? ?? 'Exercise',
-        weightKg: (json['weightKg'] as num?)?.toDouble() ?? 0,
-        reps: (json['reps'] as num?)?.toInt() ?? 0,
-        sets: (json['sets'] as num?)?.toInt() ?? 1,
-        rir: (json['rir'] as num?)?.toDouble(),
-      );
+    exercise: json['exercise'] as String? ?? 'Exercise',
+    weightKg: (json['weightKg'] as num?)?.toDouble() ?? 0,
+    reps: (json['reps'] as num?)?.toInt() ?? 0,
+    sets: (json['sets'] as num?)?.toInt() ?? 1,
+    rir: (json['rir'] as num?)?.toDouble(),
+  );
 }
 
 /// Raised when the sentence could not be turned into food.
@@ -227,8 +267,9 @@ class QuickAddService {
   static String _explain(http.Response response) {
     String? detail;
     try {
-      detail = (jsonDecode(response.body) as Map<String, dynamic>)['error']
-          as String?;
+      detail =
+          (jsonDecode(response.body) as Map<String, dynamic>)['error']
+              as String?;
     } catch (_) {
       detail = null;
     }

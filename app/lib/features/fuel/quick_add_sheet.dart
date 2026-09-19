@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
+import 'ai_style.dart';
 import 'foods_repository.dart';
 import 'meals_repository.dart';
 import 'quick_add_service.dart';
@@ -47,10 +48,30 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
 
   late String _slot = widget.slot;
   ParsedMeal? _parsed;
+
+  /// [_parsed]'s items, each checked against the shelf. This is what the
+  /// sheet actually renders and saves — see [MatchedItem] for why a name
+  /// match beats the model's own guess whenever one exists.
+  List<MatchedItem>? _matched;
   String? _error;
   var _busy = false;
   var _listening = false;
   var _saving = false;
+
+  /// Looks every parsed item up against the lifter's own foods before
+  /// showing anything. The fifth "4 eggs" should reuse the food the first
+  /// one made — corrections and all — rather than asking the model to
+  /// re-guess a number that is already known.
+  Future<List<MatchedItem>> _matchAgainstShelf(ParsedMeal meal) async {
+    final foods = ref.read(foodsRepositoryProvider);
+    final matched = <MatchedItem>[];
+    for (final item in meal.items) {
+      final row = MatchedItem(item);
+      row.matchedFood = await foods.bestMatch(item.name);
+      matched.add(row);
+    }
+    return matched;
+  }
 
   @override
   void dispose() {
@@ -87,7 +108,8 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
     if (!mounted) return;
     if (!available) {
       setState(() {
-        _error = 'This phone will not let Overload use the microphone. '
+        _error =
+            'This phone will not let Overload use the microphone. '
             'Allow it in Settings → Apps → Overload → Permissions, or type '
             'it instead.';
       });
@@ -103,8 +125,7 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
         if (!mounted) return;
         setState(() {
           _text.text = result.recognizedWords;
-          _text.selection =
-              TextSelection.collapsed(offset: _text.text.length);
+          _text.selection = TextSelection.collapsed(offset: _text.text.length);
         });
       },
       listenOptions: SpeechListenOptions(partialResults: true),
@@ -131,11 +152,14 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
       _busy = true;
       _error = null;
       _parsed = null;
+      _matched = null;
     });
 
     try {
       final bytes = await picked.readAsBytes();
-      final meal = await ref.read(quickAddServiceProvider).parsePhoto(
+      final meal = await ref
+          .read(quickAddServiceProvider)
+          .parsePhoto(
             bytes: bytes,
             // pickImage gives JPEG for a camera shot and keeps the original
             // format for a gallery pick.
@@ -145,9 +169,11 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
             slot: _slot,
             note: _text.text,
           );
+      final matched = await _matchAgainstShelf(meal);
       if (!mounted) return;
       setState(() {
         _parsed = meal;
+        _matched = matched;
         _slot = meal.slot;
         _error = meal.items.isEmpty
             ? 'No food found in that picture. Try a clearer shot, or type it.'
@@ -202,9 +228,11 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
       final meal = await ref
           .read(quickAddServiceProvider)
           .parse(said, slot: _slot);
+      final matched = await _matchAgainstShelf(meal);
       if (!mounted) return;
       setState(() {
         _parsed = meal;
+        _matched = matched;
         _slot = meal.slot;
         // Nothing found is not an error, it is an answer — and one the lifter
         // can act on by rewording rather than by retrying.
@@ -225,33 +253,39 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
   /// food is eaten it is already on the lifter's own shelf — searchable,
   /// offline, and with whatever correction was made here baked in.
   Future<void> _save() async {
-    final meal = _parsed;
-    if (meal == null || _saving) return;
+    final matched = _matched;
+    if (matched == null || _saving) return;
     setState(() => _saving = true);
 
     final foods = ref.read(foodsRepositoryProvider);
     final meals = ref.read(mealsRepositoryProvider);
 
     try {
-      for (final item in meal.items) {
-        if (item.grams <= 0) continue;
-        final food = await foods.remember(
-          FoodFacts(
-            name: item.name,
-            // Where the *food* came from: the coach estimated it. How it was
-            // logged — by voice — is recorded on the meal item below. Two
-            // different questions, and `foods.source` does not accept 'voice'.
-            source: 'coach',
-            kcalPer100: item.kcalPer100,
-            proteinPer100: item.proteinPer100,
-            carbPer100: item.carbPer100,
-            fatPer100: item.fatPer100,
-            servingG: item.grams,
-          ),
-        );
+      for (final row in matched) {
+        if (row.grams <= 0) continue;
+        // Already on the shelf: log against the real row, corrections and
+        // all, rather than writing the model's guess over it. Only when
+        // nothing matched does the guess become a new food.
+        final food =
+            row.matchedFood ??
+            await foods.remember(
+              FoodFacts(
+                name: row.name,
+                // Where the *food* came from: the coach estimated it. How it
+                // was logged — by voice — is recorded on the meal item below.
+                // Two different questions, and `foods.source` does not
+                // accept 'voice'.
+                source: 'coach',
+                kcalPer100: row.kcalPer100,
+                proteinPer100: row.proteinPer100,
+                carbPer100: row.carbPer100,
+                fatPer100: row.fatPer100,
+                servingG: row.grams,
+              ),
+            );
         await meals.logFood(
           food: food,
-          quantityG: item.grams,
+          quantityG: row.grams,
           slot: _slot,
           day: widget.day,
           source: 'voice',
@@ -272,136 +306,162 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final text = theme.textTheme;
-    final muted = theme.colorScheme.onSurfaceVariant;
-    final meal = _parsed;
+    final matched = _matched;
 
     return SafeArea(
       child: SizedBox(
-        height: MediaQuery.sizeOf(context).height * 0.8,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Say, type or photograph it', style: text.headlineSmall),
-              const SizedBox(height: 4),
-              Text(
-                'Everything below is an estimate. Check it before it is saved.',
-                style: text.bodySmall?.copyWith(color: muted),
-              ),
-              const SizedBox(height: 12),
-
-              SegmentedButton<String>(
-                segments: [
-                  for (final slot in mealSlots)
-                    ButtonSegment(
-                      value: slot,
-                      label: Text(
-                        slot == 'snack'
-                            ? 'Snacks'
-                            : '${slot[0].toUpperCase()}${slot.substring(1)}',
-                      ),
-                    ),
-                ],
-                selected: {_slot},
-                showSelectedIcon: false,
-                onSelectionChanged: (s) => setState(() => _slot = s.first),
-              ),
-              const SizedBox(height: 12),
-
-              TextField(
-                controller: _text,
-                autofocus: true,
-                minLines: 2,
-                maxLines: 4,
-                textCapitalization: TextCapitalization.sentences,
-                enabled: !_busy,
-                decoration: InputDecoration(
-                  hintText: '4 eggs and 2 high protein sandwiches',
-                  helperText: 'Or photograph it — a note here helps with '
-                      'anything the camera cannot judge.',
-                  helperMaxLines: 2,
-                  border: const OutlineInputBorder(),
-                  suffixIcon: IconButton(
-                    tooltip: _listening ? 'Stop' : 'Dictate',
-                    onPressed: _busy ? null : _listen,
-                    icon: Icon(
-                      _listening ? Icons.stop_circle : Icons.mic_none,
-                      color: _listening ? theme.colorScheme.error : null,
-                    ),
-                  ),
-                ),
-                onChanged: (_) {
-                  // A new sentence invalidates the old reading.
-                  if (_parsed != null) setState(() => _parsed = null);
-                },
-              ),
-              if (_listening)
-                Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Text(
-                    'Listening…',
-                    style: text.labelSmall?.copyWith(color: theme.colorScheme.error),
-                  ),
-                ),
-
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: _busy ? null : _parse,
-                      child: Text(_busy ? 'Reading…' : 'Read it'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton.filledTonal(
-                    tooltip: 'Photograph a plate or a label',
-                    onPressed: _busy ? null : _pickPhotoSource,
-                    icon: const Icon(Icons.photo_camera_outlined),
-                    constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-                  ),
-                ],
-              ),
-
-              if (_error case final message?) ...[
-                const SizedBox(height: 10),
-                Text(
-                  message,
-                  style: text.bodySmall?.copyWith(color: theme.colorScheme.error),
-                ),
-              ],
-
-              const SizedBox(height: 12),
-              Expanded(
-                child: meal == null || meal.items.isEmpty
-                    ? const SizedBox.shrink()
-                    : ListView(
-                        children: [
-                          for (final item in meal.items)
-                            _ItemRow(
-                              item: item,
-                              onChanged: () => setState(() {}),
+        height: MediaQuery.sizeOf(context).height * 0.85,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AiSheetHeader(
+              title: 'Tell me what you had',
+              subtitle: matched == null
+                  ? 'Say it, type it, or photograph it'
+                  : 'Check it, then log it — nothing saves on its own',
+              busy: _busy,
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SegmentedButton<String>(
+                      segments: [
+                        for (final slot in mealSlots)
+                          ButtonSegment(
+                            value: slot,
+                            label: Text(
+                              slot == 'snack'
+                                  ? 'Snacks'
+                                  : '${slot[0].toUpperCase()}${slot.substring(1)}',
                             ),
-                          const SizedBox(height: 8),
-                          _Total(meal: meal),
-                        ],
-                      ),
-              ),
+                          ),
+                      ],
+                      selected: {_slot},
+                      showSelectedIcon: false,
+                      onSelectionChanged: (s) =>
+                          setState(() => _slot = s.first),
+                    ),
+                    const SizedBox(height: 12),
 
-              if (meal != null && meal.items.isNotEmpty)
-                FilledButton.icon(
+                    TextField(
+                      controller: _text,
+                      autofocus: true,
+                      minLines: 2,
+                      maxLines: 4,
+                      textCapitalization: TextCapitalization.sentences,
+                      enabled: !_busy,
+                      decoration: InputDecoration(
+                        hintText: '4 eggs and 2 high protein sandwiches',
+                        helperText:
+                            'Or photograph it — a note here helps with '
+                            'anything the camera cannot judge.',
+                        helperMaxLines: 2,
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          tooltip: _listening ? 'Stop' : 'Dictate',
+                          onPressed: _busy ? null : _listen,
+                          icon: Icon(
+                            _listening ? Icons.stop_circle : Icons.mic_none,
+                            color: _listening ? theme.colorScheme.error : null,
+                          ),
+                        ),
+                      ),
+                      onChanged: (_) {
+                        // A new sentence invalidates the old reading.
+                        if (_parsed != null) {
+                          setState(() {
+                            _parsed = null;
+                            _matched = null;
+                          });
+                        }
+                      },
+                    ),
+                    if (_listening)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(
+                          'Listening…',
+                          style: text.labelSmall?.copyWith(
+                            color: theme.colorScheme.error,
+                          ),
+                        ),
+                      ),
+
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: _busy ? null : _parse,
+                            child: Text(_busy ? 'Reading…' : 'Read it'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton.filledTonal(
+                          tooltip: 'Photograph a plate or a label',
+                          onPressed: _busy ? null : _pickPhotoSource,
+                          icon: const Icon(Icons.photo_camera_outlined),
+                          constraints: const BoxConstraints(
+                            minWidth: 48,
+                            minHeight: 48,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    if (_error case final message?) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        message,
+                        style: text.bodySmall?.copyWith(
+                          color: theme.colorScheme.error,
+                        ),
+                      ),
+                    ],
+
+                    const SizedBox(height: 16),
+                    if (_busy && (matched?.isEmpty ?? true))
+                      const Padding(
+                        padding: EdgeInsets.only(top: 16),
+                        child: AiThinking(label: 'Reading what you said…'),
+                      )
+                    else if (matched != null && matched.isNotEmpty) ...[
+                      for (final (i, row) in matched.indexed)
+                        AiReveal(
+                          index: i,
+                          child: _MatchedItemRow(
+                            row: row,
+                            onChanged: () => setState(() {}),
+                          ),
+                        ),
+                      const SizedBox(height: 4),
+                      AiReveal(
+                        index: matched.length,
+                        child: _Total(items: matched),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            if (matched != null && matched.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                child: FilledButton.icon(
                   onPressed: _saving ? null : _save,
                   icon: const Icon(Icons.check),
                   label: Text(
                     _saving
                         ? 'Saving…'
-                        : 'Log ${meal.items.length} '
-                            '${meal.items.length == 1 ? 'item' : 'items'}',
+                        : 'Log ${matched.length} '
+                              '${matched.length == 1 ? 'item' : 'items'}',
                   ),
                 ),
-            ],
-          ),
+              ),
+          ],
         ),
       ),
     );
@@ -413,19 +473,20 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
 /// Grams is the field on purpose: it is what the schema stores, and changing
 /// it rescales the calories and macros, so a lifter who knows it was 3 eggs
 /// rather than 4 fixes everything by fixing one number.
-class _ItemRow extends StatefulWidget {
-  const _ItemRow({required this.item, required this.onChanged});
+class _MatchedItemRow extends StatefulWidget {
+  const _MatchedItemRow({required this.row, required this.onChanged});
 
-  final ParsedItem item;
+  final MatchedItem row;
   final VoidCallback onChanged;
 
   @override
-  State<_ItemRow> createState() => _ItemRowState();
+  State<_MatchedItemRow> createState() => _MatchedItemRowState();
 }
 
-class _ItemRowState extends State<_ItemRow> {
-  late final _grams =
-      TextEditingController(text: widget.item.grams.round().toString());
+class _MatchedItemRowState extends State<_MatchedItemRow> {
+  late final _grams = TextEditingController(
+    text: widget.row.grams.round().toString(),
+  );
 
   @override
   void dispose() {
@@ -440,10 +501,25 @@ class _ItemRowState extends State<_ItemRow> {
     final theme = Theme.of(context);
     final text = theme.textTheme;
     final muted = theme.colorScheme.onSurfaceVariant;
-    final item = widget.item;
+    final row = widget.row;
 
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(14),
+        // A hairline of the accent down the side rather than a plain card —
+        // enough to say "the coach touched this row" without a border around
+        // every single one shouting it.
+        border: Border(
+          left: BorderSide(
+            color: row.isFromShelf
+                ? theme.colorScheme.outlineVariant
+                : aiAccent(context).withValues(alpha: 0.6),
+            width: 3,
+          ),
+        ),
+      ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
         child: Column(
@@ -456,20 +532,32 @@ class _ItemRowState extends State<_ItemRow> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(item.name, style: text.titleSmall),
-                      Text(
-                        item.said,
-                        style: text.labelSmall?.copyWith(color: muted),
+                      Text(row.name, style: text.titleSmall),
+                      const SizedBox(height: 3),
+                      Wrap(
+                        spacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            row.said,
+                            style: text.labelSmall?.copyWith(color: muted),
+                          ),
+                          row.isFromShelf
+                              ? const AiTag.fromShelf()
+                              : const AiTag.estimate(),
+                        ],
                       ),
                     ],
                   ),
                 ),
+                const SizedBox(width: 8),
                 SizedBox(
-                  width: 96,
+                  width: 88,
                   child: TextField(
                     controller: _grams,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     inputFormatters: [
                       FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
                     ],
@@ -483,7 +571,7 @@ class _ItemRowState extends State<_ItemRow> {
                       extentOffset: _grams.text.length,
                     ),
                     onChanged: (_) {
-                      widget.item.grams = _entered;
+                      row.grams = _entered;
                       setState(() {});
                       widget.onChanged();
                     },
@@ -493,19 +581,18 @@ class _ItemRowState extends State<_ItemRow> {
             ),
             const SizedBox(height: 6),
             Text(
-              '${item.scaledKcal.round()} kcal · '
-              'P ${item.scaledProteinG.round()} · '
-              'C ${item.scaledCarbG.round()} · '
-              'F ${item.scaledFatG.round()}',
+              '${row.scaledKcal.round()} kcal · '
+              'P ${row.scaledProteinG.round()} · '
+              'C ${row.scaledCarbG.round()} · '
+              'F ${row.scaledFatG.round()}',
               style: text.labelMedium,
             ),
-            // The assumption, where there was one worth arguing with.
-            if (item.note case final note?) ...[
+            // The assumption, where there was one worth arguing with. Not
+            // shown once a shelf match is in play — the note was the model's
+            // hedge about its own guess, and there is no guess any more.
+            if (!row.isFromShelf && row.note != null) ...[
               const SizedBox(height: 4),
-              Text(
-                note,
-                style: text.labelSmall?.copyWith(color: muted),
-              ),
+              Text(row.note!, style: text.labelSmall?.copyWith(color: muted)),
             ],
           ],
         ),
@@ -515,9 +602,9 @@ class _ItemRowState extends State<_ItemRow> {
 }
 
 class _Total extends StatelessWidget {
-  const _Total({required this.meal});
+  const _Total({required this.items});
 
-  final ParsedMeal meal;
+  final List<MatchedItem> items;
 
   @override
   Widget build(BuildContext context) {
@@ -525,7 +612,7 @@ class _Total extends StatelessWidget {
     var kcal = 0.0;
     var protein = 0.0;
 
-    for (final item in meal.items) {
+    for (final item in items) {
       kcal += item.scaledKcal;
       protein += item.scaledProteinG;
     }

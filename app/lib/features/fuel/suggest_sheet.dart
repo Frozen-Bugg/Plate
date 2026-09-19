@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/db/app_database.dart';
+import 'ai_style.dart';
 import 'foods_repository.dart';
 import 'prep_repository.dart';
 import 'recipes_repository.dart';
@@ -32,7 +33,9 @@ Future<void> showSuggestSheet(
     isScrollControlled: true,
     showDragHandle: true,
     builder: (context) => Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: _SuggestSheet(day: day, slot: slot),
     ),
   );
@@ -73,77 +76,78 @@ class _SuggestSheetState extends ConsumerState<_SuggestSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
-    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
     final state = ref.watch(suggestionsProvider);
     final result = state.suggestions;
 
     return SizedBox(
       height: MediaQuery.of(context).size.height * 0.82,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text('What should I eat?', style: text.headlineSmall),
-                ),
-                IconButton(
-                  tooltip: 'Ask again',
-                  onPressed: state.asking
-                      ? null
-                      : () => ref
-                          .read(suggestionsProvider.notifier)
-                          .ensure(day: widget.day, force: true),
-                  icon: const Icon(Icons.refresh),
-                ),
-              ],
-            ),
-            Text(
-              switch (result?.leftKcal) {
-                null => 'Nothing is set as a target, so these are ordinary '
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AiSheetHeader(
+            title: 'What should I eat?',
+            subtitle: switch (result?.leftKcal) {
+              null =>
+                'Nothing is set as a target, so these are ordinary '
                     'meals rather than ones that fit.',
-                final left when left <= 0 =>
-                  'You are over for today. These would put you further over.',
-                final left => '${left.round()} kcal left'
+              final left when left <= 0 =>
+                'You are over for today. These would put you further over.',
+              final left =>
+                '${left.round()} kcal left'
                     '${result?.leftProteinG == null ? '' : ' · '
-                        '${result!.leftProteinG!.round()} g protein'}',
-              },
-              style: text.bodyMedium?.copyWith(color: muted),
+                              '${result!.leftProteinG!.round()} g protein'}',
+            },
+            busy: state.asking,
+            trailing: IconButton(
+              tooltip: 'Ask again',
+              color: Colors.white,
+              onPressed: state.asking
+                  ? null
+                  : () => ref
+                        .read(suggestionsProvider.notifier)
+                        .ensure(day: widget.day, force: true),
+              icon: const Icon(Icons.refresh),
             ),
-            if (result?.urgent case final urgent?) ...[
-              const SizedBox(height: 10),
-              _UrgentBanner(text: urgent),
-            ],
-            const SizedBox(height: 12),
-            Expanded(child: _body(context, state)),
-            const SizedBox(height: 8),
-            // The pantry that is not a table. Said once, for this question.
-            TextField(
-              controller: _note,
-              textInputAction: TextInputAction.send,
-              decoration: InputDecoration(
-                hintText: 'Anything to work with? "chicken and rice"',
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.send),
-                  onPressed: state.asking ? null : _askWithNote,
-                ),
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (result?.urgent case final urgent?) ...[
+                    _UrgentBanner(text: urgent),
+                    const SizedBox(height: 12),
+                  ],
+                  Expanded(child: _body(context, state)),
+                  const SizedBox(height: 8),
+                  // The pantry that is not a table. Said once, for this
+                  // question.
+                  TextField(
+                    controller: _note,
+                    textInputAction: TextInputAction.send,
+                    decoration: InputDecoration(
+                      hintText: 'Anything to work with? "chicken and rice"',
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.send),
+                        onPressed: state.asking ? null : _askWithNote,
+                      ),
+                    ),
+                    onSubmitted: (_) => _askWithNote(),
+                  ),
+                ],
               ),
-              onSubmitted: (_) => _askWithNote(),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
   void _askWithNote() {
-    ref.read(suggestionsProvider.notifier).askWith(
-          day: widget.day,
-          note: _note.text,
-        );
+    ref
+        .read(suggestionsProvider.notifier)
+        .askWith(day: widget.day, note: _note.text);
   }
 
   Widget _body(BuildContext context, SuggestionsState state) {
@@ -151,7 +155,7 @@ class _SuggestSheetState extends ConsumerState<_SuggestSheet> {
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
 
     if (state.asking && state.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const AiThinking(label: 'Working out what fits…');
     }
     if (state.error case final error?) {
       return Center(
@@ -189,13 +193,16 @@ class _SuggestSheetState extends ConsumerState<_SuggestSheet> {
       children: [
         ListView(
           children: [
-            for (final option in options)
-              _OptionCard(
-                option: option,
-                day: widget.day,
-                slot: widget.slot,
-                busy: _opening == option.name,
-                onOpen: () => _open(option),
+            for (final (i, option) in options.indexed)
+              AiReveal(
+                index: i,
+                child: _OptionCard(
+                  option: option,
+                  day: widget.day,
+                  slot: widget.slot,
+                  busy: _opening == option.name,
+                  onOpen: () => _open(option),
+                ),
               ),
           ],
         ),
@@ -266,7 +273,9 @@ class _SuggestSheetState extends ConsumerState<_SuggestSheet> {
     );
     if (result == null) return;
 
-    await ref.read(prepRepositoryProvider).logPortion(
+    await ref
+        .read(prepRepositoryProvider)
+        .logPortion(
           batch: batch,
           grams: result.grams,
           slot: result.slot,
@@ -314,8 +323,9 @@ class _SuggestSheetState extends ConsumerState<_SuggestSheet> {
       ];
       if (unpriced.isNotEmpty) {
         try {
-          final priced =
-              await ref.read(draftServiceProvider).estimate(unpriced);
+          final priced = await ref
+              .read(draftServiceProvider)
+              .estimate(unpriced);
           for (final estimate in priced) {
             for (final missing in unpriced) {
               if (missing.trim().toLowerCase() ==
@@ -367,14 +377,18 @@ class _UrgentBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.schedule,
-              size: 18, color: theme.colorScheme.onErrorContainer),
+          Icon(
+            Icons.schedule,
+            size: 18,
+            color: theme.colorScheme.onErrorContainer,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               text,
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: theme.colorScheme.onErrorContainer),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onErrorContainer,
+              ),
             ),
           ),
         ],
@@ -403,93 +417,89 @@ class _OptionCard extends ConsumerWidget {
     final theme = Theme.of(context);
     final text = theme.textTheme;
     final muted = theme.colorScheme.onSurfaceVariant;
+    final isModelIdea = option.fromPrep == null && option.fromRecipe == null;
 
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: busy ? null : onOpen,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: Text(option.name, style: text.titleMedium)),
-                  Text('${option.kcal.round()}', style: text.titleMedium),
-                ],
-              ),
-              const SizedBox(height: 2),
-              Text(
-                'P ${option.proteinG.round()} · C ${option.carbG.round()} · '
-                'F ${option.fatG.round()}',
-                style: text.labelSmall?.copyWith(color: muted),
-              ),
-              if (option.why.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text(option.why, style: text.bodySmall),
-              ],
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  if (option.fromPrep != null)
-                    _Tag(icon: Icons.kitchen_outlined, label: 'In the fridge')
-                  else if (option.fromRecipe != null)
-                    _Tag(icon: Icons.menu_book_outlined, label: 'Saved recipe')
-                  else
-                    _Tag(
-                      icon: Icons.auto_awesome_outlined,
-                      label: 'Writes up as a recipe',
-                    ),
-                  const Spacer(),
-                  if (busy)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 12),
-                      child: SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    )
-                  else
-                    TextButton(
-                      onPressed: onOpen,
-                      child: Text(option.isCooked ? 'Eat it' : 'Recipe'),
-                    ),
-                ],
-              ),
-            ],
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(14),
+        border: Border(
+          left: BorderSide(
+            color: isModelIdea
+                ? aiAccent(context).withValues(alpha: 0.6)
+                : theme.colorScheme.outlineVariant,
+            width: 3,
           ),
         ),
       ),
-    );
-  }
-}
-
-class _Tag extends StatelessWidget {
-  const _Tag({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: muted),
-        const SizedBox(width: 6),
-        Flexible(
-          child: Text(
-            label,
-            style:
-                Theme.of(context).textTheme.labelSmall?.copyWith(color: muted),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: busy ? null : onOpen,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(13, 14, 16, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: Text(option.name, style: text.titleMedium)),
+                    Text('${option.kcal.round()}', style: text.titleMedium),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'P ${option.proteinG.round()} · C ${option.carbG.round()} · '
+                  'F ${option.fatG.round()}',
+                  style: text.labelSmall?.copyWith(color: muted),
+                ),
+                if (option.why.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(option.why, style: text.bodySmall),
+                ],
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    if (option.fromPrep != null)
+                      AiTag.custom(
+                        icon: Icons.kitchen_outlined,
+                        label: 'In the fridge',
+                      )
+                    else if (option.fromRecipe != null)
+                      AiTag.custom(
+                        icon: Icons.menu_book_outlined,
+                        label: 'Saved recipe',
+                      )
+                    else
+                      AiTag.custom(
+                        icon: Icons.auto_awesome,
+                        label: 'Writes up as a recipe',
+                      ),
+                    const Spacer(),
+                    if (busy)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 12),
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    else
+                      TextButton(
+                        onPressed: onOpen,
+                        child: Text(option.isCooked ? 'Eat it' : 'Recipe'),
+                      ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
-      ],
+      ),
     );
   }
 }

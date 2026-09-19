@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/db/app_database.dart';
 import 'add_food_sheet.dart';
+import 'ai_style.dart';
 import 'foods_repository.dart';
 import 'meals_repository.dart';
 import 'quick_add_service.dart';
@@ -26,7 +27,9 @@ Future<String?> showDraftRecipeSheet(BuildContext context) {
     isScrollControlled: true,
     showDragHandle: true,
     builder: (context) => Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: const _DraftSheet(),
     ),
   );
@@ -34,12 +37,7 @@ Future<String?> showDraftRecipeSheet(BuildContext context) {
 
 /// One drafted ingredient, and the food it was matched to.
 class _Line {
-  _Line({
-    required this.name,
-    required this.grams,
-    this.note,
-    this.food,
-  });
+  _Line({required this.name, required this.grams, this.note, this.food});
 
   final String name;
   double grams;
@@ -105,19 +103,19 @@ class _DraftSheetState extends ConsumerState<_DraftSheet> {
   int get _estimated => _lines.where((l) => l.isEstimate).length;
 
   Nutrition get _total => _lines.fold(
-        (kcal: 0.0, proteinG: 0.0, carbG: 0.0, fatG: 0.0, fibreG: 0.0),
-        (sum, line) {
-          final macros = line.nutrition;
-          if (macros == null) return sum;
-          return (
-            kcal: sum.kcal + macros.kcal,
-            proteinG: sum.proteinG + macros.proteinG,
-            carbG: sum.carbG + macros.carbG,
-            fatG: sum.fatG + macros.fatG,
-            fibreG: sum.fibreG + macros.fibreG,
-          );
-        },
+    (kcal: 0.0, proteinG: 0.0, carbG: 0.0, fatG: 0.0, fibreG: 0.0),
+    (sum, line) {
+      final macros = line.nutrition;
+      if (macros == null) return sum;
+      return (
+        kcal: sum.kcal + macros.kcal,
+        proteinG: sum.proteinG + macros.proteinG,
+        carbG: sum.carbG + macros.carbG,
+        fatG: sum.fatG + macros.fatG,
+        fibreG: sum.fibreG + macros.fibreG,
       );
+    },
+  );
 
   Future<void> _draft() async {
     final said = _description.text.trim();
@@ -173,14 +171,17 @@ class _DraftSheetState extends ConsumerState<_DraftSheet> {
   /// A failure here is not a failure of the recipe. The lines stay as gaps with
   /// a Find button, which is exactly where they were before.
   Future<void> _priceTheRest(List<_Line> lines) async {
-    final missing = [for (final line in lines) if (line.isMissing) line];
+    final missing = [
+      for (final line in lines)
+        if (line.isMissing) line,
+    ];
     if (missing.isEmpty) return;
 
     setState(() => _pricing = true);
     try {
-      final priced = await ref
-          .read(draftServiceProvider)
-          .estimate([for (final line in missing) line.name]);
+      final priced = await ref.read(draftServiceProvider).estimate([
+        for (final line in missing) line.name,
+      ]);
 
       final byName = {
         for (final food in priced) food.name.trim().toLowerCase(): food,
@@ -199,10 +200,7 @@ class _DraftSheetState extends ConsumerState<_DraftSheet> {
   }
 
   Future<void> _find(_Line line) async {
-    final picked = await showFoodPicker(
-      context,
-      title: 'Match "${line.name}"',
-    );
+    final picked = await showFoodPicker(context, title: 'Match "${line.name}"');
     if (picked == null) return;
     setState(() {
       line.food = picked.food;
@@ -225,7 +223,8 @@ class _DraftSheetState extends ConsumerState<_DraftSheet> {
       // An estimate becomes a real food row here and not a moment earlier, so
       // an abandoned draft leaves nothing behind. source = 'coach' is what lets
       // every screen afterwards keep calling it a guess.
-      final food = line.food ??
+      final food =
+          line.food ??
           (line.estimate == null
               ? null
               : await foods.remember(line.estimate!.facts));
@@ -241,50 +240,56 @@ class _DraftSheetState extends ConsumerState<_DraftSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
-    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
-
     return SizedBox(
       height: MediaQuery.of(context).size.height * 0.85,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(_name ?? 'Draft a recipe', style: text.headlineSmall),
-            const SizedBox(height: 4),
-            Text(
-              _hasDraft
-                  ? _pricing
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AiSheetHeader(
+            title: _name ?? 'Draft a recipe',
+            subtitle: _hasDraft
+                ? _pricing
                       ? 'Pricing the ingredients you have not logged before…'
                       : 'Summed from your own foods, and from the coach where '
-                          'you had none. Estimates are marked.'
-                  : 'Describe the dish. "A chicken and rice thing for four '
+                            'you had none. Estimates are marked.'
+                : 'Describe the dish. "A chicken and rice thing for four '
                       'lunches", "high protein overnight oats".',
-              style: text.bodySmall?.copyWith(color: muted),
+            busy: _asking || _pricing,
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (!_hasDraft)
+                    TextField(
+                      controller: _description,
+                      autofocus: true,
+                      minLines: 2,
+                      maxLines: 4,
+                      textCapitalization: TextCapitalization.sentences,
+                      decoration: const InputDecoration(
+                        hintText: 'What do you want to make?',
+                      ),
+                      onSubmitted: (_) => _draft(),
+                    ),
+                  if (!_hasDraft) const SizedBox(height: 12),
+                  Expanded(child: _body(context)),
+                  if (_hasDraft)
+                    _footer(context)
+                  else
+                    const SizedBox(height: 8),
+                  if (!_hasDraft)
+                    FilledButton(
+                      onPressed: _asking ? null : _draft,
+                      child: Text(_asking ? 'Thinking…' : 'Draft it'),
+                    ),
+                ],
+              ),
             ),
-            const SizedBox(height: 12),
-            if (!_hasDraft)
-              TextField(
-                controller: _description,
-                autofocus: true,
-                minLines: 2,
-                maxLines: 4,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(
-                  hintText: 'What do you want to make?',
-                ),
-                onSubmitted: (_) => _draft(),
-              ),
-            Expanded(child: _body(context)),
-            if (_hasDraft) _footer(context) else const SizedBox(height: 8),
-            if (!_hasDraft)
-              FilledButton(
-                onPressed: _asking ? null : _draft,
-                child: Text(_asking ? 'Thinking…' : 'Draft it'),
-              ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -294,7 +299,7 @@ class _DraftSheetState extends ConsumerState<_DraftSheet> {
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
 
     if (_asking && !_hasDraft) {
-      return const Center(child: CircularProgressIndicator());
+      return const AiThinking(label: 'Drafting the recipe…');
     }
     if (_error case final error?) {
       return Center(
@@ -316,20 +321,26 @@ class _DraftSheetState extends ConsumerState<_DraftSheet> {
             IconButton(
               visualDensity: VisualDensity.compact,
               icon: const Icon(Icons.remove_circle_outline),
-              onPressed:
-                  _servings > 1 ? () => setState(() => _servings--) : null,
+              onPressed: _servings > 1
+                  ? () => setState(() => _servings--)
+                  : null,
             ),
             Text('$_servings', style: text.titleMedium),
             IconButton(
               visualDensity: VisualDensity.compact,
               icon: const Icon(Icons.add_circle_outline),
-              onPressed:
-                  _servings < 100 ? () => setState(() => _servings++) : null,
+              onPressed: _servings < 100
+                  ? () => setState(() => _servings++)
+                  : null,
             ),
           ],
         ),
         const Divider(),
-        for (final line in _lines) _LineRow(line: line, onFind: () => _find(line)),
+        for (final (i, line) in _lines.indexed)
+          AiReveal(
+            index: i,
+            child: _LineRow(line: line, onFind: () => _find(line)),
+          ),
         if (_steps.isNotEmpty) ...[
           const SizedBox(height: 20),
           Text(
@@ -386,9 +397,9 @@ class _DraftSheetState extends ConsumerState<_DraftSheet> {
           Text(
             _unmatched == 1
                 ? '1 ingredient could not be priced at all, so it counts as '
-                    'nothing. Match it or the total is short.'
+                      'nothing. Match it or the total is short.'
                 : '$_unmatched ingredients could not be priced at all, so they '
-                    'count as nothing. Match them or the total is short.',
+                      'count as nothing. Match them or the total is short.',
             style: text.labelSmall?.copyWith(color: theme.colorScheme.error),
           ),
         ] else if (_estimated > 0) ...[
@@ -396,9 +407,9 @@ class _DraftSheetState extends ConsumerState<_DraftSheet> {
           Text(
             _estimated == 1
                 ? '1 ingredient is a coach estimate. Tap it to swap in a food '
-                    'you have weighed.'
+                      'you have weighed.'
                 : '$_estimated ingredients are coach estimates. Tap one to '
-                    'swap in a food you have weighed.',
+                      'swap in a food you have weighed.',
             style: text.labelSmall?.copyWith(color: muted),
           ),
         ],
@@ -437,42 +448,90 @@ class _LineRow extends StatelessWidget {
     final text = theme.textTheme;
     final muted = theme.colorScheme.onSurfaceVariant;
     final macros = line.nutrition;
+    final missing = macros == null;
 
-    return ListTile(
-      dense: true,
-      contentPadding: EdgeInsets.zero,
-      title: Row(
-        children: [
-          Flexible(child: Text(line.food?.name ?? line.name)),
-          // An estimate has to look like one on the row it is on, not only in
-          // a summary underneath. This is the number somebody will weigh food
-          // against next Sunday.
-          if (line.isEstimate) ...[
-            const SizedBox(width: 8),
-            Icon(Icons.auto_awesome_outlined, size: 13, color: muted),
-          ],
-        ],
-      ),
-      subtitle: Text(
-        macros == null
-            ? ['Could not price it', ?line.note].join(' · ')
-            : [
-                if (line.isEstimate) 'Estimate',
-                '${macros.kcal.round()} kcal',
-                'P ${macros.proteinG.round()}',
-                ?line.estimate?.note ?? line.note,
-              ].join(' · '),
-        style: text.labelSmall?.copyWith(
-          color: macros == null ? theme.colorScheme.error : muted,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        // An estimate stays tappable: swapping in a food you have actually
+        // weighed is the upgrade path, and it should be one tap from the
+        // number you doubt.
+        onTap: onFind,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHigh,
+            borderRadius: BorderRadius.circular(14),
+            // A hairline of the accent down the side rather than a plain
+            // card — enough to say "the coach touched this row" without a
+            // border around every single one shouting it.
+            border: Border(
+              left: BorderSide(
+                color: missing
+                    ? theme.colorScheme.error.withValues(alpha: 0.6)
+                    : line.food != null
+                    ? theme.colorScheme.outlineVariant
+                    : aiAccent(context).withValues(alpha: 0.6),
+                width: 3,
+              ),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        line.food?.name ?? line.name,
+                        style: text.titleSmall,
+                      ),
+                      const SizedBox(height: 3),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          if (missing)
+                            AiTag.custom(
+                              icon: Icons.help_outline,
+                              label: 'Not priced',
+                            )
+                          else if (line.food != null)
+                            const AiTag.fromShelf()
+                          else
+                            const AiTag.estimate(),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        missing
+                            ? ['Could not price it', ?line.note].join(' · ')
+                            : [
+                                '${macros.kcal.round()} kcal',
+                                'P ${macros.proteinG.round()}',
+                                ?line.estimate?.note ?? line.note,
+                              ].join(' · '),
+                        style: text.labelSmall?.copyWith(
+                          color: missing ? theme.colorScheme.error : muted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                missing
+                    ? TextButton(onPressed: onFind, child: const Text('Find'))
+                    : Text('${line.grams.round()} g', style: text.labelLarge),
+              ],
+            ),
+          ),
         ),
       ),
-      trailing: macros == null
-          ? TextButton(onPressed: onFind, child: const Text('Find'))
-          : Text('${line.grams.round()} g', style: text.labelLarge),
-      // An estimate stays tappable: swapping in a food you have actually
-      // weighed is the upgrade path, and it should be one tap from the number
-      // you doubt.
-      onTap: onFind,
     );
   }
 }
