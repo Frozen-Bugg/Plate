@@ -6,11 +6,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/db/app_database.dart';
 import 'exercise_picker.dart';
 import 'exercises_repository.dart';
-import 'sessions_repository.dart';
 import 'templates_repository.dart';
 
-/// The saved plans. A template is what you intend to do; starting one copies
-/// its exercises into a new session.
+/// The saved plans. A template is what you intend to do — training itself
+/// happens wherever it always has, and comes into history through pasting
+/// the finished workout in from Hevy (see hevy_import.dart).
 class TemplatesScreen extends ConsumerWidget {
   const TemplatesScreen({super.key});
 
@@ -44,27 +44,27 @@ class TemplatesScreen extends ConsumerWidget {
       ),
       body: switch (templates) {
         AsyncData(:final value) when value.isEmpty => Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(
-              'A template is a workout you repeat. Build one, and the engine '
-              'uses its rep range and target effort to set your next load.',
-              style: text.bodyLarge?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'A template is a workout you repeat. Build one, and the engine '
+            'uses its rep range and target effort to set your next load.',
+            style: text.bodyLarge?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
+        ),
         AsyncData(:final value) => ListView.separated(
-            padding: const EdgeInsets.only(bottom: 96),
-            itemCount: value.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
-            itemBuilder: (context, i) => _TemplateTile(template: value[i]),
-          ),
+          padding: const EdgeInsets.only(bottom: 96),
+          itemCount: value.length,
+          separatorBuilder: (_, _) => const Divider(height: 1),
+          itemBuilder: (context, i) => _TemplateTile(template: value[i]),
+        ),
         AsyncError(:final error) => Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Text("Couldn't load your templates.\n$error"),
-            ),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text("Couldn't load your templates.\n$error"),
           ),
+        ),
         _ => const Center(child: CircularProgressIndicator()),
       },
     );
@@ -127,9 +127,7 @@ class _TemplateTile extends ConsumerWidget {
                 ),
               );
               if (confirmed == true) {
-                await ref
-                    .read(templatesRepositoryProvider)
-                    .delete(template.id);
+                await ref.read(templatesRepositoryProvider).delete(template.id);
               }
           }
         },
@@ -154,44 +152,6 @@ class TemplateEditorScreen extends ConsumerWidget {
     await ref
         .read(templatesRepositoryProvider)
         .addExercise(templateId: templateId, exerciseId: chosen.id);
-  }
-
-  /// Starts the template, then leaves the templates stack entirely — the
-  /// running workout is on the Train tab, and popping back to a list of
-  /// templates makes it look as though nothing happened.
-  Future<void> _start(BuildContext context, WidgetRef ref) async {
-    // Two open sessions would orphan the earlier one, so offer the running
-    // workout instead of quietly starting a second.
-    if (ref.read(activeSessionProvider) != null) {
-      final go = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('A workout is already running'),
-          content: const Text(
-            'Finish or discard it before starting another.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Stay here'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Go to it'),
-            ),
-          ],
-        ),
-      );
-      if (go == true && context.mounted) {
-        Navigator.of(context).popUntil((route) => route.isFirst);
-      }
-      return;
-    }
-
-    await ref.read(templatesRepositoryProvider).startSession(templateId);
-    if (context.mounted) {
-      Navigator.of(context).popUntil((route) => route.isFirst);
-    }
   }
 
   @override
@@ -223,13 +183,6 @@ class TemplateEditorScreen extends ConsumerWidget {
                   icon: const Icon(Icons.add, size: 20),
                   label: const Text('Add exercise'),
                 ),
-                const SizedBox(height: 12),
-                if ((planned.value ?? const []).isNotEmpty)
-                  FilledButton.icon(
-                    onPressed: () => _start(context, ref),
-                    icon: const Icon(Icons.play_arrow_rounded),
-                    label: const Text('Start this workout'),
-                  ),
               ],
             ),
           ),
@@ -282,9 +235,9 @@ class _ReorderableExercisesState extends ConsumerState<_ReorderableExercises> {
     if (newIndex > oldIndex) newIndex -= 1;
     final moved = _order.removeAt(oldIndex);
     setState(() => _order = [..._order..insert(newIndex, moved)]);
-    ref
-        .read(templatesRepositoryProvider)
-        .reorderExercises(widget.templateId, [for (final e in _order) e.id]);
+    ref.read(templatesRepositoryProvider).reorderExercises(widget.templateId, [
+      for (final e in _order) e.id,
+    ]);
   }
 
   @override
@@ -462,8 +415,9 @@ class _NumberField extends StatefulWidget {
 }
 
 class _NumberFieldState extends State<_NumberField> {
-  late final TextEditingController _controller =
-      TextEditingController(text: widget.value?.toString() ?? '');
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.value?.toString() ?? '',
+  );
   late final FocusNode _focus = FocusNode()..addListener(_onFocusChange);
 
   void _onFocusChange() {
@@ -496,8 +450,7 @@ class _NumberFieldState extends State<_NumberField> {
       decoration: InputDecoration(
         labelText: widget.label,
         isDense: true,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
       ),
     );
   }

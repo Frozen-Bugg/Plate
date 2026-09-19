@@ -26,13 +26,14 @@ class SessionsRepository {
   /// never be more than one; the oldest wins so a stray extra cannot hide the
   /// real one.
   Future<WorkoutSession?> activeSession() async {
-    final open = await (_db.select(_db.sessions)
-          ..where((s) => s.userId.equals(_userId))
-          ..where((s) => s.deletedAt.isNull())
-          ..where((s) => s.endedAt.isNull())
-          ..orderBy([(s) => OrderingTerm.asc(s.startedAt)])
-          ..limit(1))
-        .get();
+    final open =
+        await (_db.select(_db.sessions)
+              ..where((s) => s.userId.equals(_userId))
+              ..where((s) => s.deletedAt.isNull())
+              ..where((s) => s.endedAt.isNull())
+              ..orderBy([(s) => OrderingTerm.asc(s.startedAt)])
+              ..limit(1))
+            .get();
     return open.firstOrNull;
   }
 
@@ -48,7 +49,9 @@ class SessionsRepository {
     // PowerSync tables are views, which don't support RETURNING, so the id is
     // generated here rather than read back.
     final id = uuid.v7();
-    await _db.into(_db.sessions).insert(
+    await _db
+        .into(_db.sessions)
+        .insert(
           SessionsCompanion.insert(
             id: Value(id),
             userId: _userId,
@@ -60,6 +63,30 @@ class SessionsRepository {
 
   Future<void> finish(String id) =>
       _update(id, SessionsCompanion(endedAt: Value(nowUtc())));
+
+  /// Writes a session that already happened — imported history rather than
+  /// something being trained right now. Bypasses the one-running-session rule
+  /// [start] enforces, since a row created here never has a null `endedAt`
+  /// and so never counts as active.
+  Future<String> createFinished({
+    required DateTime startedAt,
+    required DateTime endedAt,
+    String? name,
+  }) async {
+    final id = uuid.v7();
+    await _db
+        .into(_db.sessions)
+        .insert(
+          SessionsCompanion.insert(
+            id: Value(id),
+            userId: _userId,
+            name: Value(name),
+            startedAt: Value(startedAt),
+            endedAt: Value(endedAt),
+          ),
+        );
+    return id;
+  }
 
   /// Soft delete, so the deletion reaches every device.
   ///
@@ -73,33 +100,37 @@ class SessionsRepository {
   Future<Set<String>> delete(String id) async {
     final now = nowUtc();
 
-    final trained = await (_db.select(_db.sessionExercises)
-          ..where((e) => e.sessionId.equals(id)))
-        .get();
+    final trained = await (_db.select(
+      _db.sessionExercises,
+    )..where((e) => e.sessionId.equals(id))).get();
 
     for (final exercise in trained) {
       await (_db.update(_db.workoutSets)
             ..where((s) => s.sessionExerciseId.equals(exercise.id))
             ..where((s) => s.deletedAt.isNull()))
           .write(
-        WorkoutSetsCompanion(deletedAt: Value(now), updatedAt: Value(now)),
-      );
+            WorkoutSetsCompanion(deletedAt: Value(now), updatedAt: Value(now)),
+          );
     }
 
     await (_db.update(_db.sessionExercises)
           ..where((e) => e.sessionId.equals(id))
           ..where((e) => e.deletedAt.isNull()))
         .write(
-      SessionExercisesCompanion(deletedAt: Value(now), updatedAt: Value(now)),
-    );
+          SessionExercisesCompanion(
+            deletedAt: Value(now),
+            updatedAt: Value(now),
+          ),
+        );
 
     await _update(id, SessionsCompanion(deletedAt: Value(now)));
     return trained.map((e) => e.exerciseId).toSet();
   }
 
   Future<void> _update(String id, SessionsCompanion changes) {
-    return (_db.update(_db.sessions)..where((s) => s.id.equals(id)))
-        .write(changes.copyWith(updatedAt: Value(nowUtc())));
+    return (_db.update(_db.sessions)..where((s) => s.id.equals(id))).write(
+      changes.copyWith(updatedAt: Value(nowUtc())),
+    );
   }
 }
 

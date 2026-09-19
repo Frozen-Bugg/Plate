@@ -10,7 +10,7 @@ import '../../core/db/app_database.dart';
 import '../../core/format.dart';
 import 'brief_card.dart';
 import 'exercises_repository.dart';
-import 'live_session.dart';
+import 'hevy_import_sheet.dart';
 import 'logging_repository.dart';
 import 'progression_repository.dart';
 import 'session_detail_screen.dart';
@@ -30,74 +30,77 @@ class TrainScreen extends ConsumerWidget {
       title: 'Train',
       body: switch (sessions) {
         AsyncData(:final value) => ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-            children: [
-              if (active != null)
-                ActiveSessionCard(session: active)
-              else
-                FilledButton.icon(
-                  onPressed: () =>
-                      ref.read(sessionsRepositoryProvider).start(),
-                  icon: const Icon(Icons.play_arrow_rounded),
-                  label: const Text('Start workout'),
-                ),
-              const SizedBox(height: 8),
-              // Reachable mid-workout too: checking the plan is exactly what
-              // you want to do while resting between sets.
-              OutlinedButton.icon(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const TemplatesScreen(),
-                  ),
-                ),
-                icon: const Icon(Icons.list_alt, size: 20),
-                label: const Text('Templates'),
-              ),
-              const SizedBox(height: 20),
-              // Nothing at all when there is nothing worth saying.
-              if (active == null) BriefCard(day: dayKey()),
-              const SizedBox(height: 8),
-              Text('History', style: text.titleLarge),
-              const SizedBox(height: 8),
-              if (value.every((s) => s.endedAt == null))
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Text(
-                    'Finished workouts show up here, even when you log them offline.',
-                    style: text.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                )
-              else
-                Card(
-                  child: Column(
-                    children: [
-                      for (final (i, session) in value
-                          .where((s) => s.endedAt != null)
-                          .indexed) ...[
-                        if (i > 0) const Divider(indent: 16, endIndent: 16),
-                        _SessionTile(session: session),
-                      ],
-                    ],
-                  ),
-                ),
-            ],
-          ),
-        AsyncError(:final error) => Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Text('Couldn\'t load your workouts.\n$error'),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+          children: [
+            // A session left over from before this app moved training to
+            // Hevy. Nothing new creates one of these any more, but an old
+            // one deserves a way to be finished or dropped rather than
+            // sitting there forever.
+            if (active != null) UnfinishedSessionCard(session: active),
+            FilledButton.icon(
+              onPressed: () => showHevyImportSheet(context),
+              icon: const Icon(Icons.ios_share),
+              label: const Text('Paste from Hevy'),
             ),
+            const SizedBox(height: 8),
+            // Reachable mid-workout too: checking the plan is exactly what
+            // you want to do while resting between sets.
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const TemplatesScreen(),
+                ),
+              ),
+              icon: const Icon(Icons.list_alt, size: 20),
+              label: const Text('Templates'),
+            ),
+            const SizedBox(height: 20),
+            // Nothing at all when there is nothing worth saying.
+            if (active == null) BriefCard(day: dayKey()),
+            const SizedBox(height: 8),
+            Text('History', style: text.titleLarge),
+            const SizedBox(height: 8),
+            if (value.every((s) => s.endedAt == null))
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  'Finished workouts show up here, even when you log them offline.',
+                  style: text.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              )
+            else
+              Card(
+                child: Column(
+                  children: [
+                    for (final (i, session)
+                        in value.where((s) => s.endedAt != null).indexed) ...[
+                      if (i > 0) const Divider(indent: 16, endIndent: 16),
+                      _SessionTile(session: session),
+                    ],
+                  ],
+                ),
+              ),
+          ],
+        ),
+        AsyncError(:final error) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text('Couldn\'t load your workouts.\n$error'),
           ),
+        ),
         _ => const Center(child: CircularProgressIndicator()),
       },
     );
   }
 }
 
-class ActiveSessionCard extends ConsumerWidget {
-  const ActiveSessionCard({super.key, required this.session});
+/// A session that was started but never finished — left over from before
+/// training moved to Hevy. There is no in-app table to log more sets into it
+/// any more, so the only choices are to close it out as-is or drop it.
+class UnfinishedSessionCard extends ConsumerWidget {
+  const UnfinishedSessionCard({super.key, required this.session});
 
   final WorkoutSession session;
 
@@ -173,14 +176,18 @@ class ActiveSessionCard extends ConsumerWidget {
                 Container(
                   width: 8,
                   height: 8,
-                  decoration:
-                      BoxDecoration(color: accent, shape: BoxShape.circle),
+                  decoration: BoxDecoration(
+                    color: accent,
+                    shape: BoxShape.circle,
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Text(
                   'IN PROGRESS',
-                  style: text.labelSmall
-                      ?.copyWith(color: accent, letterSpacing: 1.2),
+                  style: text.labelSmall?.copyWith(
+                    color: accent,
+                    letterSpacing: 1.2,
+                  ),
                 ),
                 const Spacer(),
                 _Elapsed(since: session.startedAt),
@@ -191,8 +198,14 @@ class ActiveSessionCard extends ConsumerWidget {
               'Workout started ${formatTime(session.startedAt)}',
               style: text.headlineSmall,
             ),
-            const SizedBox(height: 12),
-            LiveSessionExercises(sessionId: session.id),
+            const SizedBox(height: 4),
+            Text(
+              'Started before Overload moved to Hevy — finish it as-is or '
+              'discard it.',
+              style: text.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
             const SizedBox(height: 16),
             FilledButton(
               onPressed: () => _finish(context, ref),
@@ -228,7 +241,10 @@ class _ElapsedState extends State<_Elapsed> {
   @override
   void initState() {
     super.initState();
-    _timer = Timer.periodic(const Duration(seconds: 30), (_) => setState(() {}));
+    _timer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => setState(() {}),
+    );
   }
 
   @override
@@ -242,8 +258,8 @@ class _ElapsedState extends State<_Elapsed> {
     return Text(
       formatDuration(DateTime.now().toUtc().difference(widget.since)),
       style: Theme.of(context).textTheme.labelLarge?.copyWith(
-            fontFeatures: const [FontFeature.tabularFigures()],
-          ),
+        fontFeatures: const [FontFeature.tabularFigures()],
+      ),
     );
   }
 }
@@ -292,9 +308,7 @@ class _SessionTile extends ConsumerWidget {
 
     // What was trained, in the order it was trained, and no more of it than
     // fits on a line. The list used to say only that a workout had happened.
-    final trained = [
-      for (final id in summary.exerciseIds) ?names[id]?.name,
-    ];
+    final trained = [for (final id in summary.exerciseIds) ?names[id]?.name];
     final shown = trained.take(3).join(' · ');
     final more = trained.length - 3;
 
@@ -350,10 +364,7 @@ class _SessionTile extends ConsumerWidget {
           _SessionAction.delete => unawaited(_confirmDelete(context, ref)),
         },
         itemBuilder: (_) => const [
-          PopupMenuItem(
-            value: _SessionAction.delete,
-            child: Text('Delete'),
-          ),
+          PopupMenuItem(value: _SessionAction.delete, child: Text('Delete')),
         ],
       ),
     );
@@ -364,8 +375,7 @@ class _SessionTile extends ConsumerWidget {
 /// contained. Without this the stored target would still be based on sets the
 /// lifter has just thrown away.
 Future<void> _deleteAndRecompute(WidgetRef ref, String sessionId) async {
-  final affected =
-      await ref.read(sessionsRepositoryProvider).delete(sessionId);
+  final affected = await ref.read(sessionsRepositoryProvider).delete(sessionId);
   final progression = ref.read(progressionRepositoryProvider);
   for (final exerciseId in affected) {
     await progression.recompute(exerciseId);

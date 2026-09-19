@@ -28,12 +28,12 @@ const equipmentKinds = <String>[
 /// what "a bit more next time" means. A barbell takes 1.25 kg plates a side;
 /// a dumbbell rack jumps in 2s; a machine's pin usually moves in 5s.
 double defaultLoadStep(String equipment) => switch (equipment) {
-      'barbell' => 2.5,
-      'dumbbell' => 2.0,
-      'machine' || 'cable' => 5.0,
-      'band' || 'bodyweight' => 1.0,
-      _ => 2.5,
-    };
+  'barbell' => 2.5,
+  'dumbbell' => 2.0,
+  'machine' || 'cable' => 5.0,
+  'band' || 'bodyweight' => 1.0,
+  _ => 2.5,
+};
 
 /// The exercise library: the seeded movements everyone gets, plus anything the
 /// lifter has added themselves.
@@ -53,9 +53,37 @@ class ExercisesRepository {
         .watch();
   }
 
-  Future<Exercise?> byId(String id) =>
-      (_db.select(_db.exercises)..where((e) => e.id.equals(id)))
-          .getSingleOrNull();
+  Future<Exercise?> byId(String id) => (_db.select(
+    _db.exercises,
+  )..where((e) => e.id.equals(id))).getSingleOrNull();
+
+  /// The closest existing exercise to [name], for matching something named
+  /// from outside the app — see hevy_import.dart. An exact match wins;
+  /// otherwise whichever row's name contains the other, the same
+  /// contains-based fuzz `FoodsRepository.bestMatch` uses for the same
+  /// reason: an imported name rarely spells a movement exactly the way this
+  /// library does.
+  Future<Exercise?> bestMatch(String name) async {
+    final needle = name.trim().toLowerCase();
+    if (needle.isEmpty) return null;
+
+    final rows =
+        await (_db.select(_db.exercises)
+              ..where((e) => e.userId.isNull() | e.userId.equals(_userId))
+              ..where((e) => e.deletedAt.isNull()))
+            .get();
+
+    Exercise? contained;
+    for (final exercise in rows) {
+      final candidate = exercise.name.trim().toLowerCase();
+      if (candidate == needle) return exercise;
+      if (contained == null &&
+          (candidate.contains(needle) || needle.contains(candidate))) {
+        contained = exercise;
+      }
+    }
+    return contained;
+  }
 
   /// Adds a movement the seeded library does not have.
   ///
@@ -84,7 +112,9 @@ class ExercisesRepository {
     final kind = equipmentKinds.contains(equipment) ? equipment : 'other';
     // PowerSync tables are views, so RETURNING does not work: make the id here.
     final id = uuid.v7();
-    await _db.into(_db.exercises).insert(
+    await _db
+        .into(_db.exercises)
+        .insert(
           ExercisesCompanion.insert(
             id: Value(id),
             userId: Value(_userId),
@@ -105,11 +135,12 @@ class ExercisesRepository {
   Future<Exercise?> byName(String name) async {
     final needle = name.trim().toLowerCase();
     if (needle.isEmpty) return null;
-    final candidates = await (_db.select(_db.exercises)
-          ..where((e) => e.userId.isNull() | e.userId.equals(_userId))
-          ..where((e) => e.deletedAt.isNull())
-          ..where((e) => e.name.lower().equals(needle)))
-        .get();
+    final candidates =
+        await (_db.select(_db.exercises)
+              ..where((e) => e.userId.isNull() | e.userId.equals(_userId))
+              ..where((e) => e.deletedAt.isNull())
+              ..where((e) => e.name.lower().equals(needle)))
+            .get();
     // The lifter's own wins over a seeded one of the same name: if they made
     // it, they meant to.
     for (final candidate in candidates) {
@@ -134,16 +165,20 @@ class ExercisesRepository {
             ..where((e) => e.id.equals(id))
             ..where((e) => e.userId.equals(_userId)))
           .write(
-        ExercisesCompanion(
-          name: name == null ? const Value.absent() : Value(name.trim()),
-          equipment: equipment == null ? const Value.absent() : Value(equipment),
-          loadStepKg:
-              loadStepKg == null ? const Value.absent() : Value(loadStepKg),
-          unilateral:
-              unilateral == null ? const Value.absent() : Value(unilateral),
-          updatedAt: Value(nowUtc()),
-        ),
-      );
+            ExercisesCompanion(
+              name: name == null ? const Value.absent() : Value(name.trim()),
+              equipment: equipment == null
+                  ? const Value.absent()
+                  : Value(equipment),
+              loadStepKg: loadStepKg == null
+                  ? const Value.absent()
+                  : Value(loadStepKg),
+              unilateral: unilateral == null
+                  ? const Value.absent()
+                  : Value(unilateral),
+              updatedAt: Value(nowUtc()),
+            ),
+          );
 
   /// Soft-deletes a custom exercise so it leaves the picker on every device.
   ///
@@ -155,11 +190,11 @@ class ExercisesRepository {
             ..where((e) => e.id.equals(id))
             ..where((e) => e.userId.equals(_userId)))
           .write(
-        ExercisesCompanion(
-          deletedAt: Value(nowUtc()),
-          updatedAt: Value(nowUtc()),
-        ),
-      );
+            ExercisesCompanion(
+              deletedAt: Value(nowUtc()),
+              updatedAt: Value(nowUtc()),
+            ),
+          );
 }
 
 final exercisesRepositoryProvider = Provider<ExercisesRepository>((ref) {

@@ -6,16 +6,14 @@ import 'package:powersync/powersync.dart' show uuid;
 import '../../core/auth/auth_service.dart';
 import '../../core/db/app_database.dart';
 import '../../core/db/database_providers.dart';
-import 'logging_repository.dart';
 import 'progression_repository.dart';
-import 'sessions_repository.dart';
 
 /// Workout templates and the prescription they carry for each exercise.
 ///
-/// A template is the plan; a session is what actually happened. Starting from
-/// a template copies its exercises into the session, and the prescription —
-/// sets, rep range, target effort, model — is what the engine judges the
-/// session against afterwards.
+/// A template is the plan, kept for its prescription — sets, rep range,
+/// target effort, model — which is what the engine judges an exercise
+/// against once it has been trained. What actually happened comes in through
+/// hevy_import.dart, not from starting a template.
 class TemplatesRepository {
   TemplatesRepository(this._db, this._userId);
 
@@ -57,7 +55,9 @@ class TemplatesRepository {
   Future<String> create({required String name, int dayIndex = 0}) async {
     // Views do not support RETURNING, so the id is generated here.
     final id = uuid.v7();
-    await _db.into(_db.templates).insert(
+    await _db
+        .into(_db.templates)
+        .insert(
           TemplatesCompanion.insert(
             id: Value(id),
             userId: _userId,
@@ -85,10 +85,14 @@ class TemplatesRepository {
           ..where((e) => e.templateId.equals(templateId))
           ..where((e) => e.deletedAt.isNull()))
         .write(
-      TemplateExercisesCompanion(deletedAt: Value(now), updatedAt: Value(now)),
-    );
-    await (_db.update(_db.templates)..where((t) => t.id.equals(templateId)))
-        .write(
+          TemplateExercisesCompanion(
+            deletedAt: Value(now),
+            updatedAt: Value(now),
+          ),
+        );
+    await (_db.update(
+      _db.templates,
+    )..where((t) => t.id.equals(templateId))).write(
       TemplatesCompanion(deletedAt: Value(now), updatedAt: Value(now)),
     );
   }
@@ -97,13 +101,16 @@ class TemplatesRepository {
     required String templateId,
     required String exerciseId,
   }) async {
-    final existing = await (_db.select(_db.templateExercises)
-          ..where((e) => e.templateId.equals(templateId))
-          ..where((e) => e.deletedAt.isNull()))
-        .get();
+    final existing =
+        await (_db.select(_db.templateExercises)
+              ..where((e) => e.templateId.equals(templateId))
+              ..where((e) => e.deletedAt.isNull()))
+            .get();
 
     final id = uuid.v7();
-    await _db.into(_db.templateExercises).insert(
+    await _db
+        .into(_db.templateExercises)
+        .insert(
           TemplateExercisesCompanion.insert(
             id: Value(id),
             userId: _userId,
@@ -114,8 +121,7 @@ class TemplatesRepository {
             repMin: const Value(8),
             repMax: const Value(12),
             targetRir: const Value(2),
-            progressionModel:
-                Value(engine.ProgressionModel.double_.wireName),
+            progressionModel: Value(engine.ProgressionModel.double_.wireName),
           ),
         );
     return id;
@@ -138,19 +144,19 @@ class TemplatesRepository {
               ..where((e) => e.id.equals(orderedIds[i]))
               ..where((e) => e.templateId.equals(templateId)))
             .write(
-          TemplateExercisesCompanion(
-            position: Value(i),
-            updatedAt: Value(now),
-          ),
-        );
+              TemplateExercisesCompanion(
+                position: Value(i),
+                updatedAt: Value(now),
+              ),
+            );
       }
     });
   }
 
   Future<void> removeExercise(String templateExerciseId) =>
-      (_db.update(_db.templateExercises)
-            ..where((e) => e.id.equals(templateExerciseId)))
-          .write(
+      (_db.update(
+        _db.templateExercises,
+      )..where((e) => e.id.equals(templateExerciseId))).write(
         TemplateExercisesCompanion(
           deletedAt: Value(nowUtc()),
           updatedAt: Value(nowUtc()),
@@ -171,37 +177,21 @@ class TemplatesRepository {
     Value<double?> targetRir = const Value.absent(),
     Value<int?> restSeconds = const Value.absent(),
   }) =>
-      (_db.update(_db.templateExercises)
-            ..where((e) => e.id.equals(templateExerciseId)))
-          .write(
+      (_db.update(
+        _db.templateExercises,
+      )..where((e) => e.id.equals(templateExerciseId))).write(
         TemplateExercisesCompanion(
           sets: sets == null ? const Value.absent() : Value(sets),
           repMin: repMin == null ? const Value.absent() : Value(repMin),
           repMax: repMax == null ? const Value.absent() : Value(repMax),
-          progressionModel:
-              model == null ? const Value.absent() : Value(model.wireName),
+          progressionModel: model == null
+              ? const Value.absent()
+              : Value(model.wireName),
           targetRir: targetRir,
           restSeconds: restSeconds,
           updatedAt: Value(nowUtc()),
         ),
       );
-
-  /// Starts a session and copies the template's exercises into it, in order.
-  /// Returns the new session's id.
-  Future<String> startSession(String templateId) async {
-    final planned = await watchExercises(templateId).first;
-    final sessions = SessionsRepository(_db, _userId);
-    final sessionId = await sessions.start(templateId: templateId);
-
-    final logging = LoggingRepository(_db, _userId);
-    for (final exercise in planned) {
-      await logging.addExercise(
-        sessionId: sessionId,
-        exerciseId: exercise.exerciseId,
-      );
-    }
-    return sessionId;
-  }
 }
 
 final templatesRepositoryProvider = Provider<TemplatesRepository>((ref) {
@@ -218,9 +208,9 @@ final templatesProvider = StreamProvider<List<Template>>(
 
 final templateExercisesProvider =
     StreamProvider.family<List<TemplateExercise>, String>(
-  (ref, templateId) =>
-      ref.watch(templatesRepositoryProvider).watchExercises(templateId),
-);
+      (ref, templateId) =>
+          ref.watch(templatesRepositoryProvider).watchExercises(templateId),
+    );
 
 /// What an exercise is prescribed at, live. Falls back to the default for
 /// anything no template covers, so the live screen always has something to
@@ -229,6 +219,8 @@ final prescriptionProvider = StreamProvider.family<Prescription, String>(
   (ref, exerciseId) => ref
       .watch(templatesRepositoryProvider)
       .watchPrescriptionFor(exerciseId)
-      .map((row) =>
-          row == null ? const Prescription() : Prescription.fromTemplate(row)),
+      .map(
+        (row) =>
+            row == null ? const Prescription() : Prescription.fromTemplate(row),
+      ),
 );
