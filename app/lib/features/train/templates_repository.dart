@@ -121,6 +121,32 @@ class TemplatesRepository {
     return id;
   }
 
+  /// Rewrites `position` for every exercise in the template to match
+  /// [orderedIds] — the drag-reordered list, front to back.
+  ///
+  /// One transaction rather than one write per row: a reorder is a single
+  /// gesture, and a partial write left by a crash mid-reorder would leave two
+  /// exercises sharing a position, which sorts arbitrarily forever after.
+  Future<void> reorderExercises(
+    String templateId,
+    List<String> orderedIds,
+  ) async {
+    final now = nowUtc();
+    await _db.transaction(() async {
+      for (var i = 0; i < orderedIds.length; i++) {
+        await (_db.update(_db.templateExercises)
+              ..where((e) => e.id.equals(orderedIds[i]))
+              ..where((e) => e.templateId.equals(templateId)))
+            .write(
+          TemplateExercisesCompanion(
+            position: Value(i),
+            updatedAt: Value(now),
+          ),
+        );
+      }
+    });
+  }
+
   Future<void> removeExercise(String templateExerciseId) =>
       (_db.update(_db.templateExercises)
             ..where((e) => e.id.equals(templateExerciseId)))

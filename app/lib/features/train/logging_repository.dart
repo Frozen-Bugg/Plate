@@ -56,6 +56,29 @@ class LoggingRepository {
     return id;
   }
 
+  /// Rewrites `position` for every exercise in the session to match
+  /// [orderedIds] — see [TemplatesRepository.reorderExercises], same reasoning,
+  /// same shape, different table.
+  Future<void> reorderExercises(
+    String sessionId,
+    List<String> orderedIds,
+  ) async {
+    final now = nowUtc();
+    await _db.transaction(() async {
+      for (var i = 0; i < orderedIds.length; i++) {
+        await (_db.update(_db.sessionExercises)
+              ..where((e) => e.id.equals(orderedIds[i]))
+              ..where((e) => e.sessionId.equals(sessionId)))
+            .write(
+          SessionExercisesCompanion(
+            position: Value(i),
+            updatedAt: Value(now),
+          ),
+        );
+      }
+    });
+  }
+
   Future<void> removeExercise(String sessionExerciseId) =>
       (_db.update(_db.sessionExercises)
             ..where((e) => e.id.equals(sessionExerciseId)))
@@ -245,6 +268,45 @@ class LoggingRepository {
     ];
   }
 
+  /// What was logged for [exerciseId] last time, from the most recent other
+  /// session that touched it — Hevy's "previous" column.
+  ///
+  /// A target from the engine says what *should* happen; this says what
+  /// *did*, set by set, which is the number a lifter actually checks their
+  /// own effort against mid-session. Excludes [excludingSessionId] so the
+  /// session in progress never shows itself back as its own history.
+  Future<List<WorkoutSet>> previousSets({
+    required String exerciseId,
+    required String excludingSessionId,
+  }) async {
+    final exercises = _db.sessionExercises;
+    final sessions = _db.sessions;
+    final id = exercises.id;
+
+    final row = await (_db.selectOnly(exercises)
+          ..addColumns([id])
+          ..join([
+            innerJoin(sessions, sessions.id.equalsExp(exercises.sessionId)),
+          ])
+          ..where(exercises.exerciseId.equals(exerciseId) &
+              exercises.userId.equals(_userId) &
+              exercises.deletedAt.isNull() &
+              exercises.sessionId.equals(excludingSessionId).not() &
+              sessions.deletedAt.isNull())
+          ..orderBy([OrderingTerm.desc(sessions.startedAt)])
+          ..limit(1))
+        .getSingleOrNull();
+
+    final previousSessionExerciseId = row?.read(id);
+    if (previousSessionExerciseId == null) return const [];
+
+    return (_db.select(_db.workoutSets)
+          ..where((s) => s.sessionExerciseId.equals(previousSessionExerciseId))
+          ..where((s) => s.deletedAt.isNull())
+          ..orderBy([(s) => OrderingTerm.asc(s.setIndex)]))
+        .get();
+  }
+
   Future<void> deleteSet(String setId) =>
       (_db.update(_db.workoutSets)..where((s) => s.id.equals(setId))).write(
         WorkoutSetsCompanion(
@@ -271,6 +333,19 @@ final sessionExercisesProvider =
 final setsProvider = StreamProvider.family<List<WorkoutSet>, String>(
   (ref, sessionExerciseId) =>
       ref.watch(loggingRepositoryProvider).watchSets(sessionExerciseId),
+);
+
+/// Keys [previousSetsProvider] by exercise and the session to exclude. A
+/// record rather than two params: Riverpod families need one Object, and
+/// Dart records compare structurally, so this works as a family key for free.
+typedef PreviousSetsKey = ({String exerciseId, String sessionId});
+
+final previousSetsProvider =
+    FutureProvider.family<List<WorkoutSet>, PreviousSetsKey>(
+  (ref, key) => ref.watch(loggingRepositoryProvider).previousSets(
+        exerciseId: key.exerciseId,
+        excludingSessionId: key.sessionId,
+      ),
 );
 
 /// What a finished session amounted to.

@@ -16,37 +16,82 @@ import 'voice_sets_sheet.dart';
 
 /// The exercises in the running session, each with its logged sets and a row
 /// for adding the next one.
-class LiveSessionExercises extends ConsumerWidget {
+///
+/// Reordered by dragging a handle, same shape as the template editor's list —
+/// local order between rebuilds so a drag never snaps back while its write is
+/// still in flight, reconciled against the stream only when an exercise is
+/// actually added or removed.
+class LiveSessionExercises extends ConsumerStatefulWidget {
   const LiveSessionExercises({super.key, required this.sessionId});
 
   final String sessionId;
 
-  Future<void> _pickExercise(BuildContext context, WidgetRef ref) async {
+  @override
+  ConsumerState<LiveSessionExercises> createState() =>
+      _LiveSessionExercisesState();
+}
+
+class _LiveSessionExercisesState extends ConsumerState<LiveSessionExercises> {
+  List<SessionExercise> _order = const [];
+  String? _syncedFor;
+
+  Future<void> _pickExercise() async {
     final chosen = await showExercisePicker(context);
     if (chosen == null) return;
     await ref
         .read(loggingRepositoryProvider)
-        .addExercise(sessionId: sessionId, exerciseId: chosen.id);
+        .addExercise(sessionId: widget.sessionId, exerciseId: chosen.id);
+  }
+
+  void _reorder(int oldIndex, int newIndex) {
+    if (newIndex > oldIndex) newIndex -= 1;
+    final moved = _order.removeAt(oldIndex);
+    setState(() => _order = [..._order..insert(newIndex, moved)]);
+    ref.read(loggingRepositoryProvider).reorderExercises(
+          widget.sessionId,
+          [for (final e in _order) e.id],
+        );
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final exercises = ref.watch(sessionExercisesProvider(sessionId));
+  Widget build(BuildContext context) {
+    final exercises =
+        ref.watch(sessionExercisesProvider(widget.sessionId)).value ??
+            const [];
+
+    final incoming = {for (final e in exercises) e.id};
+    final shown = {for (final e in _order) e.id};
+    if (_syncedFor != widget.sessionId ||
+        incoming.length != shown.length ||
+        !incoming.containsAll(shown)) {
+      _order = exercises;
+      _syncedFor = widget.sessionId;
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        ...?exercises.value?.map(
-          (e) => Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _ExerciseBlock(sessionExercise: e),
+        if (_order.isNotEmpty)
+          ReorderableListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: EdgeInsets.zero,
+            itemCount: _order.length,
+            onReorder: _reorder,
+            // A handle is already built into each block's header; the
+            // automatic one would double up on top of it.
+            buildDefaultDragHandles: false,
+            itemBuilder: (context, i) => Padding(
+              key: ValueKey(_order[i].id),
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _ExerciseBlock(sessionExercise: _order[i], dragIndex: i),
+            ),
           ),
-        ),
         Row(
           children: [
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: () => _pickExercise(context, ref),
+                onPressed: _pickExercise,
                 icon: const Icon(Icons.add, size: 20),
                 label: const Text('Add exercise'),
               ),
@@ -56,7 +101,8 @@ class LiveSessionExercises extends ConsumerWidget {
             // eight at eighty on bench" is faster than four taps per set.
             IconButton.filledTonal(
               tooltip: 'Say your sets',
-              onPressed: () => showVoiceSetsSheet(context, sessionId: sessionId),
+              onPressed: () =>
+                  showVoiceSetsSheet(context, sessionId: widget.sessionId),
               icon: const Icon(Icons.mic_none),
               constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
             ),
@@ -68,11 +114,16 @@ class LiveSessionExercises extends ConsumerWidget {
 }
 
 /// One exercise: what the engine wants this time, what has been logged, and
-/// the row for logging the next set.
+/// a Hevy-style table — one row per set, done or still to come — for logging
+/// the rest.
 class _ExerciseBlock extends ConsumerWidget {
-  const _ExerciseBlock({required this.sessionExercise});
+  const _ExerciseBlock({required this.sessionExercise, required this.dragIndex});
 
   final SessionExercise sessionExercise;
+
+  /// This block's position in the enclosing `ReorderableListView` — the
+  /// header's drag handle needs it.
+  final int dragIndex;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -84,6 +135,13 @@ class _ExerciseBlock extends ConsumerWidget {
         ref.watch(progressionStateProvider(sessionExercise.exerciseId)).value;
     final planned =
         ref.watch(prescriptionProvider(sessionExercise.exerciseId)).value?.sets;
+    final previous = ref
+            .watch(previousSetsProvider((
+              exerciseId: sessionExercise.exerciseId,
+              sessionId: sessionExercise.sessionId,
+            )))
+            .value ??
+        const <WorkoutSet>[];
 
     return Container(
       decoration: BoxDecoration(
@@ -96,6 +154,15 @@ class _ExerciseBlock extends ConsumerWidget {
         children: [
           Row(
             children: [
+              // A handle rather than the whole row, matching the template
+              // editor — a scroll must never register as a drag.
+              ReorderableDragStartListener(
+                index: dragIndex,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Icon(Icons.drag_handle, color: scheme.onSurfaceVariant),
+                ),
+              ),
               Expanded(
                 child: _ExerciseName(exerciseId: sessionExercise.exerciseId),
               ),
@@ -132,17 +199,36 @@ class _ExerciseBlock extends ConsumerWidget {
                     ?.copyWith(color: scheme.error),
               ),
             ),
+          const _TableHeader(),
           for (final set in sets)
-            _SetRow(set: set, onDelete: () {
-              ref.read(loggingRepositoryProvider).deleteSet(set.id);
-            }),
+            _DoneSetRow(
+              set: set,
+              previous: set.setIndex < previous.length
+                  ? previous[set.setIndex]
+                  : null,
+              onDelete: () =>
+                  ref.read(loggingRepositoryProvider).deleteSet(set.id),
+            ),
           _AddSetRow(
             sessionExerciseId: sessionExercise.id,
             exerciseId: sessionExercise.exerciseId,
+            setIndex: sets.length,
+            previous: sets.length < previous.length
+                ? previous[sets.length]
+                : null,
             suggestedLoad: target?.nextLoadKg,
             suggestedReps: target?.nextReps,
             lastSet: sets.isEmpty ? null : sets.last,
           ),
+          // Sets the plan calls for but has not reached yet — Hevy lays the
+          // whole set out before you touch it, so "three sets" reads as three
+          // rows, not a promise the app is keeping to itself.
+          if (planned != null)
+            for (var i = sets.length + 1; i < planned; i++)
+              _UpcomingSetRow(
+                setIndex: i,
+                previous: i < previous.length ? previous[i] : null,
+              ),
           RestTimerBar(exerciseId: sessionExercise.exerciseId),
         ],
       ),
@@ -164,66 +250,177 @@ class _ExerciseName extends ConsumerWidget {
   }
 }
 
-class _SetRow extends StatelessWidget {
-  const _SetRow({required this.set, required this.onDelete});
+/// Column labels for the set table. SET and PREVIOUS bracket the input
+/// columns on the left the way Hevy's does, so the eye has somewhere to land
+/// before the numbers start moving.
+class _TableHeader extends StatelessWidget {
+  const _TableHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+          letterSpacing: 0.5,
+        );
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          SizedBox(width: 26, child: Text('SET', style: style)),
+          SizedBox(width: 64, child: Text('PREVIOUS', style: style)),
+          const Expanded(child: SizedBox.shrink()),
+          const SizedBox(width: 40),
+        ],
+      ),
+    );
+  }
+}
+
+/// What [set] was logged at, laid against the same set index last time it was
+/// trained. "80 x 8" on its own answers "what did I lift"; next to "77.5 x 8"
+/// it answers the question that is actually being asked mid-workout, which is
+/// whether this is progress.
+class _DoneSetRow extends StatelessWidget {
+  const _DoneSetRow({
+    required this.set,
+    required this.previous,
+    required this.onDelete,
+  });
 
   final WorkoutSet set;
+  final WorkoutSet? previous;
   final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final muted = theme.colorScheme.onSurfaceVariant;
     final weight = set.weightKg;
     final reps = set.reps;
+
+    return Dismissible(
+      key: ValueKey(set.id),
+      direction: DismissDirection.endToStart,
+      background: ColoredBox(
+        color: theme.colorScheme.error,
+        child: const Align(
+          alignment: Alignment.centerRight,
+          child: Padding(
+            padding: EdgeInsets.only(right: 16),
+            child: Icon(Icons.delete_outline, color: Colors.white, size: 18),
+          ),
+        ),
+      ),
+      onDismissed: (_) => onDelete(),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 26,
+              child: Text(
+                '${set.setIndex + 1}',
+                style: theme.textTheme.labelLarge?.copyWith(color: muted),
+              ),
+            ),
+            SizedBox(
+              width: 64,
+              child: Text(
+                _previousText(previous),
+                style: theme.textTheme.bodySmall?.copyWith(color: muted),
+              ),
+            ),
+            Expanded(
+              child: Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      weight == null || reps == null
+                          ? '—'
+                          : '${formatWeight(weight)} x $reps'
+                              '${set.rir == null ? '' : '  @${formatRir(set.rir!)}'}',
+                      style: theme.textTheme.bodyLarge,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (set.isPr)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 6),
+                      child: Icon(
+                        Icons.emoji_events,
+                        size: 16,
+                        color: PillarColors.of(context).move,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            SizedBox(
+              width: 40,
+              child: Icon(
+                Icons.check_circle,
+                color: PillarColors.of(context).fuel,
+                size: 22,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A set the plan calls for but has not been reached yet: a placeholder row,
+/// numbered and given its own "previous" for reference, with nothing to tap.
+/// It exists to be seen, not touched — logging happens in order, one row at a
+/// time, because `logSet` numbers a set by how many already exist.
+class _UpcomingSetRow extends StatelessWidget {
+  const _UpcomingSetRow({required this.setIndex, required this.previous});
+
+  final int setIndex;
+  final WorkoutSet? previous;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final faint = theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.55);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
           SizedBox(
-            width: 28,
+            width: 26,
             child: Text(
-              '${set.setIndex + 1}',
-              style: theme.textTheme.labelMedium
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              '${setIndex + 1}',
+              style: theme.textTheme.labelLarge?.copyWith(color: faint),
+            ),
+          ),
+          SizedBox(
+            width: 64,
+            child: Text(
+              _previousText(previous),
+              style: theme.textTheme.bodySmall?.copyWith(color: faint),
             ),
           ),
           Expanded(
-            child: Text(
-              weight == null || reps == null
-                  ? '—'
-                  : '${formatWeight(weight)} x $reps'
-                      '${set.rir == null ? '' : '  @${formatRir(set.rir!)}'}',
-              style: theme.textTheme.bodyLarge,
-            ),
+            child: Text('—', style: theme.textTheme.bodyLarge?.copyWith(color: faint)),
           ),
-          if (set.isPr)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Text(
-                'PR',
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: PillarColors.of(context).move,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ),
-          if (set.e1rmKg case final e?)
-            Text(
-              'e1RM ${formatWeight(e)}',
-              style: theme.textTheme.labelSmall
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-            ),
-          IconButton(
-            tooltip: 'Delete set',
-            visualDensity: VisualDensity.compact,
-            icon: const Icon(Icons.close, size: 16),
-            onPressed: onDelete,
+          SizedBox(
+            width: 40,
+            child: Icon(Icons.radio_button_unchecked, color: faint, size: 20),
           ),
         ],
       ),
     );
   }
+}
+
+String _previousText(WorkoutSet? set) {
+  if (set == null) return '—';
+  final weight = set.weightKg;
+  final reps = set.reps;
+  if (weight == null || reps == null) return '—';
+  return '${formatWeight(weight)} x $reps';
 }
 
 /// Weight, reps and optional RIR, then Log.
@@ -240,6 +437,8 @@ class _AddSetRow extends ConsumerStatefulWidget {
   const _AddSetRow({
     required this.sessionExerciseId,
     required this.exerciseId,
+    required this.setIndex,
+    required this.previous,
     this.suggestedLoad,
     this.suggestedReps,
     this.lastSet,
@@ -247,6 +446,14 @@ class _AddSetRow extends ConsumerStatefulWidget {
 
   final String sessionExerciseId;
   final String exerciseId;
+
+  /// This row's position in the exercise — 0 for the first set. Shown as
+  /// `setIndex + 1`, and lines it up with [previous]'s own row.
+  final int setIndex;
+
+  /// What was logged at this same set index last time, for the PREVIOUS
+  /// column. Null past the end of last time's sets, or with no history at all.
+  final WorkoutSet? previous;
   final double? suggestedLoad;
   final int? suggestedReps;
   final WorkoutSet? lastSet;
@@ -370,38 +577,74 @@ class _AddSetRowState extends ConsumerState<_AddSetRow> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 6),
-        Row(
-          children: [
-            Expanded(
-              flex: 5,
-              child: _Stepper(
-                controller: _weight,
-                label: 'kg',
-                decimal: true,
-                onDown: () => _nudgeWeight(-_loadStep),
-                onUp: () => _nudgeWeight(_loadStep),
+    final muted = theme.colorScheme.onSurfaceVariant;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Same three leading columns as every other row in the table — SET,
+          // PREVIOUS, then the part that is actually this row's own: here, the
+          // inputs instead of a plain number.
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 14),
+                child: SizedBox(
+                  width: 26,
+                  child: Text(
+                    '${widget.setIndex + 1}',
+                    style: theme.textTheme.labelLarge?.copyWith(color: muted),
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              flex: 4,
-              child: _Stepper(
-                controller: _reps,
-                label: 'reps',
-                onDown: () => _nudgeReps(-1),
-                onUp: () => _nudgeReps(1),
+              Padding(
+                padding: const EdgeInsets.only(top: 14, right: 4),
+                child: SizedBox(
+                  width: 60,
+                  child: Text(
+                    _previousText(widget.previous),
+                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                  ),
+                ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            SizedBox(
+              Expanded(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _Stepper(
+                        controller: _weight,
+                        label: 'kg',
+                        decimal: true,
+                        onDown: () => _nudgeWeight(-_loadStep),
+                        onUp: () => _nudgeWeight(_loadStep),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: _Stepper(
+                        controller: _reps,
+                        label: 'reps',
+                        onDown: () => _nudgeReps(-1),
+                        onUp: () => _nudgeReps(1),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(left: 6, top: 14),
+                child: _CheckButton(
+                  saving: _saving,
+                  onPressed: _saving ? null : _log,
+                ),
+              ),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 90, top: 8),
+            child: SizedBox(
               width: 84,
               child: _Field(
                 controller: _rir,
@@ -410,28 +653,56 @@ class _AddSetRowState extends ConsumerState<_AddSetRow> {
                 decimal: true,
               ),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: FilledButton(
-                onPressed: _saving ? null : _log,
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(48),
-                ),
-                child: Text(_saving ? 'Logging…' : 'Log set'),
+          ),
+          if (_error case final message?)
+            Padding(
+              padding: const EdgeInsets.only(left: 90, top: 6),
+              child: Text(
+                message,
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.error),
               ),
             ),
-          ],
-        ),
-        if (_error case final message?)
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Text(
-              message,
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: theme.colorScheme.error),
-            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The checkmark that commits the row it sits in — Hevy's gesture for "this
+/// set is done" and the reason this table needs no separate Log button.
+class _CheckButton extends StatelessWidget {
+  const _CheckButton({required this.saving, required this.onPressed});
+
+  final bool saving;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      width: 40,
+      height: 40,
+      child: Material(
+        color: scheme.primaryContainer,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onPressed,
+          child: Center(
+            child: saving
+                ? SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: scheme.onPrimaryContainer,
+                    ),
+                  )
+                : Icon(Icons.check, color: scheme.onPrimaryContainer, size: 22),
           ),
-      ],
+        ),
+      ),
     );
   }
 }

@@ -93,20 +93,29 @@ class _RestTimerBarState extends ConsumerState<RestTimerBar> {
   Timer? _tick;
   bool _buzzed = false;
 
-  @override
-  void initState() {
-    super.initState();
-    // Half-second so the displayed second never lags the real one by a full
-    // tick; the cost is nil since the widget only exists while resting.
-    _tick = Timer.periodic(
+  // Half-second so the displayed second never lags the real one by a full
+  // tick. Started only while this exercise is the one resting, and stopped
+  // the moment it is not — one of these exists per exercise in the session,
+  // all session long, and a timer that ran regardless of `build()` mostly
+  // returning `SizedBox.shrink()` would tick for the whole workout for no
+  // reason, on every exercise at once.
+  void _ensureTicking() {
+    _tick ??= Timer.periodic(
       const Duration(milliseconds: 500),
-      (_) => setState(() {}),
+      (_) {
+        if (mounted) setState(() {});
+      },
     );
+  }
+
+  void _stopTicking() {
+    _tick?.cancel();
+    _tick = null;
   }
 
   @override
   void dispose() {
-    _tick?.cancel();
+    _stopTicking();
     super.dispose();
   }
 
@@ -115,8 +124,10 @@ class _RestTimerBarState extends ConsumerState<RestTimerBar> {
     final rest = ref.watch(restTimerProvider);
     if (!rest.isRunning || rest.exerciseId != widget.exerciseId) {
       _buzzed = false;
+      _stopTicking();
       return const SizedBox.shrink();
     }
+    _ensureTicking();
 
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;

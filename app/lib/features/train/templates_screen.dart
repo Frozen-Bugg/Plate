@@ -205,28 +205,115 @@ class TemplateEditorScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: Text(template?.name ?? 'Template')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+      body: Column(
         children: [
-          ...?planned.value?.map(
-            (e) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _PlannedExercise(planned: e),
+          Expanded(
+            child: _ReorderableExercises(
+              templateId: templateId,
+              planned: planned.value ?? const [],
             ),
           ),
-          OutlinedButton.icon(
-            onPressed: () => _addExercise(context, ref),
-            icon: const Icon(Icons.add, size: 20),
-            label: const Text('Add exercise'),
-          ),
-          const SizedBox(height: 16),
-          if ((planned.value ?? const []).isNotEmpty)
-            FilledButton.icon(
-              onPressed: () => _start(context, ref),
-              icon: const Icon(Icons.play_arrow_rounded),
-              label: const Text('Start this workout'),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => _addExercise(context, ref),
+                  icon: const Icon(Icons.add, size: 20),
+                  label: const Text('Add exercise'),
+                ),
+                const SizedBox(height: 12),
+                if ((planned.value ?? const []).isNotEmpty)
+                  FilledButton.icon(
+                    onPressed: () => _start(context, ref),
+                    icon: const Icon(Icons.play_arrow_rounded),
+                    label: const Text('Start this workout'),
+                  ),
+              ],
             ),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+/// Exercises in a template, reordered by dragging a handle.
+///
+/// Held in local state between rebuilds rather than read straight off the
+/// stream every time: a drag has to feel instant, but the write it triggers is
+/// still a round trip through the database, and rendering the stream's answer
+/// mid-drag would snap the row back to its old spot for the half-second before
+/// the write lands. Local state is the order shown; the stream is only
+/// consulted to notice an exercise added or removed elsewhere.
+class _ReorderableExercises extends ConsumerStatefulWidget {
+  const _ReorderableExercises({
+    required this.templateId,
+    required this.planned,
+  });
+
+  final String templateId;
+  final List<TemplateExercise> planned;
+
+  @override
+  ConsumerState<_ReorderableExercises> createState() =>
+      _ReorderableExercisesState();
+}
+
+class _ReorderableExercisesState extends ConsumerState<_ReorderableExercises> {
+  late List<TemplateExercise> _order = widget.planned;
+
+  @override
+  void didUpdateWidget(_ReorderableExercises old) {
+    super.didUpdateWidget(old);
+    final incoming = {for (final e in widget.planned) e.id};
+    final shown = {for (final e in _order) e.id};
+    // Same set of exercises, in whatever order the last drag left them: the
+    // stream has caught up, and there is nothing to reconcile. Only a real
+    // add or remove replaces the local order outright.
+    if (incoming.length == shown.length && incoming.containsAll(shown)) {
+      return;
+    }
+    _order = widget.planned;
+  }
+
+  void _reorder(int oldIndex, int newIndex) {
+    if (newIndex > oldIndex) newIndex -= 1;
+    final moved = _order.removeAt(oldIndex);
+    setState(() => _order = [..._order..insert(newIndex, moved)]);
+    ref
+        .read(templatesRepositoryProvider)
+        .reorderExercises(widget.templateId, [for (final e in _order) e.id]);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_order.isEmpty) {
+      final text = Theme.of(context).textTheme;
+      final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'Add the first exercise below.',
+            style: text.bodyMedium?.copyWith(color: muted),
+          ),
+        ),
+      );
+    }
+
+    return ReorderableListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      itemCount: _order.length,
+      onReorder: _reorder,
+      // A handle is already built into each row below; the automatic one
+      // would double up on top of it.
+      buildDefaultDragHandles: false,
+      itemBuilder: (context, i) => Padding(
+        key: ValueKey(_order[i].id),
+        padding: const EdgeInsets.only(bottom: 12),
+        child: _PlannedExercise(planned: _order[i], dragIndex: i),
       ),
     );
   }
@@ -236,9 +323,13 @@ class TemplateEditorScreen extends ConsumerWidget {
 /// what the engine judges a session against, so they are editable here and
 /// nowhere else.
 class _PlannedExercise extends ConsumerWidget {
-  const _PlannedExercise({required this.planned});
+  const _PlannedExercise({required this.planned, required this.dragIndex});
 
   final TemplateExercise planned;
+
+  /// This row's position in the enclosing `ReorderableListView` — the handle
+  /// needs it, and the row itself has no other way to know.
+  final int dragIndex;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -261,6 +352,18 @@ class _PlannedExercise extends ConsumerWidget {
         children: [
           Row(
             children: [
+              // A handle rather than the whole row, so the number fields below
+              // stay tappable and a scroll never gets mistaken for a drag.
+              ReorderableDragStartListener(
+                index: dragIndex,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Icon(
+                    Icons.drag_handle,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
               Expanded(
                 child: Text(
                   name ?? 'Exercise',
